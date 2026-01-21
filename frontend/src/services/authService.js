@@ -63,7 +63,7 @@ const authService = {
       throw new Error('No refresh token available');
     }
 
-    const response = await api.post('/auth/token/refresh/', {
+    const response = await api.post('/auth/refresh/', {
       refresh: refreshToken,
     });
 

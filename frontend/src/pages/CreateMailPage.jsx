@@ -7,7 +7,6 @@ import {
   Typography,
   TextField,
   Button,
-  Grid,
   FormControl,
   InputLabel,
   Select,
@@ -83,7 +82,6 @@ const CreateMailPage = () => {
     setSaving(true);
 
     try {
-      // Prepare data
       const mailData = {
         letter_no: data.letter_no,
         date_received: data.date_received.toISOString().split('T')[0],
@@ -132,7 +130,7 @@ const CreateMailPage = () => {
       </Button>
 
       <Paper sx={{ p: 3 }}>
-        <Typography variant="h5" component="h1" gutterBottom>
+        <Typography variant="h5" component="h1" gutterBottom sx={{ mb: 3 }}>
           Create New Mail Entry
         </Typography>
 
@@ -143,48 +141,51 @@ const CreateMailPage = () => {
         )}
 
         <form onSubmit={handleSubmit(onSubmit)}>
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <Controller
-                name="letter_no"
-                control={control}
-                rules={{ required: 'Letter No is required' }}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    fullWidth
-                    label="Letter No *"
-                    error={!!errors.letter_no}
-                    helperText={errors.letter_no?.message}
-                  />
-                )}
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <LocalizationProvider dateAdapter={AdapterDateFns}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {/* Row 1: Letter No and Date Received */}
+            <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+              <Box sx={{ flex: '1 1 300px', minWidth: '250px' }}>
                 <Controller
-                  name="date_received"
+                  name="letter_no"
                   control={control}
-                  rules={{ required: 'Date Received is required' }}
+                  rules={{ required: 'Letter No is required' }}
                   render={({ field }) => (
-                    <DatePicker
+                    <TextField
                       {...field}
-                      label="Date Received *"
-                      slotProps={{
-                        textField: {
-                          fullWidth: true,
-                          error: !!errors.date_received,
-                          helperText: errors.date_received?.message,
-                        },
-                      }}
+                      fullWidth
+                      label="Letter No *"
+                      error={!!errors.letter_no}
+                      helperText={errors.letter_no?.message}
                     />
                   )}
                 />
-              </LocalizationProvider>
-            </Grid>
+              </Box>
+              <Box sx={{ flex: '1 1 300px', minWidth: '250px' }}>
+                <LocalizationProvider dateAdapter={AdapterDateFns}>
+                  <Controller
+                    name="date_received"
+                    control={control}
+                    rules={{ required: 'Date Received is required' }}
+                    render={({ field }) => (
+                      <DatePicker
+                        {...field}
+                        label="Date Received *"
+                        slotProps={{
+                          textField: {
+                            fullWidth: true,
+                            error: !!errors.date_received,
+                            helperText: errors.date_received?.message,
+                          },
+                        }}
+                      />
+                    )}
+                  />
+                </LocalizationProvider>
+              </Box>
+            </Box>
 
-            <Grid item xs={12}>
+            {/* Row 2: Subject (full width) */}
+            <Box>
               <Controller
                 name="mail_reference_subject"
                 control={control}
@@ -201,146 +202,157 @@ const CreateMailPage = () => {
                   />
                 )}
               />
-            </Grid>
+            </Box>
 
-            <Grid item xs={12} md={6}>
-              <Controller
-                name="from_office"
-                control={control}
-                rules={{ required: 'From Office is required' }}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    fullWidth
-                    label="From Office *"
-                    error={!!errors.from_office}
-                    helperText={errors.from_office?.message}
-                  />
-                )}
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Controller
-                name="action_required"
-                control={control}
-                rules={{ required: 'Action Required is required' }}
-                render={({ field }) => (
-                  <FormControl fullWidth error={!!errors.action_required}>
-                    <InputLabel>Action Required *</InputLabel>
-                    <Select {...field} label="Action Required *">
-                      {ACTION_REQUIRED_OPTIONS.map((action) => (
-                        <MenuItem key={action} value={action}>
-                          {action}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                    {errors.action_required && (
-                      <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 2 }}>
-                        {errors.action_required.message}
-                      </Typography>
-                    )}
-                  </FormControl>
-                )}
-              />
-            </Grid>
-
-            {showOtherAction && (
-              <Grid item xs={12} md={6}>
+            {/* Row 3: From Office and Action Required */}
+            <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+              <Box sx={{ flex: '1 1 300px', minWidth: '250px' }}>
                 <Controller
-                  name="action_required_other"
+                  name="from_office"
                   control={control}
-                  rules={{
-                    required: showOtherAction ? 'Please specify the action' : false,
-                  }}
+                  rules={{ required: 'From Office is required' }}
                   render={({ field }) => (
                     <TextField
                       {...field}
                       fullWidth
-                      label="Specify Action *"
-                      error={!!errors.action_required_other}
-                      helperText={errors.action_required_other?.message}
+                      label="From Office *"
+                      error={!!errors.from_office}
+                      helperText={errors.from_office?.message}
                     />
                   )}
                 />
-              </Grid>
+              </Box>
+              <Box sx={{ flex: '1 1 300px', minWidth: '250px' }}>
+                <Controller
+                  name="action_required"
+                  control={control}
+                  rules={{ required: 'Action Required is required' }}
+                  render={({ field }) => (
+                    <FormControl fullWidth error={!!errors.action_required}>
+                      <InputLabel>Action Required *</InputLabel>
+                      <Select {...field} label="Action Required *">
+                        {ACTION_REQUIRED_OPTIONS.map((action) => (
+                          <MenuItem key={action} value={action}>
+                            {action}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      {errors.action_required && (
+                        <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 2 }}>
+                          {errors.action_required.message}
+                        </Typography>
+                      )}
+                    </FormControl>
+                  )}
+                />
+              </Box>
+            </Box>
+
+            {/* Conditional: Specify Other Action */}
+            {showOtherAction && (
+              <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                <Box sx={{ flex: '1 1 300px', minWidth: '250px' }}>
+                  <Controller
+                    name="action_required_other"
+                    control={control}
+                    rules={{
+                      required: showOtherAction ? 'Please specify the action' : false,
+                    }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="Specify Action *"
+                        error={!!errors.action_required_other}
+                        helperText={errors.action_required_other?.message}
+                      />
+                    )}
+                  />
+                </Box>
+              </Box>
             )}
 
-            <Grid item xs={12} md={6}>
-              <Controller
-                name="section"
-                control={control}
-                rules={{ required: 'Section is required' }}
-                render={({ field }) => (
-                  <FormControl fullWidth error={!!errors.section}>
-                    <InputLabel>Section *</InputLabel>
-                    <Select {...field} label="Section *">
-                      {sections.map((section) => (
-                        <MenuItem key={section.id} value={section.id}>
-                          {section.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                    {errors.section && (
-                      <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 2 }}>
-                        {errors.section.message}
-                      </Typography>
-                    )}
-                  </FormControl>
-                )}
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Controller
-                name="assigned_to"
-                control={control}
-                rules={{ required: 'Assigned To is required' }}
-                render={({ field }) => (
-                  <FormControl fullWidth error={!!errors.assigned_to}>
-                    <InputLabel>Assign To *</InputLabel>
-                    <Select {...field} label="Assign To *">
-                      {users.map((user) => (
-                        <MenuItem key={user.id} value={user.id}>
-                          {user.full_name} ({user.role})
-                        </MenuItem>
-                      ))}
-                    </Select>
-                    {errors.assigned_to && (
-                      <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 2 }}>
-                        {errors.assigned_to.message}
-                      </Typography>
-                    )}
-                  </FormControl>
-                )}
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <LocalizationProvider dateAdapter={AdapterDateFns}>
+            {/* Row 4: Section and Assign To */}
+            <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+              <Box sx={{ flex: '1 1 300px', minWidth: '250px' }}>
                 <Controller
-                  name="due_date"
+                  name="section"
                   control={control}
-                  rules={{ required: 'Due Date is required' }}
+                  rules={{ required: 'Section is required' }}
                   render={({ field }) => (
-                    <DatePicker
-                      {...field}
-                      label="Due Date *"
-                      minDate={new Date()}
-                      slotProps={{
-                        textField: {
-                          fullWidth: true,
-                          error: !!errors.due_date,
-                          helperText: errors.due_date?.message || 'Cannot be edited after creation',
-                        },
-                      }}
-                    />
+                    <FormControl fullWidth error={!!errors.section}>
+                      <InputLabel>Section *</InputLabel>
+                      <Select {...field} label="Section *">
+                        {sections.map((section) => (
+                          <MenuItem key={section.id} value={section.id}>
+                            {section.name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      {errors.section && (
+                        <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 2 }}>
+                          {errors.section.message}
+                        </Typography>
+                      )}
+                    </FormControl>
                   )}
                 />
-              </LocalizationProvider>
-            </Grid>
+              </Box>
+              <Box sx={{ flex: '1 1 300px', minWidth: '250px' }}>
+                <Controller
+                  name="assigned_to"
+                  control={control}
+                  rules={{ required: 'Assigned To is required' }}
+                  render={({ field }) => (
+                    <FormControl fullWidth error={!!errors.assigned_to}>
+                      <InputLabel>Assign To *</InputLabel>
+                      <Select {...field} label="Assign To *">
+                        {users.map((user) => (
+                          <MenuItem key={user.id} value={user.id}>
+                            {user.full_name} ({user.role})
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      {errors.assigned_to && (
+                        <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 2 }}>
+                          {errors.assigned_to.message}
+                        </Typography>
+                      )}
+                    </FormControl>
+                  )}
+                />
+              </Box>
+            </Box>
 
-            <Grid item xs={12}>
+            {/* Row 5: Due Date */}
+            <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+              <Box sx={{ flex: '1 1 300px', minWidth: '250px', maxWidth: '400px' }}>
+                <LocalizationProvider dateAdapter={AdapterDateFns}>
+                  <Controller
+                    name="due_date"
+                    control={control}
+                    rules={{ required: 'Due Date is required' }}
+                    render={({ field }) => (
+                      <DatePicker
+                        {...field}
+                        label="Due Date *"
+                        minDate={new Date()}
+                        slotProps={{
+                          textField: {
+                            fullWidth: true,
+                            error: !!errors.due_date,
+                            helperText: errors.due_date?.message || 'Cannot be edited after creation',
+                          },
+                        }}
+                      />
+                    )}
+                  />
+                </LocalizationProvider>
+              </Box>
+            </Box>
+
+            {/* Row 6: Remarks (full width) */}
+            <Box>
               <Controller
                 name="remarks"
                 control={control}
@@ -355,28 +367,27 @@ const CreateMailPage = () => {
                   />
                 )}
               />
-            </Grid>
+            </Box>
 
-            <Grid item xs={12}>
-              <Box display="flex" gap={2} justifyContent="flex-end">
-                <Button
-                  variant="outlined"
-                  onClick={() => navigate('/mails')}
-                  disabled={saving}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  startIcon={<SaveIcon />}
-                  disabled={saving}
-                >
-                  {saving ? 'Creating...' : 'Create Mail'}
-                </Button>
-              </Box>
-            </Grid>
-          </Grid>
+            {/* Action Buttons */}
+            <Box display="flex" gap={2} justifyContent="flex-end">
+              <Button
+                variant="outlined"
+                onClick={() => navigate('/mails')}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                startIcon={<SaveIcon />}
+                disabled={saving}
+              >
+                {saving ? 'Creating...' : 'Create Mail'}
+              </Button>
+            </Box>
+          </Box>
         </form>
       </Paper>
     </Box>

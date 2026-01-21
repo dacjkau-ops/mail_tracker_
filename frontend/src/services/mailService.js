@@ -15,7 +15,8 @@ const mailService = {
     if (filters.search) params.append('search', filters.search);
 
     const response = await api.get(`/records/?${params.toString()}`);
-    return response.data;
+    // Handle paginated response
+    return response.data.results || response.data;
   },
 
   /**
@@ -89,7 +90,8 @@ const mailService = {
    */
   async getAuditTrail(id) {
     const response = await api.get(`/audit/?mail_record=${id}`);
-    return response.data;
+    // Handle paginated response
+    return response.data.results || response.data;
   },
 
   /**

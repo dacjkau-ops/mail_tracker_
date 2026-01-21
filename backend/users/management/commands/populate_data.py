@@ -11,10 +11,14 @@ class Command(BaseCommand):
 
         # Create sections
         sections_data = [
-            {'name': 'Accounts', 'description': 'Accounts and Finance Section'},
-            {'name': 'Administration', 'description': 'Administration Section'},
-            {'name': 'Establishment', 'description': 'Establishment Section'},
-            {'name': 'Legal', 'description': 'Legal Section'},
+            {'name': 'AMG-I', 'description': 'AMG-I Section'},
+            {'name': 'AMG-II', 'description': 'AMG-II Section'},
+            {'name': 'Administration', 'description': 'Establishment Section'},
+            {'name': 'AMG-III', 'description': 'AMG-III Section'},
+            {'name': 'SMU', 'description': 'Strategic Management Unit'},
+            {'name': 'Report', 'description': 'Report Section'},
+            {'name': 'ITA', 'description': 'Internal Test Audit Section'},
+            {'name': 'Accounts', 'description': 'Accounts Section'},
         ]
 
         sections = {}

@@ -119,15 +119,22 @@ class MailRecord(models.Model):
         super().save(*args, **kwargs)
 
     def time_in_current_stage(self):
-        """Calculate time spent in current stage"""
+        """Calculate time spent in current stage
+        For closed mails: total time from creation to completion
+        For open mails: time since last status change
+        """
         if self.status == 'Closed' and self.date_of_completion:
+            # For closed mails, show total processing time from creation to completion
             end_time = timezone.make_aware(
-                timezone.datetime.combine(self.date_of_completion, timezone.datetime.min.time())
+                timezone.datetime.combine(self.date_of_completion, timezone.datetime.max.time().replace(microsecond=0))
             )
+            start_time = self.created_at
         else:
+            # For open mails, show time since last status change
             end_time = timezone.now()
+            start_time = self.last_status_change
 
-        delta = end_time - self.last_status_change
+        delta = end_time - start_time
         days = delta.days
         hours = delta.seconds // 3600
         minutes = (delta.seconds % 3600) // 60

@@ -19,7 +19,7 @@ const ReassignDialog = ({ open, onClose, mailId, onReassign }) => {
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [formData, setFormData] = useState({
-    assigned_to: '',
+    new_handler: '',
     remarks: '',
   });
   const [error, setError] = useState('');
@@ -28,7 +28,7 @@ const ReassignDialog = ({ open, onClose, mailId, onReassign }) => {
   useEffect(() => {
     if (open) {
       loadUsers();
-      setFormData({ assigned_to: '', remarks: '' });
+      setFormData({ new_handler: '', remarks: '' });
       setError('');
     }
   }, [open]);
@@ -53,7 +53,7 @@ const ReassignDialog = ({ open, onClose, mailId, onReassign }) => {
   };
 
   const handleSubmit = async () => {
-    if (!formData.assigned_to) {
+    if (!formData.new_handler) {
       setError('Please select a user to reassign to');
       return;
     }
@@ -93,9 +93,9 @@ const ReassignDialog = ({ open, onClose, mailId, onReassign }) => {
             <FormControl fullWidth margin="normal">
               <InputLabel>Reassign To *</InputLabel>
               <Select
-                value={formData.assigned_to}
+                value={formData.new_handler}
                 label="Reassign To *"
-                onChange={(e) => handleChange('assigned_to', e.target.value)}
+                onChange={(e) => handleChange('new_handler', e.target.value)}
               >
                 {users.map((user) => (
                   <MenuItem key={user.id} value={user.id}>

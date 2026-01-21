@@ -4,7 +4,7 @@ import {
   Box,
   Paper,
   Typography,
-  Grid,
+  Grid2 as Grid,
   Chip,
   Button,
   Divider,
@@ -120,21 +120,25 @@ const MailDetailPage = () => {
   };
 
   const canEditRemarks = () => {
-    return user?.id === mail?.current_handler?.id;
+    const handlerId = mail?.current_handler_details?.id || mail?.current_handler;
+    return user?.id === handlerId;
   };
 
   const canReassignMail = () => {
     if (!mail) return false;
     if (user?.role === 'AG') return true;
-    if (user?.role === 'DAG' && user?.section === mail?.section?.id) return true;
-    if (user?.id === mail?.current_handler?.id) return true;
+    const sectionId = mail?.section_details?.id || mail?.section;
+    if (user?.role === 'DAG' && user?.section === sectionId) return true;
+    const handlerId = mail?.current_handler_details?.id || mail?.current_handler;
+    if (user?.id === handlerId) return true;
     return false;
   };
 
   const canCloseMail = () => {
     if (!mail || mail.status === 'Closed') return false;
     if (user?.role === 'AG') return true;
-    if (user?.id === mail?.current_handler?.id) return true;
+    const handlerId = mail?.current_handler_details?.id || mail?.current_handler;
+    if (user?.id === handlerId) return true;
     return false;
   };
 
@@ -181,7 +185,7 @@ const MailDetailPage = () => {
               {mail.sl_no}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Created by {mail.created_by?.full_name} on {formatDateTime(mail.created_at)}
+              Created by {mail.created_by_details?.full_name || 'Unknown'} on {formatDateTime(mail.created_at)}
             </Typography>
           </Box>
           <Box display="flex" gap={1} alignItems="center">
@@ -199,7 +203,7 @@ const MailDetailPage = () => {
         <Divider sx={{ mb: 2 }} />
 
         <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Typography variant="body2" color="text.secondary">
               Letter No
             </Typography>
@@ -208,7 +212,7 @@ const MailDetailPage = () => {
             </Typography>
           </Grid>
 
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Typography variant="body2" color="text.secondary">
               Date Received
             </Typography>
@@ -217,7 +221,7 @@ const MailDetailPage = () => {
             </Typography>
           </Grid>
 
-          <Grid item xs={12}>
+          <Grid size={12}>
             <Typography variant="body2" color="text.secondary">
               Subject
             </Typography>
@@ -226,7 +230,7 @@ const MailDetailPage = () => {
             </Typography>
           </Grid>
 
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Typography variant="body2" color="text.secondary">
               From Office
             </Typography>
@@ -235,7 +239,7 @@ const MailDetailPage = () => {
             </Typography>
           </Grid>
 
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Typography variant="body2" color="text.secondary">
               Action Required
             </Typography>
@@ -244,16 +248,16 @@ const MailDetailPage = () => {
             </Typography>
           </Grid>
 
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Typography variant="body2" color="text.secondary">
               Section
             </Typography>
             <Typography variant="body1" gutterBottom>
-              {mail.section?.name || 'N/A'}
+              {mail.section_details?.name || 'N/A'}
             </Typography>
           </Grid>
 
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Typography variant="body2" color="text.secondary">
               Due Date
             </Typography>
@@ -262,34 +266,34 @@ const MailDetailPage = () => {
             </Typography>
           </Grid>
 
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Typography variant="body2" color="text.secondary">
               Assigned To (Original)
             </Typography>
             <Typography variant="body1" gutterBottom>
-              {mail.assigned_to?.full_name || 'N/A'}
+              {mail.assigned_to_details?.full_name || 'N/A'}
             </Typography>
           </Grid>
 
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Typography variant="body2" color="text.secondary">
               Current Handler
             </Typography>
             <Typography variant="body1" gutterBottom>
-              {mail.current_handler?.full_name || 'N/A'}
+              {mail.current_handler_details?.full_name || 'N/A'}
             </Typography>
           </Grid>
 
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Typography variant="body2" color="text.secondary">
               Monitoring Officer
             </Typography>
             <Typography variant="body1" gutterBottom>
-              {mail.monitoring_officer?.full_name || 'N/A'}
+              {mail.monitoring_officer_details?.full_name || 'N/A'}
             </Typography>
           </Grid>
 
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Typography variant="body2" color="text.secondary">
               Time in Current Stage
             </Typography>
@@ -299,7 +303,7 @@ const MailDetailPage = () => {
           </Grid>
 
           {mail.date_of_completion && (
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Typography variant="body2" color="text.secondary">
                 Date of Completion
               </Typography>
@@ -391,7 +395,7 @@ const MailDetailPage = () => {
                         [{formatDateTime(entry.timestamp)}]
                       </Typography>
                       <Typography variant="body2" component="span" sx={{ ml: 1 }}>
-                        {entry.action} by {entry.performed_by?.full_name}
+                        {entry.action_display || entry.action} by {entry.performed_by_details?.full_name || 'Unknown'}
                       </Typography>
                     </Box>
                   }

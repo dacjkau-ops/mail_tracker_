@@ -8,7 +8,7 @@ class AuditTrail(models.Model):
         ('CREATE', 'Created'),
         ('ASSIGN', 'Assigned'),
         ('REASSIGN', 'Reassigned'),
-        ('UPDATE', 'Updated'),
+        ('UPDATE', 'Added remarks'),
         ('CLOSE', 'Closed'),
         ('REOPEN', 'Reopened'),
     ]
