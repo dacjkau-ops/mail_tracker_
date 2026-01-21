@@ -4,7 +4,7 @@ import {
   Box,
   Paper,
   Typography,
-  Grid2 as Grid,
+  Grid,
   Chip,
   Button,
   Divider,
@@ -203,7 +203,7 @@ const MailDetailPage = () => {
         <Divider sx={{ mb: 2 }} />
 
         <Grid container spacing={2}>
-          <Grid size={{ xs: 12, md: 6 }}>
+          <Grid item xs={12} md={6}>
             <Typography variant="body2" color="text.secondary">
               Letter No
             </Typography>
@@ -212,7 +212,7 @@ const MailDetailPage = () => {
             </Typography>
           </Grid>
 
-          <Grid size={{ xs: 12, md: 6 }}>
+          <Grid item xs={12} md={6}>
             <Typography variant="body2" color="text.secondary">
               Date Received
             </Typography>
@@ -221,7 +221,7 @@ const MailDetailPage = () => {
             </Typography>
           </Grid>
 
-          <Grid size={12}>
+          <Grid item xs={12}>
             <Typography variant="body2" color="text.secondary">
               Subject
             </Typography>
@@ -230,7 +230,7 @@ const MailDetailPage = () => {
             </Typography>
           </Grid>
 
-          <Grid size={{ xs: 12, md: 6 }}>
+          <Grid item xs={12} md={6}>
             <Typography variant="body2" color="text.secondary">
               From Office
             </Typography>
@@ -239,7 +239,7 @@ const MailDetailPage = () => {
             </Typography>
           </Grid>
 
-          <Grid size={{ xs: 12, md: 6 }}>
+          <Grid item xs={12} md={6}>
             <Typography variant="body2" color="text.secondary">
               Action Required
             </Typography>
@@ -248,7 +248,7 @@ const MailDetailPage = () => {
             </Typography>
           </Grid>
 
-          <Grid size={{ xs: 12, md: 6 }}>
+          <Grid item xs={12} md={6}>
             <Typography variant="body2" color="text.secondary">
               Section
             </Typography>
@@ -257,7 +257,7 @@ const MailDetailPage = () => {
             </Typography>
           </Grid>
 
-          <Grid size={{ xs: 12, md: 6 }}>
+          <Grid item xs={12} md={6}>
             <Typography variant="body2" color="text.secondary">
               Due Date
             </Typography>
@@ -266,7 +266,7 @@ const MailDetailPage = () => {
             </Typography>
           </Grid>
 
-          <Grid size={{ xs: 12, md: 6 }}>
+          <Grid item xs={12} md={6}>
             <Typography variant="body2" color="text.secondary">
               Assigned To (Original)
             </Typography>
@@ -275,7 +275,7 @@ const MailDetailPage = () => {
             </Typography>
           </Grid>
 
-          <Grid size={{ xs: 12, md: 6 }}>
+          <Grid item xs={12} md={6}>
             <Typography variant="body2" color="text.secondary">
               Current Handler
             </Typography>
@@ -284,7 +284,7 @@ const MailDetailPage = () => {
             </Typography>
           </Grid>
 
-          <Grid size={{ xs: 12, md: 6 }}>
+          <Grid item xs={12} md={6}>
             <Typography variant="body2" color="text.secondary">
               Monitoring Officer
             </Typography>
@@ -293,7 +293,7 @@ const MailDetailPage = () => {
             </Typography>
           </Grid>
 
-          <Grid size={{ xs: 12, md: 6 }}>
+          <Grid item xs={12} md={6}>
             <Typography variant="body2" color="text.secondary">
               Time in Current Stage
             </Typography>
@@ -303,7 +303,7 @@ const MailDetailPage = () => {
           </Grid>
 
           {mail.date_of_completion && (
-            <Grid size={{ xs: 12, md: 6 }}>
+            <Grid item xs={12} md={6}>
               <Typography variant="body2" color="text.secondary">
                 Date of Completion
               </Typography>

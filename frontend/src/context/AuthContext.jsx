@@ -23,33 +23,15 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     // Initialize auth state from localStorage
-    const initAuth = async () => {
-      const currentUser = authService.getCurrentUser();
-      const hasToken = authService.isAuthenticated();
+    const currentUser = authService.getCurrentUser();
+    const hasToken = authService.isAuthenticated();
 
-      if (currentUser && hasToken) {
-        // Validate token by trying to refresh it if needed
-        try {
-          // Try to get a fresh token to validate the session
-          const refreshToken = localStorage.getItem('refresh_token');
-          if (refreshToken) {
-            await authService.refreshToken();
-            setUser(currentUser);
-          } else {
-            // No refresh token, clear everything
-            clearAuth();
-          }
-        } catch (error) {
-          // Token refresh failed, session is invalid
-          console.log('Session expired, clearing auth state');
-          clearAuth();
-        }
-      }
-      setLoading(false);
-    };
-
-    initAuth();
-  }, [clearAuth]);
+    if (currentUser && hasToken) {
+      setUser(currentUser);
+    }
+    // Always set loading to false immediately
+    setLoading(false);
+  }, []);
 
   // Listen for storage events (logout from another tab)
   useEffect(() => {
