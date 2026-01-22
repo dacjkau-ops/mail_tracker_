@@ -1,111 +1,66 @@
 from django.core.management.base import BaseCommand
-from sections.models import Section
 from users.models import User
 
 
 class Command(BaseCommand):
-    help = 'Populate database with sample sections and users'
+    help = 'Create initial superuser/AG if none exists'
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--username',
+            default='admin',
+            help='Username for the superuser (default: admin)'
+        )
+        parser.add_argument(
+            '--email',
+            default='admin@office.gov',
+            help='Email for the superuser'
+        )
+        parser.add_argument(
+            '--password',
+            default='admin123',
+            help='Password for the superuser (default: admin123)'
+        )
+        parser.add_argument(
+            '--full-name',
+            default='System Administrator',
+            help='Full name for the superuser'
+        )
 
     def handle(self, *args, **kwargs):
-        self.stdout.write('Creating sections...')
+        username = kwargs['username']
+        email = kwargs['email']
+        password = kwargs['password']
+        full_name = kwargs['full_name']
 
-        # Create sections
-        sections_data = [
-            {'name': 'AMG-I', 'description': 'AMG-I Section'},
-            {'name': 'AMG-II', 'description': 'AMG-II Section'},
-            {'name': 'Administration', 'description': 'Establishment Section'},
-            {'name': 'AMG-III', 'description': 'AMG-III Section'},
-            {'name': 'SMU', 'description': 'Strategic Management Unit'},
-            {'name': 'Report', 'description': 'Report Section'},
-            {'name': 'ITA', 'description': 'Internal Test Audit Section'},
-            {'name': 'Accounts', 'description': 'Accounts Section'},
-        ]
+        # Check if any superuser exists
+        if User.objects.filter(is_superuser=True).exists():
+            self.stdout.write(self.style.WARNING('Superuser already exists. Skipping creation.'))
+            self.stdout.write('\nTo create users and sections:')
+            self.stdout.write('1. Go to Django Admin: http://localhost:8000/admin/')
+            self.stdout.write('2. Create sections under "Sections"')
+            self.stdout.write('3. Create users under "Users" with appropriate roles and sections')
+            self.stdout.write('4. Or use CSV/JSON import in User admin')
+            return
 
-        sections = {}
-        for section_data in sections_data:
-            section, created = Section.objects.get_or_create(
-                name=section_data['name'],
-                defaults={'description': section_data['description']}
+        # Create superuser with AG role
+        try:
+            user = User.objects.create_superuser(
+                username=username,
+                email=email,
+                password=password,
+                full_name=full_name,
+                role='AG',
+                section=None,  # AG has no specific section
             )
-            sections[section.name] = section
-            if created:
-                self.stdout.write(self.style.SUCCESS(f'Created section: {section.name}'))
-            else:
-                self.stdout.write(f'Section already exists: {section.name}')
-
-        self.stdout.write('\nCreating users...')
-
-        # Create users
-        users_data = [
-            {
-                'username': 'ag_sharma',
-                'email': 'ag.sharma@office.gov',
-                'password': 'password123',
-                'full_name': 'Rajesh Sharma',
-                'role': 'AG',
-                'section': None,
-            },
-            {
-                'username': 'dag_accounts',
-                'email': 'dag.accounts@office.gov',
-                'password': 'password123',
-                'full_name': 'Priya Kumar',
-                'role': 'DAG',
-                'section': sections['Accounts'],
-            },
-            {
-                'username': 'dag_admin',
-                'email': 'dag.admin@office.gov',
-                'password': 'password123',
-                'full_name': 'Amit Singh',
-                'role': 'DAG',
-                'section': sections['Administration'],
-            },
-            {
-                'username': 'srao_verma',
-                'email': 'srao.verma@office.gov',
-                'password': 'password123',
-                'full_name': 'Sunita Verma',
-                'role': 'SrAO',
-                'section': sections['Accounts'],
-            },
-            {
-                'username': 'aao_patel',
-                'email': 'aao.patel@office.gov',
-                'password': 'password123',
-                'full_name': 'Rahul Patel',
-                'role': 'AAO',
-                'section': sections['Accounts'],
-            },
-            {
-                'username': 'srao_reddy',
-                'email': 'srao.reddy@office.gov',
-                'password': 'password123',
-                'full_name': 'Lakshmi Reddy',
-                'role': 'SrAO',
-                'section': sections['Administration'],
-            },
-        ]
-
-        for user_data in users_data:
-            try:
-                user = User.objects.get(username=user_data['username'])
-                self.stdout.write(f'User already exists: {user_data["username"]}')
-            except User.DoesNotExist:
-                user = User.objects.create_user(
-                    username=user_data['username'],
-                    email=user_data['email'],
-                    password=user_data['password'],
-                    full_name=user_data['full_name'],
-                    role=user_data['role'],
-                    section=user_data['section'],
-                )
-                self.stdout.write(self.style.SUCCESS(
-                    f'Created user: {user.username} ({user.role})'
-                ))
-
-        self.stdout.write(self.style.SUCCESS('\nData population completed!'))
-        self.stdout.write('\nSample credentials:')
-        self.stdout.write('AG: ag_sharma / password123')
-        self.stdout.write('DAG (Accounts): dag_accounts / password123')
-        self.stdout.write('SrAO: srao_verma / password123')
+            self.stdout.write(self.style.SUCCESS(f'Created superuser: {username}'))
+            self.stdout.write(f'\nLogin credentials:')
+            self.stdout.write(f'Username: {username}')
+            self.stdout.write(f'Password: {password}')
+            self.stdout.write(f'\nDjango Admin: http://localhost:8000/admin/')
+            self.stdout.write('\nNext steps:')
+            self.stdout.write('1. Create sections in Django Admin')
+            self.stdout.write('2. Create users with appropriate roles (AG, DAG, SrAO, AAO)')
+            self.stdout.write('3. Or use CSV/JSON import for bulk user creation')
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f'Failed to create superuser: {e}'))

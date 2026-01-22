@@ -113,6 +113,62 @@ const mailService = {
     // Handle paginated response
     return response.data.results || response.data;
   },
+
+  // ==================== Multi-Assignment Methods ====================
+
+  /**
+   * Assign mail to multiple users in parallel
+   * @param {string} id - Mail ID
+   * @param {Object} data - { user_ids: [1, 2, 3], remarks: "..." }
+   * @returns {Promise}
+   */
+  async multiAssign(id, data) {
+    const response = await api.post(`/records/${id}/multi_assign/`, data);
+    return response.data;
+  },
+
+  /**
+   * Get all parallel assignments for a mail
+   * @param {string} id - Mail ID
+   * @returns {Promise<Array>}
+   */
+  async getAssignments(id) {
+    const response = await api.get(`/records/${id}/assignments/`);
+    return response.data;
+  },
+
+  /**
+   * Update remarks on an assignment (by assignee)
+   * @param {string} assignmentId - Assignment ID
+   * @param {string} remarks
+   * @returns {Promise}
+   */
+  async updateAssignmentRemarks(assignmentId, remarks) {
+    const response = await api.post(`/assignments/${assignmentId}/update_remarks/`, { remarks });
+    return response.data;
+  },
+
+  /**
+   * Mark an assignment as complete (by assignee)
+   * @param {string} assignmentId - Assignment ID
+   * @param {string} remarks
+   * @returns {Promise}
+   */
+  async completeAssignment(assignmentId, remarks) {
+    const response = await api.post(`/assignments/${assignmentId}/complete/`, { remarks });
+    return response.data;
+  },
+
+  /**
+   * Revoke an assignment (by supervisor)
+   * @param {string} assignmentId - Assignment ID
+   * @param {string} remarks
+   * @returns {Promise}
+   */
+  async revokeAssignment(assignmentId, remarks) {
+    const response = await api.post(`/assignments/${assignmentId}/revoke/`, { remarks });
+    return response.data;
+  },
 };
 
 export default mailService;

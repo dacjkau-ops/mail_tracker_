@@ -1,3 +1,4 @@
+import logging
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -7,17 +8,25 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import User
 from .serializers import UserSerializer, UserCreateSerializer, UserMinimalSerializer
 
+logger = logging.getLogger(__name__)
+
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     """Custom serializer to include user data in token response"""
     def validate(self, attrs):
-        data = super().validate(attrs)
+        username = attrs.get('username', '')
+        logger.info(f"Login attempt for user: {username}")
 
-        # Add user data to the response
-        user_serializer = UserSerializer(self.user)
-        data['user'] = user_serializer.data
-
-        return data
+        try:
+            data = super().validate(attrs)
+            # Add user data to the response
+            user_serializer = UserSerializer(self.user)
+            data['user'] = user_serializer.data
+            logger.info(f"Login successful for user: {username}")
+            return data
+        except Exception as e:
+            logger.warning(f"Login failed for user: {username} - {str(e)}")
+            raise
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):

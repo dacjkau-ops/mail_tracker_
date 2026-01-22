@@ -1,0 +1,108 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    .import-form {
+        max-width: 600px;
+        margin: 20px auto;
+        padding: 20px;
+        background: #f9f9f9;
+        border-radius: 4px;
+    }
+    .import-form h2 {
+        margin-top: 0;
+    }
+    .import-form .helptext {
+        color: #666;
+        font-size: 0.9em;
+        margin-top: 5px;
+    }
+    .import-form input[type="file"] {
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .import-form input[type="submit"] {
+        margin-top: 15px;
+    }
+    .format-info {
+        background: #fff;
+        border: 1px solid #ddd;
+        padding: 15px;
+        margin-top: 20px;
+        border-radius: 4px;
+    }
+    .format-info h3 {
+        margin-top: 0;
+    }
+    .format-info pre {
+        background: #f5f5f5;
+        padding: 10px;
+        overflow-x: auto;
+        font-size: 0.85em;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="import-form">
+    <h2>{% trans "Import Users from File" %}</h2>
+
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <input type="submit" value="{% trans 'Import' %}" class="default">
+        <a href="{% url 'admin:users_user_changelist' %}" class="button cancel-link">{% trans "Cancel" %}</a>
+    </form>
+
+    <div class="format-info">
+        <h3>CSV Format</h3>
+        <p>Required columns: <code>username, email, password, full_name, role</code></p>
+        <p>Optional columns: <code>section_name</code></p>
+        <pre>username,email,password,full_name,role,section_name
+dag_finance,dag.finance@office.gov,password123,Amit Kumar,DAG,AMG-I
+srao_kumar,srao.kumar@office.gov,password123,Rahul Kumar,SrAO,AMG-I
+aao_sharma,aao.sharma@office.gov,password123,Priya Sharma,AAO,AMG-I</pre>
+
+        <h3>JSON Format</h3>
+        <pre>[
+  {
+    "username": "dag_finance",
+    "email": "dag.finance@office.gov",
+    "password": "password123",
+    "full_name": "Amit Kumar",
+    "role": "DAG",
+    "section_name": "AMG-I"
+  },
+  {
+    "username": "srao_kumar",
+    "email": "srao.kumar@office.gov",
+    "password": "password123",
+    "full_name": "Rahul Kumar",
+    "role": "SrAO",
+    "section_name": "AMG-I"
+  }
+]</pre>
+
+        <h3>Valid Roles</h3>
+        <ul>
+            <li><strong>AG</strong> - Additional General (head of office, no section)</li>
+            <li><strong>DAG</strong> - Deputy Additional General (section head)</li>
+            <li><strong>SrAO</strong> - Senior Accounts Officer</li>
+            <li><strong>AAO</strong> - Assistant Accounts Officer</li>
+        </ul>
+
+        <h3>Notes</h3>
+        <ul>
+            <li>Section must exist before importing users (create sections first)</li>
+            <li>AG users typically have no section (leave section_name empty)</li>
+            <li>Existing users (same username) will be skipped</li>
+            <li>Passwords are stored securely (hashed)</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

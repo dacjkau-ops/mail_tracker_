@@ -67,6 +67,10 @@ class MailRecord(models.Model):
     # Additional info
     remarks = models.TextField(blank=True, null=True)
 
+    # Multi-assignment support (for assigning to multiple persons)
+    is_multi_assigned = models.BooleanField(default=False)
+    consolidated_remarks = models.TextField(blank=True, null=True)
+
     # Metadata
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -213,3 +217,84 @@ class MailRecord(models.Model):
     def can_reopen(self, user):
         """Only AG can reopen closed mails"""
         return user.is_ag() and self.status == 'Closed'
+
+    def can_multi_assign(self, user):
+        """Check if user can assign this mail to multiple people"""
+        if self.status == 'Closed':
+            return False
+        return user.is_ag() or (user.is_dag() and self.section == user.section)
+
+    def update_consolidated_remarks(self):
+        """Update consolidated remarks from all parallel assignments"""
+        assignments = self.parallel_assignments.filter(
+            status__in=['Active', 'Completed']
+        ).exclude(user_remarks__isnull=True).exclude(user_remarks='')
+
+        if not assignments.exists():
+            self.consolidated_remarks = None
+            self.save(update_fields=['consolidated_remarks'])
+            return
+
+        remarks_parts = []
+        for a in assignments.order_by('created_at'):
+            status_label = "[DONE]" if a.status == 'Completed' else "[IN PROGRESS]"
+            remarks_parts.append(
+                f"{status_label} {a.assigned_to.full_name}: {a.user_remarks}"
+            )
+
+        self.consolidated_remarks = "\n---\n".join(remarks_parts)
+        self.save(update_fields=['consolidated_remarks'])
+
+
+class MailAssignment(models.Model):
+    """
+    Tracks parallel assignments of a mail to multiple users.
+    Used when a supervisor assigns the same mail to multiple persons simultaneously.
+    Each assignment allows the assignee to add their own remarks independently.
+    """
+    ASSIGNMENT_STATUS_CHOICES = [
+        ('Active', 'Active'),
+        ('Completed', 'Completed'),
+        ('Revoked', 'Revoked'),
+    ]
+
+    mail_record = models.ForeignKey(
+        'MailRecord',
+        on_delete=models.CASCADE,
+        related_name='parallel_assignments'
+    )
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='parallel_assigned_mails'
+    )
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='parallel_assignments_made'
+    )
+    assignment_remarks = models.TextField(blank=True, null=True)  # Instructions from supervisor
+    user_remarks = models.TextField(blank=True, null=True)  # Response from assignee
+    status = models.CharField(max_length=20, choices=ASSIGNMENT_STATUS_CHOICES, default='Active')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['mail_record', 'status']),
+            models.Index(fields=['assigned_to', 'status']),
+        ]
+        # Prevent duplicate active assignments to same user for same mail
+        constraints = [
+            models.UniqueConstraint(
+                fields=['mail_record', 'assigned_to'],
+                condition=models.Q(status='Active'),
+                name='unique_active_assignment_per_user'
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.mail_record.sl_no} -> {self.assigned_to.full_name} ({self.status})"

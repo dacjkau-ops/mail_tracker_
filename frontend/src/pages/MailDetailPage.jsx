@@ -22,6 +22,7 @@ import {
   SwapHoriz as ReassignIcon,
   CheckCircle as CloseIcon,
   Replay as ReopenIcon,
+  GroupAdd as MultiAssignIcon,
 } from '@mui/icons-material';
 import mailService from '../services/mailService';
 import { useAuth } from '../context/AuthContext';
@@ -31,6 +32,8 @@ import RemarksEditDialog from '../components/RemarksEditDialog';
 import ReassignDialog from '../components/ReassignDialog';
 import CloseMailDialog from '../components/CloseMailDialog';
 import ReopenDialog from '../components/ReopenDialog';
+import MultiAssignDialog from '../components/MultiAssignDialog';
+import AssignmentsPanel from '../components/AssignmentsPanel';
 
 const MailDetailPage = () => {
   const { id } = useParams();
@@ -46,6 +49,7 @@ const MailDetailPage = () => {
   const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [reopenDialogOpen, setReopenDialogOpen] = useState(false);
+  const [multiAssignDialogOpen, setMultiAssignDialogOpen] = useState(false);
 
   useEffect(() => {
     loadMail();
@@ -144,6 +148,14 @@ const MailDetailPage = () => {
 
   const canReopenMail = () => {
     return canReopen() && mail?.status === 'Closed';
+  };
+
+  const canMultiAssign = () => {
+    if (!mail || mail.status === 'Closed') return false;
+    if (user?.role === 'AG') return true;
+    const sectionId = mail?.section_details?.id || mail?.section;
+    if (user?.role === 'DAG' && user?.section === sectionId) return true;
+    return false;
   };
 
   if (loading) {
@@ -371,8 +383,21 @@ const MailDetailPage = () => {
               Reopen
             </Button>
           )}
+          {canMultiAssign() && (
+            <Button
+              variant="outlined"
+              color="secondary"
+              startIcon={<MultiAssignIcon />}
+              onClick={() => setMultiAssignDialogOpen(true)}
+            >
+              Assign to Multiple
+            </Button>
+          )}
         </Box>
       </Paper>
+
+      {/* Parallel Assignments Panel */}
+      <AssignmentsPanel mailId={id} onUpdate={() => { loadMail(); loadAuditTrail(); }} />
 
       {/* Audit Trail */}
       <Paper sx={{ p: 3 }}>
@@ -438,6 +463,14 @@ const MailDetailPage = () => {
         onClose={() => setReopenDialogOpen(false)}
         mailSlNo={mail.sl_no}
         onReopen={handleReopen}
+      />
+
+      <MultiAssignDialog
+        open={multiAssignDialogOpen}
+        onClose={() => setMultiAssignDialogOpen(false)}
+        mailId={id}
+        onSuccess={() => { loadMail(); loadAuditTrail(); }}
+        currentUser={user}
       />
     </Box>
   );

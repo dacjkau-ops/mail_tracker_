@@ -11,6 +11,10 @@ class AuditTrail(models.Model):
         ('UPDATE', 'Added remarks'),
         ('CLOSE', 'Closed'),
         ('REOPEN', 'Reopened'),
+        ('MULTI_ASSIGN', 'Assigned to Multiple'),  # Assigning to multiple persons
+        ('ASSIGNMENT_UPDATE', 'Assignment Updated'),  # Assignee updates their remarks
+        ('ASSIGNMENT_COMPLETE', 'Assignment Completed'),  # Assignee marks their part done
+        ('ASSIGNMENT_REVOKE', 'Assignment Revoked'),  # Supervisor revokes assignment
     ]
 
     mail_record = models.ForeignKey(

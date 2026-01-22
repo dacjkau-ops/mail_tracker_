@@ -6,7 +6,9 @@
       "Bash(set DJANGO_SETTINGS_MODULE=config.settings)",
       "Bash(python manage.py check:*)",
       "Bash(npm run build:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

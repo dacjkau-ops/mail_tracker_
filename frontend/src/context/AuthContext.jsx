@@ -23,14 +23,34 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     // Initialize auth state from localStorage
-    const currentUser = authService.getCurrentUser();
-    const hasToken = authService.isAuthenticated();
+    const initializeAuth = () => {
+      try {
+        const hasToken = authService.isAuthenticated();
+        const currentUser = authService.getCurrentUser();
 
-    if (currentUser && hasToken) {
-      setUser(currentUser);
-    }
-    // Always set loading to false immediately
-    setLoading(false);
+        if (hasToken && currentUser) {
+          // Validate user object has required fields
+          if (currentUser.id && currentUser.username && currentUser.role) {
+            setUser(currentUser);
+          } else {
+            // Invalid user data, clear auth
+            console.warn('Invalid user data in localStorage, clearing auth');
+            authService.clearAuth();
+          }
+        } else if (hasToken && !currentUser) {
+          // Token exists but no user data - corrupted state
+          console.warn('Token exists but no user data, clearing auth');
+          authService.clearAuth();
+        }
+        // If neither token nor user, that's fine - just not logged in
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        authService.clearAuth();
+      }
+      setLoading(false);
+    };
+
+    initializeAuth();
   }, []);
 
   // Listen for storage events (logout from another tab)
@@ -51,10 +71,31 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
       return { success: true };
     } catch (error) {
-      return {
-        success: false,
-        error: error.response?.data?.detail || 'Login failed. Please check your credentials.',
-      };
+      console.error('Login error:', error);
+
+      // Handle different error scenarios
+      let errorMessage = 'Login failed. Please check your credentials.';
+
+      if (error.response) {
+        // Server responded with error
+        const status = error.response.status;
+        const data = error.response.data;
+
+        if (status === 401) {
+          errorMessage = data?.detail || 'Invalid username or password.';
+        } else if (status === 400) {
+          errorMessage = data?.detail || 'Invalid login request.';
+        } else if (status === 500) {
+          errorMessage = 'Server error. Please try again later.';
+        } else {
+          errorMessage = data?.detail || `Error: ${status}`;
+        }
+      } else if (error.request) {
+        // No response received
+        errorMessage = 'Cannot connect to server. Please check your connection.';
+      }
+
+      return { success: false, error: errorMessage };
     }
   };
 

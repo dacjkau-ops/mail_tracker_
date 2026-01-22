@@ -36,9 +36,23 @@ const MailListPage = () => {
     status: '',
     search: '',
   });
+  // Separate state for search input to enable debouncing
+  const [searchInput, setSearchInput] = useState('');
   const [orderBy, setOrderBy] = useState('created_at');
   const [order, setOrder] = useState('desc');
 
+  // Debounce search input - only update filters.search after 400ms of no typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInput !== filters.search) {
+        setFilters(prev => ({ ...prev, search: searchInput }));
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [searchInput, filters.search]);
+
+  // Load mails when filters change (but not on every keystroke due to debounce)
   useEffect(() => {
     loadMails();
   }, [filters]);
@@ -133,8 +147,8 @@ const MailListPage = () => {
           <TextField
             label="Search"
             placeholder="Search by sl_no, letter_no, or subject"
-            value={filters.search}
-            onChange={(e) => handleFilterChange('search', e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             sx={{ flexGrow: 1 }}
             size="small"
           />

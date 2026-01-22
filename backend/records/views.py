@@ -1,17 +1,21 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from django.db.models import Q
 from config.permissions import MailRecordPermission
-from .models import MailRecord
+from .models import MailRecord, MailAssignment
 from .serializers import (
     MailRecordListSerializer,
     MailRecordDetailSerializer,
     MailRecordCreateSerializer,
     MailRecordUpdateSerializer,
     MailRecordReassignSerializer,
-    MailRecordCloseSerializer
+    MailRecordCloseSerializer,
+    MailAssignmentSerializer,
+    MultiAssignSerializer,
+    AssignmentUpdateSerializer,
+    AssignmentCompleteSerializer
 )
 from audit.models import AuditTrail
 from users.models import User
@@ -323,3 +327,224 @@ class MailRecordViewSet(viewsets.ModelViewSet):
 
         response_serializer = MailRecordDetailSerializer(mail_record)
         return Response(response_serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def multi_assign(self, request, pk=None):
+        """Assign mail to multiple users in parallel"""
+        mail_record = self.get_object()
+        serializer = MultiAssignSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user_ids = serializer.validated_data['user_ids']
+        remarks = serializer.validated_data['remarks']
+
+        # Permission check: only AG and DAG can multi-assign
+        user = request.user
+        if user.role not in ['AG', 'DAG']:
+            return Response(
+                {'error': 'Only AG/DAG can assign to multiple persons.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # DAG can only assign within their section
+        if user.role == 'DAG' and mail_record.section != user.section:
+            return Response(
+                {'error': 'You can only assign mails within your section.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Validate all users exist and are active
+        users = User.objects.filter(id__in=user_ids, is_active=True)
+        if users.count() != len(user_ids):
+            return Response(
+                {'error': 'One or more invalid users selected.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # For DAG, validate all users are in their section
+        if user.role == 'DAG':
+            for u in users:
+                if u.section != user.section:
+                    return Response(
+                        {'error': f'{u.full_name} is not in your section.'},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+
+        # Create assignments
+        created_assignments = []
+        for u in users:
+            assignment, created = MailAssignment.objects.get_or_create(
+                mail_record=mail_record,
+                assigned_to=u,
+                status='Active',
+                defaults={
+                    'assigned_by': user,
+                    'assignment_remarks': remarks
+                }
+            )
+            if created:
+                created_assignments.append(assignment)
+                # Audit trail for each assignment
+                AuditTrail.objects.create(
+                    mail_record=mail_record,
+                    action='MULTI_ASSIGN',
+                    performed_by=user,
+                    new_value={'assigned_to': u.full_name},
+                    remarks=f"Assigned to {u.full_name}: {remarks}"
+                )
+
+        # Update mail record flags
+        mail_record.is_multi_assigned = True
+        mail_record.status = 'In Progress'
+        mail_record.last_status_change = timezone.now()
+        mail_record.save()
+
+        response_serializer = MailRecordDetailSerializer(mail_record)
+        return Response(response_serializer.data)
+
+    @action(detail=True, methods=['get'])
+    def assignments(self, request, pk=None):
+        """Get all parallel assignments for a mail"""
+        mail_record = self.get_object()
+        assignments = mail_record.parallel_assignments.all()
+        return Response(MailAssignmentSerializer(assignments, many=True).data)
+
+
+class MailAssignmentViewSet(viewsets.ModelViewSet):
+    """ViewSet for parallel assignment operations"""
+    serializer_class = MailAssignmentSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'AG':
+            return MailAssignment.objects.all()
+        elif user.role == 'DAG':
+            return MailAssignment.objects.filter(
+                Q(mail_record__section=user.section) |
+                Q(assigned_to=user) |
+                Q(assigned_by=user)
+            )
+        else:
+            return MailAssignment.objects.filter(assigned_to=user)
+
+    @action(detail=True, methods=['post'])
+    def update_remarks(self, request, pk=None):
+        """Assignee updates their remarks"""
+        assignment = self.get_object()
+
+        # Only the assignee can update their remarks
+        if assignment.assigned_to != request.user:
+            return Response(
+                {'error': 'Only the assignee can update remarks.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if assignment.status != 'Active':
+            return Response(
+                {'error': 'Cannot update completed/revoked assignment.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = AssignmentUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        assignment.user_remarks = serializer.validated_data['remarks']
+        assignment.save()
+
+        # Update consolidated remarks on mail record
+        assignment.mail_record.update_consolidated_remarks()
+
+        # Audit trail
+        AuditTrail.objects.create(
+            mail_record=assignment.mail_record,
+            action='ASSIGNMENT_UPDATE',
+            performed_by=request.user,
+            new_value={'remarks': assignment.user_remarks},
+            remarks=f"{request.user.full_name} updated remarks"
+        )
+
+        return Response(MailAssignmentSerializer(assignment).data)
+
+    @action(detail=True, methods=['post'])
+    def complete(self, request, pk=None):
+        """Assignee marks their work as complete"""
+        assignment = self.get_object()
+
+        if assignment.assigned_to != request.user:
+            return Response(
+                {'error': 'Only the assignee can mark as complete.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if assignment.status != 'Active':
+            return Response(
+                {'error': 'Assignment already completed/revoked.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = AssignmentCompleteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        assignment.user_remarks = serializer.validated_data['remarks']
+        assignment.status = 'Completed'
+        assignment.completed_at = timezone.now()
+        assignment.save()
+
+        # Update consolidated remarks
+        assignment.mail_record.update_consolidated_remarks()
+
+        # Audit trail
+        AuditTrail.objects.create(
+            mail_record=assignment.mail_record,
+            action='ASSIGNMENT_COMPLETE',
+            performed_by=request.user,
+            remarks=f"{request.user.full_name} completed: {assignment.user_remarks}"
+        )
+
+        return Response(MailAssignmentSerializer(assignment).data)
+
+    @action(detail=True, methods=['post'])
+    def revoke(self, request, pk=None):
+        """Supervisor revokes an assignment"""
+        assignment = self.get_object()
+
+        # Only AG or the assigning supervisor can revoke
+        if request.user.role == 'AG':
+            pass  # AG can revoke any
+        elif request.user == assignment.assigned_by:
+            pass  # Assigner can revoke
+        else:
+            return Response(
+                {'error': 'Only AG or the assigning supervisor can revoke.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if assignment.status != 'Active':
+            return Response(
+                {'error': 'Assignment not active.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        remarks = request.data.get('remarks', '')
+        if not remarks:
+            return Response(
+                {'error': 'Remarks required for revocation.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        assignment.status = 'Revoked'
+        assignment.save()
+
+        # Update consolidated remarks
+        assignment.mail_record.update_consolidated_remarks()
+
+        # Audit trail
+        AuditTrail.objects.create(
+            mail_record=assignment.mail_record,
+            action='ASSIGNMENT_REVOKE',
+            performed_by=request.user,
+            remarks=f"Revoked assignment to {assignment.assigned_to.full_name}: {remarks}"
+        )
+
+        return Response(MailAssignmentSerializer(assignment).data)

@@ -50,7 +50,31 @@ const authService = {
    * @returns {boolean}
    */
   isAuthenticated() {
-    return !!localStorage.getItem('access_token');
+    const token = localStorage.getItem('access_token');
+    if (!token) return false;
+
+    // Basic token validation (check if it looks like a JWT)
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        // Invalid token format, clear it
+        this.logout();
+        return false;
+      }
+      return true;
+    } catch {
+      this.logout();
+      return false;
+    }
+  },
+
+  /**
+   * Clear all auth data (used when tokens are invalid)
+   */
+  clearAuth() {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
   },
 
   /**

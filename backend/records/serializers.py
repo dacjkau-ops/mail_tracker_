@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import MailRecord
+from .models import MailRecord, MailAssignment
 from users.serializers import UserMinimalSerializer
 from sections.serializers import SectionSerializer
 
@@ -38,6 +38,7 @@ class MailRecordDetailSerializer(serializers.ModelSerializer):
     created_by_details = UserMinimalSerializer(source='created_by', read_only=True)
     time_in_stage = serializers.SerializerMethodField()
     is_overdue = serializers.SerializerMethodField()
+    active_assignments_count = serializers.SerializerMethodField()
 
     class Meta:
         model = MailRecord
@@ -49,6 +50,9 @@ class MailRecordDetailSerializer(serializers.ModelSerializer):
 
     def get_is_overdue(self, obj):
         return obj.is_overdue()
+
+    def get_active_assignments_count(self, obj):
+        return obj.parallel_assignments.filter(status='Active').count()
 
 
 class MailRecordCreateSerializer(serializers.ModelSerializer):
@@ -95,4 +99,45 @@ class MailRecordReassignSerializer(serializers.Serializer):
 
 class MailRecordCloseSerializer(serializers.Serializer):
     """Serializer for closing mail records"""
+    remarks = serializers.CharField(required=True, allow_blank=False)
+
+
+# Multi-assignment serializers
+class MailAssignmentSerializer(serializers.ModelSerializer):
+    """Serializer for viewing mail assignments"""
+    assigned_to_details = UserMinimalSerializer(source='assigned_to', read_only=True)
+    assigned_by_details = UserMinimalSerializer(source='assigned_by', read_only=True)
+
+    class Meta:
+        model = MailAssignment
+        fields = [
+            'id', 'mail_record', 'assigned_to', 'assigned_to_details',
+            'assigned_by', 'assigned_by_details', 'assignment_remarks',
+            'user_remarks', 'status', 'created_at', 'updated_at', 'completed_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'assigned_by']
+
+
+class MultiAssignSerializer(serializers.Serializer):
+    """Serializer for assigning mail to multiple users"""
+    user_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        min_length=1,
+        max_length=10,  # Reasonable limit
+        help_text='List of user IDs to assign this mail to'
+    )
+    remarks = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        help_text='Instructions for all assignees'
+    )
+
+
+class AssignmentUpdateSerializer(serializers.Serializer):
+    """Serializer for assignee to update their remarks"""
+    remarks = serializers.CharField(required=True, allow_blank=False)
+
+
+class AssignmentCompleteSerializer(serializers.Serializer):
+    """Serializer for assignee to mark their work complete"""
     remarks = serializers.CharField(required=True, allow_blank=False)
