@@ -13,16 +13,20 @@ import {
   MenuItem,
   Alert,
   CircularProgress,
+  Autocomplete,
+  Chip,
 } from '@mui/material';
 import { ArrowBack, Save as SaveIcon } from '@mui/icons-material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import mailService from '../services/mailService';
+import { useAuth } from '../context/AuthContext';
 import { ACTION_REQUIRED_OPTIONS } from '../utils/constants';
 
 const CreateMailPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [sections, setSections] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -30,10 +34,18 @@ const CreateMailPage = () => {
   const [error, setError] = useState('');
   const [showOtherAction, setShowOtherAction] = useState(false);
 
+  // DAG users can only create for their section
+  const isDAG = user?.role === 'DAG';
+  const userSection = user?.section;
+
+  // AG can assign cross-section, so they see all users
+  const isAG = user?.role === 'AG';
+
   const {
     control,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm({
     defaultValues: {
@@ -43,10 +55,9 @@ const CreateMailPage = () => {
       from_office: '',
       action_required: '',
       action_required_other: '',
-      section: '',
-      assigned_to: '',
+      assigned_to: [],
       due_date: null,
-      remarks: '',
+      initial_instructions: '',
     },
   });
 
@@ -82,6 +93,7 @@ const CreateMailPage = () => {
     setSaving(true);
 
     try {
+      // Section is now auto-detected on backend based on role and assignees
       const mailData = {
         letter_no: data.letter_no,
         date_received: data.date_received.toISOString().split('T')[0],
@@ -91,10 +103,11 @@ const CreateMailPage = () => {
           data.action_required === 'Other'
             ? data.action_required_other
             : data.action_required,
-        section: data.section,
-        assigned_to: data.assigned_to,
+        assigned_to: Array.isArray(data.assigned_to)
+          ? data.assigned_to.map(u => u.id)
+          : [data.assigned_to],
         due_date: data.due_date ? data.due_date.toISOString().split('T')[0] : null,
-        remarks: data.remarks || '',
+        initial_instructions: data.initial_instructions || '',
       };
 
       const createdMail = await mailService.createMail(mailData);
@@ -103,6 +116,7 @@ const CreateMailPage = () => {
       setError(
         err.response?.data?.detail ||
           err.response?.data?.message ||
+          err.response?.data?.assigned_to?.[0] ||
           'Failed to create mail. Please try again.'
       );
       console.error('Error creating mail:', err);
@@ -272,54 +286,75 @@ const CreateMailPage = () => {
               </Box>
             )}
 
-            {/* Row 4: Section and Assign To */}
+            {/* Row 4: Assign To (Section is auto-detected on backend) */}
             <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-              <Box sx={{ flex: '1 1 300px', minWidth: '250px' }}>
-                <Controller
-                  name="section"
-                  control={control}
-                  rules={{ required: 'Section is required' }}
-                  render={({ field }) => (
-                    <FormControl fullWidth error={!!errors.section}>
-                      <InputLabel>Section *</InputLabel>
-                      <Select {...field} label="Section *">
-                        {sections.map((section) => (
-                          <MenuItem key={section.id} value={section.id}>
-                            {section.name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                      {errors.section && (
-                        <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 2 }}>
-                          {errors.section.message}
-                        </Typography>
-                      )}
-                    </FormControl>
-                  )}
-                />
-              </Box>
-              <Box sx={{ flex: '1 1 300px', minWidth: '250px' }}>
+              <Box sx={{ flex: '1 1 100%', minWidth: '250px' }}>
                 <Controller
                   name="assigned_to"
                   control={control}
-                  rules={{ required: 'Assigned To is required' }}
-                  render={({ field }) => (
-                    <FormControl fullWidth error={!!errors.assigned_to}>
-                      <InputLabel>Assign To *</InputLabel>
-                      <Select {...field} label="Assign To *">
-                        {users.map((user) => (
-                          <MenuItem key={user.id} value={user.id}>
-                            {user.full_name} ({user.role})
-                          </MenuItem>
-                        ))}
-                      </Select>
-                      {errors.assigned_to && (
-                        <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 2 }}>
-                          {errors.assigned_to.message}
-                        </Typography>
-                      )}
-                    </FormControl>
-                  )}
+                  rules={{
+                    required: 'At least one assignee is required',
+                    validate: value => value.length > 0 || 'Please select at least one officer'
+                  }}
+                  render={({ field: { onChange, value, ...field } }) => {
+                    // AG can assign to ANY user (cross-section allowed)
+                    // DAG can only assign to users in their section
+                    const filteredUsers = isAG
+                      ? users
+                      : users.filter(u => u.section === userSection);
+
+                    // Group users by section for better UX
+                    const groupedOptions = isAG
+                      ? filteredUsers.sort((a, b) => {
+                          // Sort by section name, then by full name
+                          const sectionA = sections.find(s => s.id === a.section)?.name || '';
+                          const sectionB = sections.find(s => s.id === b.section)?.name || '';
+                          if (sectionA !== sectionB) return sectionA.localeCompare(sectionB);
+                          return a.full_name.localeCompare(b.full_name);
+                        })
+                      : filteredUsers;
+
+                    return (
+                      <Autocomplete
+                        {...field}
+                        multiple
+                        options={groupedOptions}
+                        groupBy={isAG ? (option) => {
+                          const section = sections.find(s => s.id === option.section);
+                          return section?.name || 'No Section';
+                        } : undefined}
+                        getOptionLabel={(option) => `${option.full_name} (${option.role})`}
+                        value={value || []}
+                        onChange={(event, newValue) => onChange(newValue)}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            label="Assign To *"
+                            error={!!errors.assigned_to}
+                            helperText={
+                              errors.assigned_to?.message ||
+                              (isAG
+                                ? 'AG can assign to officers from any section (cross-section allowed)'
+                                : 'Select one or more officers from your section')
+                            }
+                          />
+                        )}
+                        renderTags={(value, getTagProps) =>
+                          value.map((option, index) => {
+                            const sectionName = sections.find(s => s.id === option.section)?.name;
+                            return (
+                              <Chip
+                                label={`${option.full_name}${sectionName ? ` - ${sectionName}` : ''}`}
+                                {...getTagProps({ index })}
+                                size="small"
+                                color={isAG && sectionName ? 'primary' : 'default'}
+                              />
+                            );
+                          })
+                        }
+                      />
+                    );
+                  }}
                 />
               </Box>
             </Box>
@@ -351,10 +386,10 @@ const CreateMailPage = () => {
               </Box>
             </Box>
 
-            {/* Row 6: Remarks (full width) */}
+            {/* Row 6: Initial Instructions (full width) */}
             <Box>
               <Controller
-                name="remarks"
+                name="initial_instructions"
                 control={control}
                 render={({ field }) => (
                   <TextField
@@ -362,8 +397,9 @@ const CreateMailPage = () => {
                     fullWidth
                     multiline
                     rows={3}
-                    label="Initial Remarks (Optional)"
-                    placeholder="Add any initial notes or comments"
+                    label="Initial Instructions (Optional)"
+                    placeholder="Add instructions that will be visible to all assigned officers"
+                    helperText="These instructions will be shared with all assigned officers"
                   />
                 )}
               />

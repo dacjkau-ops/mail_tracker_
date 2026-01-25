@@ -169,6 +169,49 @@ const mailService = {
     const response = await api.post(`/assignments/${assignmentId}/revoke/`, { remarks });
     return response.data;
   },
+
+  /**
+   * Add a remark to an assignment (append-only, never edit previous)
+   * @param {string} mailId - Mail ID
+   * @param {string} assignmentId - Assignment ID
+   * @param {string} content - Remark content
+   * @returns {Promise}
+   */
+  async addAssignmentRemark(mailId, assignmentId, content) {
+    const response = await api.post(
+      `/records/${mailId}/assignments/${assignmentId}/add_remark/`,
+      { content }
+    );
+    return response.data;
+  },
+
+  /**
+   * Reassign an assignment to another officer (same section only for non-AG)
+   * @param {string} mailId - Mail ID
+   * @param {string} assignmentId - Assignment ID
+   * @param {Object} data - { new_assignee, remarks }
+   * @returns {Promise}
+   */
+  async reassignAssignment(mailId, assignmentId, data) {
+    const response = await api.post(
+      `/records/${mailId}/assignments/${assignmentId}/reassign/`,
+      data
+    );
+    return response.data;
+  },
+
+  /**
+   * Complete an assignment via the mail record endpoint
+   * @param {string} mailId - Mail ID
+   * @param {string} assignmentId - Assignment ID
+   * @returns {Promise}
+   */
+  async completeAssignmentViaRecord(mailId, assignmentId) {
+    const response = await api.post(
+      `/records/${mailId}/assignments/${assignmentId}/complete/`
+    );
+    return response.data;
+  },
 };
 
 export default mailService;

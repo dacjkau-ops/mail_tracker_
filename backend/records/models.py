@@ -52,10 +52,14 @@ class MailRecord(models.Model):
     )
 
     # Section and deadlines
+    # Section is optional for cross-section assignments (AG only)
     section = models.ForeignKey(
         Section,
         on_delete=models.PROTECT,
-        related_name='mails'
+        related_name='mails',
+        null=True,
+        blank=True,
+        help_text="Section owning this mail. Null for cross-section multi-assignments."
     )
     due_date = models.DateField()
 
@@ -65,11 +69,12 @@ class MailRecord(models.Model):
     last_status_change = models.DateTimeField(auto_now_add=True)
 
     # Additional info
-    remarks = models.TextField(blank=True, null=True)
+    initial_instructions = models.TextField(blank=True, null=True, help_text="Initial instructions from creator, visible to all assignees")
+    remarks = models.TextField(blank=True, null=True, help_text="DEPRECATED: Use initial_instructions or assignment-level remarks")
 
     # Multi-assignment support (for assigning to multiple persons)
     is_multi_assigned = models.BooleanField(default=False)
-    consolidated_remarks = models.TextField(blank=True, null=True)
+    consolidated_remarks = models.TextField(blank=True, null=True, help_text="Auto-generated from all assignment remarks")
 
     # Metadata
     created_by = models.ForeignKey(
@@ -274,8 +279,19 @@ class MailAssignment(models.Model):
         related_name='parallel_assignments_made'
     )
     assignment_remarks = models.TextField(blank=True, null=True)  # Instructions from supervisor
-    user_remarks = models.TextField(blank=True, null=True)  # Response from assignee
+    user_remarks = models.TextField(blank=True, null=True)  # DEPRECATED: Use AssignmentRemark timeline instead
     status = models.CharField(max_length=20, choices=ASSIGNMENT_STATUS_CHOICES, default='Active')
+
+    # Track reassignment within the same assignment
+    reassigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='reassigned_from_assignments',
+        null=True,
+        blank=True,
+        help_text="If assignee reassigned to another officer, track the new person"
+    )
+    reassigned_at = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -298,3 +314,40 @@ class MailAssignment(models.Model):
 
     def __str__(self):
         return f"{self.mail_record.sl_no} -> {self.assigned_to.full_name} ({self.status})"
+
+    def get_remarks_timeline(self):
+        """Get all remarks in chronological order"""
+        return self.remarks_timeline.all()
+
+    def get_current_assignee(self):
+        """Get the current person handling this assignment (may be different if reassigned)"""
+        return self.reassigned_to or self.assigned_to
+
+
+class AssignmentRemark(models.Model):
+    """
+    Append-only remarks timeline for each assignment.
+    Previous remarks cannot be edited - new remarks are appended.
+    This creates a complete audit trail of officer responses.
+    """
+    assignment = models.ForeignKey(
+        MailAssignment,
+        on_delete=models.CASCADE,
+        related_name='remarks_timeline'
+    )
+    content = models.TextField()
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='assignment_remarks_made'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['assignment', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"Remark by {self.created_by.full_name} on {self.created_at.strftime('%Y-%m-%d %H:%M')}"

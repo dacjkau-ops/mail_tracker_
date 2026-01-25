@@ -140,6 +140,11 @@ const MailDetailPage = () => {
 
   const canCloseMail = () => {
     if (!mail || mail.status === 'Closed') return false;
+    // Multi-assigned mails: only AG can close
+    if (mail.is_multi_assigned) {
+      return user?.role === 'AG';
+    }
+    // Single-assigned mails: AG or current handler can close
     if (user?.role === 'AG') return true;
     const handlerId = mail?.current_handler_details?.id || mail?.current_handler;
     if (user?.id === handlerId) return true;
@@ -265,7 +270,7 @@ const MailDetailPage = () => {
               Section
             </Typography>
             <Typography variant="body1" gutterBottom>
-              {mail.section_details?.name || 'N/A'}
+              {mail.section_details?.name || (mail.is_multi_assigned ? 'Cross-Section' : 'N/A')}
             </Typography>
           </Grid>
 
@@ -327,25 +332,18 @@ const MailDetailPage = () => {
         </Grid>
       </Paper>
 
-      {/* Remarks Section */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography variant="h6">Remarks</Typography>
-          {canEditRemarks() && (
-            <Button
-              startIcon={<EditIcon />}
-              onClick={() => setRemarksDialogOpen(true)}
-              size="small"
-            >
-              Edit Remarks
-            </Button>
-          )}
-        </Box>
-        <Divider sx={{ mb: 2 }} />
-        <Typography variant="body1" color={mail.remarks ? 'inherit' : 'text.secondary'}>
-          {mail.remarks || 'No remarks added yet'}
-        </Typography>
-      </Paper>
+      {/* Initial Instructions Section */}
+      {mail.initial_instructions && (
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Typography variant="h6">Initial Instructions</Typography>
+          </Box>
+          <Divider sx={{ mb: 2 }} />
+          <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+            {mail.initial_instructions}
+          </Typography>
+        </Paper>
+      )}
 
       {/* Action Buttons */}
       <Paper sx={{ p: 3, mb: 3 }}>
@@ -397,7 +395,11 @@ const MailDetailPage = () => {
       </Paper>
 
       {/* Parallel Assignments Panel */}
-      <AssignmentsPanel mailId={id} onUpdate={() => { loadMail(); loadAuditTrail(); }} />
+      <AssignmentsPanel
+        mailId={id}
+        onUpdate={() => { loadMail(); loadAuditTrail(); }}
+        mailData={mail}
+      />
 
       {/* Audit Trail */}
       <Paper sx={{ p: 3 }}>
