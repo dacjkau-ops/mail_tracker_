@@ -196,7 +196,10 @@ class MailAssignmentSerializer(serializers.ModelSerializer):
         return AssignmentRemarkSerializer(remarks, many=True).data
 
     def get_has_responded(self, obj):
-        """Check if assignee has added any remarks"""
+        """Check if assignee has added any remarks or reassigned"""
+        # Reassignment counts as a response
+        if obj.reassigned_to is not None:
+            return True
         return obj.remarks_timeline.exists() or bool(obj.user_remarks)
 
 

@@ -394,18 +394,23 @@ const MailDetailPage = () => {
         </Box>
       </Paper>
 
-      {/* Parallel Assignments Panel */}
+      {/* Parallel Assignments Panel - Primary view for multi-assigned mails */}
       <AssignmentsPanel
         mailId={id}
         onUpdate={() => { loadMail(); loadAuditTrail(); }}
         mailData={mail}
       />
 
-      {/* Audit Trail */}
+      {/* Audit Trail - For single-assigned mails or as supplementary info */}
       <Paper sx={{ p: 3 }}>
         <Typography variant="h6" gutterBottom>
-          Audit Trail / History Log
+          {mail.is_multi_assigned ? 'Global Activity Log' : 'Audit Trail / History Log'}
         </Typography>
+        {mail.is_multi_assigned && (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            For detailed per-assignee history, see the Assignments Overview above.
+          </Typography>
+        )}
         <Divider sx={{ mb: 2 }} />
         <List>
           {auditTrail.length === 0 ? (
@@ -413,27 +418,35 @@ const MailDetailPage = () => {
               No audit trail available
             </Typography>
           ) : (
-            auditTrail.map((entry, index) => (
-              <ListItem key={index} divider={index < auditTrail.length - 1}>
-                <ListItemText
-                  primary={
-                    <Box>
-                      <Typography variant="body2" component="span" fontWeight="medium">
-                        [{formatDateTime(entry.timestamp)}]
+            auditTrail
+              .filter(entry => {
+                // For multi-assigned mails, show only high-level events in global log
+                if (mail.is_multi_assigned) {
+                  return ['CREATE', 'MULTI_ASSIGN', 'CLOSE', 'REOPEN'].includes(entry.action);
+                }
+                return true; // Show all for single-assignment
+              })
+              .map((entry, index, filteredArr) => (
+                <ListItem key={index} divider={index < filteredArr.length - 1}>
+                  <ListItemText
+                    primary={
+                      <Box>
+                        <Typography variant="body2" component="span" fontWeight="medium">
+                          [{formatDateTime(entry.timestamp)}]
+                        </Typography>
+                        <Typography variant="body2" component="span" sx={{ ml: 1 }}>
+                          {entry.action_display || entry.action} by {entry.performed_by_details?.full_name || 'Unknown'}
+                        </Typography>
+                      </Box>
+                    }
+                    secondary={entry.remarks && (
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        Remarks: {entry.remarks}
                       </Typography>
-                      <Typography variant="body2" component="span" sx={{ ml: 1 }}>
-                        {entry.action_display || entry.action} by {entry.performed_by_details?.full_name || 'Unknown'}
-                      </Typography>
-                    </Box>
-                  }
-                  secondary={entry.remarks && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      Remarks: {entry.remarks}
-                    </Typography>
-                  )}
-                />
-              </ListItem>
-            ))
+                    )}
+                  />
+                </ListItem>
+              ))
           )}
         </List>
       </Paper>

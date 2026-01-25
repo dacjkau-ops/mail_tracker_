@@ -370,7 +370,7 @@ const SupervisorAssignmentsTable = ({ assignments, onUpdate, currentUser }) => {
   const notRespondedCount = assignments.filter(a => a.status === 'Active' && !a.has_responded).length;
 
   return (
-    <Paper sx={{ p: 2, mt: 2 }}>
+    <Paper sx={{ p: 2, mt: 2, border: 1, borderColor: 'primary.light' }}>
       <Box
         sx={{
           display: 'flex',
@@ -380,9 +380,9 @@ const SupervisorAssignmentsTable = ({ assignments, onUpdate, currentUser }) => {
         }}
         onClick={() => setExpanded(!expanded)}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
           <Typography variant="h6">
-            Assignments Overview ({assignments.length})
+            Assignments History ({assignments.length} Assignees)
           </Typography>
           <Chip label={`${activeCount} Active`} color="primary" size="small" />
           <Chip label={`${completedCount} Completed`} color="success" size="small" />
@@ -425,9 +425,22 @@ const SupervisorAssignmentsTable = ({ assignments, onUpdate, currentUser }) => {
                       <Typography variant="caption" color="text.secondary">
                         {assignment.assigned_to_details?.role}
                       </Typography>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        Assigned: {formatDateTime(assignment.created_at)}
+                      </Typography>
                       {assignment.reassigned_to_details && (
-                        <Typography variant="caption" color="warning.main" display="block">
-                          Reassigned to: {assignment.reassigned_to_details.full_name}
+                        <Box sx={{ mt: 0.5, p: 0.5, bgcolor: 'warning.lighter', borderRadius: 1 }}>
+                          <Typography variant="caption" color="warning.dark" display="block">
+                            ↳ Reassigned to: {assignment.reassigned_to_details.full_name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            On: {formatDateTime(assignment.reassigned_at)}
+                          </Typography>
+                        </Box>
+                      )}
+                      {assignment.assignment_remarks && (
+                        <Typography variant="caption" color="info.main" display="block" sx={{ mt: 0.5, fontStyle: 'italic' }}>
+                          Instructions: {assignment.assignment_remarks.substring(0, 50)}{assignment.assignment_remarks.length > 50 ? '...' : ''}
                         </Typography>
                       )}
                     </Box>
@@ -444,27 +457,53 @@ const SupervisorAssignmentsTable = ({ assignments, onUpdate, currentUser }) => {
                       </Typography>
                     )}
                   </TableCell>
-                  <TableCell sx={{ maxWidth: 300 }}>
+                  <TableCell sx={{ maxWidth: 350 }}>
+                    {/* Show reassignment info prominently if reassigned */}
+                    {assignment.reassigned_to_details && (
+                      <Box sx={{ 
+                        mb: 1, 
+                        p: 1, 
+                        bgcolor: 'warning.lighter', 
+                        borderRadius: 1,
+                        borderLeft: 3,
+                        borderColor: 'warning.main'
+                      }}>
+                        <Typography variant="caption" color="warning.dark" fontWeight="bold">
+                          ↳ Reassigned to: {assignment.reassigned_to_details.full_name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          on {formatDateTime(assignment.reassigned_at)}
+                        </Typography>
+                      </Box>
+                    )}
+                    
+                    {/* Remarks timeline */}
                     {assignment.remarks_timeline && assignment.remarks_timeline.length > 0 ? (
                       <Box>
-                        {assignment.remarks_timeline.map((remark, idx) => (
-                          <Box
-                            key={remark.id || idx}
-                            sx={{
-                              borderLeft: 2,
-                              borderColor: 'primary.main',
-                              pl: 1,
-                              mb: 1,
-                            }}
-                          >
-                            <Typography variant="caption" color="text.secondary">
-                              [{formatDateTime(remark.created_at)}]
-                            </Typography>
-                            <Typography variant="body2">
-                              {remark.content}
-                            </Typography>
-                          </Box>
-                        ))}
+                        {assignment.remarks_timeline.map((remark, idx) => {
+                          // Check if this is a reassignment remark
+                          const isReassignRemark = remark.content?.startsWith('Reassigned to');
+                          return (
+                            <Box
+                              key={remark.id || idx}
+                              sx={{
+                                borderLeft: 2,
+                                borderColor: isReassignRemark ? 'warning.main' : 'primary.main',
+                                pl: 1,
+                                mb: 1,
+                                bgcolor: isReassignRemark ? 'warning.lighter' : 'transparent',
+                                borderRadius: isReassignRemark ? 1 : 0,
+                              }}
+                            >
+                              <Typography variant="caption" color="text.secondary">
+                                [{formatDateTime(remark.created_at)}]
+                              </Typography>
+                              <Typography variant="body2" fontWeight={isReassignRemark ? 'medium' : 'normal'}>
+                                {remark.content}
+                              </Typography>
+                            </Box>
+                          );
+                        })}
                       </Box>
                     ) : assignment.user_remarks ? (
                       <Typography variant="body2">{assignment.user_remarks}</Typography>
@@ -541,6 +580,14 @@ const AssignmentsPanel = ({ mailId, onUpdate, mailData }) => {
 
   const loadAssignments = async () => {
     if (!mailId) return;
+    
+    // First, try to use assignments from mailData (already loaded in parent)
+    if (mailData?.assignments && mailData.assignments.length > 0) {
+      setAssignments(mailData.assignments);
+      return;
+    }
+    
+    // Fallback: fetch from API
     setLoading(true);
     setError('');
     try {
@@ -556,7 +603,7 @@ const AssignmentsPanel = ({ mailId, onUpdate, mailData }) => {
 
   useEffect(() => {
     loadAssignments();
-  }, [mailId]);
+  }, [mailId, mailData?.assignments]);
 
   const handleAssignmentUpdate = () => {
     loadAssignments();

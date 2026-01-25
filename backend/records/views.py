@@ -254,7 +254,7 @@ class MailRecordViewSet(viewsets.ModelViewSet):
         user = request.user
         if user.role == 'DAG':
             # DAG can only reassign within their section
-            if mail_record.section != user.section:
+            if mail_record.section and mail_record.section != user.section:
                 return Response(
                     {'error': 'You can only reassign mails within your section.'},
                     status=status.HTTP_403_FORBIDDEN
@@ -265,8 +265,12 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_403_FORBIDDEN
                 )
         elif user.role in ['SrAO', 'AAO']:
-            # Staff can only reassign if they're current handler
-            if mail_record.current_handler != user:
+            # Staff can only reassign if they're current handler or have an active assignment
+            user_assignment = mail_record.parallel_assignments.filter(
+                assigned_to=user, status='Active'
+            ).first() if mail_record.is_multi_assigned else None
+            
+            if not user_assignment and mail_record.current_handler != user:
                 return Response(
                     {'error': 'You can only reassign mails assigned to you.'},
                     status=status.HTTP_403_FORBIDDEN
@@ -275,7 +279,27 @@ class MailRecordViewSet(viewsets.ModelViewSet):
         # Store old handler
         old_handler = mail_record.current_handler
 
-        # Reassign
+        # For multi-assigned mails: Also update the user's assignment record
+        if mail_record.is_multi_assigned:
+            user_assignment = mail_record.parallel_assignments.filter(
+                assigned_to=user, status='Active'
+            ).first()
+            
+            if user_assignment:
+                # Update the assignment with reassignment info
+                user_assignment.reassigned_to = new_handler
+                user_assignment.reassigned_at = timezone.now()
+                user_assignment.save()
+                
+                # Add to remarks timeline to track the reassignment
+                from .models import AssignmentRemark
+                AssignmentRemark.objects.create(
+                    assignment=user_assignment,
+                    content=f"Reassigned to {new_handler.full_name}: {remarks}",
+                    created_by=user
+                )
+
+        # Reassign at mail level
         mail_record.current_handler = new_handler
         mail_record.status = 'In Progress'  # Auto-transition
         mail_record.last_status_change = timezone.now()
