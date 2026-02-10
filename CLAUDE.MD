@@ -433,3 +433,327 @@ The system is considered COMPLETE when:
 10. ✅ Documentation complete (user guide, API docs, deployment guide)
 
 ---
+
+## Cloud Deployment Guide
+
+### Production Deployment Architecture
+
+The application can be deployed to cloud platforms while maintaining free tier usage:
+
+- **Backend**: Render (Django + PostgreSQL)
+- **Frontend**: Vercel (React/Vite)
+- **Database**: PostgreSQL on Render (free tier)
+
+### Backend Deployment (Render)
+
+#### Key Files Required
+
+1. **render.yaml** - Blueprint configuration
+```yaml
+services:
+  - type: web
+    name: mail-tracker-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn config.wsgi:application"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: False
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mail-tracker-db
+          property: connectionString
+
+databases:
+  - name: mail-tracker-db
+    databaseName: mail_tracker
+    user: mail_tracker_user
+    plan: free
+```
+
+2. **backend/build.sh** - Build script
+```bash
+#!/usr/bin/env bash
+set -o errexit
+
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Collect static files
+python manage.py collectstatic --no-input
+
+# Run database migrations
+python manage.py migrate
+
+# Create superuser if it doesn't exist
+echo "Creating superuser if needed..."
+python create_superuser.py
+```
+
+3. **backend/create_superuser.py** - Auto-create admin user
+```python
+#!/usr/bin/env python
+import os
+import django
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+django.setup()
+
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+if not User.objects.filter(is_superuser=True).exists():
+    print("Creating superuser...")
+    User.objects.create_superuser(
+        username='admin',
+        email='admin@office.gov',
+        password='admin123',  # CHANGE THIS PASSWORD AFTER FIRST LOGIN!
+        full_name='System Administrator',
+        role='AG'
+    )
+    print("✅ Superuser 'admin' created successfully!")
+else:
+    print("ℹ️  Superuser already exists. Skipping creation.")
+```
+
+4. **backend/requirements.txt** - Must include production dependencies:
+```
+Django>=5.0,<6.0
+djangorestframework>=3.14.0
+djangorestframework-simplejwt>=5.3.0
+django-cors-headers>=4.3.0
+pytz>=2024.1
+python-dateutil>=2.8.2
+whitenoise>=6.6.0
+gunicorn>=21.2.0
+psycopg2-binary>=2.9.9
+dj-database-url>=2.1.0
+```
+
+#### Django Settings Configuration
+
+**backend/config/settings.py** must use environment variables:
+
+```python
+import os
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Environment-based configuration
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-fallback-key')
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+
+# Database - uses PostgreSQL on Render, SQLite locally
+import dj_database_url
+
+DATABASES = {
+    'default': dj_database_url.config(
+        default=f'sqlite:///{BASE_DIR / "db.sqlite3"}',
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
+}
+
+# CORS - allow frontend domain
+CORS_ALLOWED_ORIGINS = os.environ.get(
+    'CORS_ALLOWED_ORIGINS',
+    'http://localhost:3000,http://localhost:5173,http://localhost:5174'
+).split(',')
+
+# Static files with WhiteNoise
+STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Must be after SecurityMiddleware
+    'corsheaders.middleware.CorsMiddleware',
+    # ... other middleware
+]
+
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+```
+
+#### Deployment Steps
+
+1. **Create Render account** and connect GitHub repository
+2. **Set Root Directory** in Render dashboard:
+   - Go to Settings → Root Directory: `backend`
+3. **Set Build Command**:
+   - `chmod +x build.sh && ./build.sh`
+4. **Set Start Command**:
+   - `gunicorn config.wsgi:application` (no --chdir needed with rootDir)
+5. **Add Environment Variables**:
+   - `ALLOWED_HOSTS`: `your-app.onrender.com,.onrender.com`
+   - `CORS_ALLOWED_ORIGINS`: `https://your-frontend.vercel.app`
+   - `DEBUG`: `False` (only set to `True` for debugging)
+6. **Deploy** and verify in logs:
+   - "163 static files copied to 'staticfiles'" ✅
+   - "Running migrations..." ✅
+   - "Creating superuser if needed..." ✅
+
+#### Common Issues and Fixes
+
+**Issue 1: 500 Error on Admin Page**
+- **Cause**: Build script not running, static files missing
+- **Fix**: Ensure Build Command is `chmod +x build.sh && ./build.sh`
+- **Verify**: Check logs for "163 static files copied"
+
+**Issue 2: ALLOWED_HOSTS Error**
+- **Cause**: Missing or incorrect ALLOWED_HOSTS environment variable
+- **Fix**: Add `ALLOWED_HOSTS=your-app.onrender.com,.onrender.com` in Render Environment
+- **Verify**: Check logs for "Invalid HTTP_HOST header" errors
+
+**Issue 3: Database Not Migrating**
+- **Cause**: build.sh not running or missing permissions
+- **Fix**: Ensure build.sh is executable and in correct directory
+- **Verify**: Check logs for "Running migrations" output
+
+**Issue 4: Static Files Warning**
+- **Cause**: collectstatic not running in build
+- **Fix**: Ensure build.sh includes `python manage.py collectstatic --no-input`
+- **Verify**: No warning "No directory at: .../staticfiles/"
+
+### Frontend Deployment (Vercel)
+
+#### Key Files Required
+
+1. **frontend/vercel.json** - Vercel configuration
+```json
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
+}
+```
+
+2. **frontend/.env.production** - Production API URL
+```env
+VITE_API_BASE_URL=https://your-backend.onrender.com/api
+```
+
+3. **frontend/src/utils/constants.js** - Environment variable support
+```javascript
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+```
+
+#### Deployment Steps
+
+1. **Update .env.production** with actual Render backend URL
+2. **Commit and push** changes to GitHub
+3. **Create Vercel account** and import project from GitHub
+4. **Set Root Directory**: `frontend`
+5. **Framework Preset**: Vite (auto-detected)
+6. **Deploy** automatically
+7. **Update Backend CORS**:
+   - Go to Render → Environment
+   - Update `CORS_ALLOWED_ORIGINS` to include Vercel URL
+   - Redeploy backend
+
+### Critical Deployment Principles
+
+1. **Build Command Must Run Full Script**
+   - Don't manually set `pip install -r requirements.txt`
+   - Always use `chmod +x build.sh && ./build.sh`
+   - Verify in logs that all steps execute
+
+2. **Root Directory Matters**
+   - If `rootDir: backend`, commands run from backend/
+   - build.sh must be in backend/ directory
+   - Don't use `cd backend` in scripts when rootDir is set
+
+3. **Environment Variables Are Critical**
+   - Always set `ALLOWED_HOSTS` for your domain
+   - `DEBUG=False` in production (set to True only for debugging)
+   - `SECRET_KEY` auto-generated by Render
+   - `DATABASE_URL` auto-injected from PostgreSQL
+
+4. **Static Files Must Be Collected**
+   - `collectstatic` must run in build phase
+   - Verify "163 static files copied" in logs
+   - WhiteNoise serves static files (no separate server needed)
+
+5. **Database Auto-Migrates**
+   - Migrations run automatically via build.sh
+   - PostgreSQL on Render (production)
+   - SQLite locally (development)
+   - No manual migration needed
+
+6. **Superuser Auto-Creates**
+   - create_superuser.py runs in build
+   - Default: username=admin, password=admin123
+   - **MUST CHANGE PASSWORD** after first login!
+
+### Post-Deployment Checklist
+
+- ✅ Backend /admin/ loads with styling
+- ✅ Backend /api/ returns 401 (auth required)
+- ✅ Admin login works (admin/admin123)
+- ✅ Frontend loads from Vercel URL
+- ✅ Frontend can call backend APIs
+- ✅ No CORS errors in browser console
+- ✅ Change admin password immediately
+- ✅ Test create/update/delete operations
+- ✅ Verify audit trail logging works
+- ✅ Check role-based permissions
+
+### Free Tier Limitations
+
+**Render Free Tier:**
+- Web service sleeps after 15 minutes of inactivity
+- First request after sleep takes ~30 seconds (cold start)
+- PostgreSQL free tier expires after 90 days (backup data!)
+- 750 hours/month free compute
+
+**Vercel Free Tier:**
+- 100 GB bandwidth/month
+- Unlimited deployments
+- No cold starts (always fast)
+
+### Maintenance
+
+1. **PostgreSQL Backup** (CRITICAL - expires in 90 days):
+   ```bash
+   python manage.py dumpdata --natural-foreign --natural-primary \
+     -e contenttypes -e auth.Permission --indent 2 -o backup.json
+   ```
+
+2. **Password Change** (immediately after deployment):
+   - Login to /admin/
+   - Go to Users → admin
+   - Change password from admin123
+
+3. **Monitor Logs**:
+   - Render: Dashboard → Logs
+   - Vercel: Dashboard → Deployments → Function Logs
+
+---
