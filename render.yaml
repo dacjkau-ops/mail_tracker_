@@ -4,7 +4,7 @@ services:
     name: mail-tracker-backend
     runtime: python
     buildCommand: "./build.sh"
-    startCommand: "cd backend && gunicorn config.wsgi:application"
+    startCommand: "gunicorn --chdir backend config.wsgi:application"
     envVars:
       - key: PYTHON_VERSION
         value: 3.11
