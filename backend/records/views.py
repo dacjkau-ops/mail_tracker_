@@ -32,6 +32,44 @@ from sections.models import Section
 class MailRecordViewSet(viewsets.ModelViewSet):
     permission_classes = [MailRecordPermission]
 
+    def _filter_assignments_for_user(self, mail_record, user):
+        assignments = list(mail_record.parallel_assignments.all())
+        assignments.sort(key=lambda a: (a.created_at, a.id))
+
+        if user.role == 'AG' or mail_record.created_by_id == user.id:
+            return assignments
+
+        if user.role == 'DAG':
+            dag_section_ids = set(user.sections.values_list('id', flat=True))
+            visible = []
+
+            def officer_in_scope(officer):
+                if not officer:
+                    return False
+                if officer.role == 'DAG':
+                    return officer.sections.filter(id__in=dag_section_ids).exists()
+                if officer.subsection_id:
+                    return officer.subsection.section_id in dag_section_ids
+                return False
+
+            for assignment in assignments:
+                current_assignee = assignment.reassigned_to or assignment.assigned_to
+                if (
+                    assignment.assigned_by_id == user.id
+                    or assignment.assigned_to_id == user.id
+                    or assignment.reassigned_to_id == user.id
+                    or officer_in_scope(assignment.assigned_to)
+                    or officer_in_scope(assignment.reassigned_to)
+                    or officer_in_scope(current_assignee)
+                ):
+                    visible.append(assignment)
+            return visible
+
+        return [
+            assignment for assignment in assignments
+            if assignment.assigned_to_id == user.id or assignment.reassigned_to_id == user.id
+        ]
+
     def _get_reassign_candidates_queryset(self, mail_record, user):
         """Return eligible users for reassignment based on role + mail context."""
         candidates = User.objects.filter(is_active=True).exclude(id=user.id)
@@ -93,7 +131,10 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             'section', 'subsection', 'subsection__section', 'created_by'
         )
         if self.action == 'list':
-            queryset = queryset.prefetch_related('parallel_assignments__assigned_to')
+            queryset = queryset.prefetch_related(
+                'parallel_assignments__assigned_to',
+                'parallel_assignments__reassigned_to'
+            )
 
         # AG can see all records
         if user.role == 'AG':
@@ -879,7 +920,7 @@ class MailRecordViewSet(viewsets.ModelViewSet):
     def assignments(self, request, pk=None):
         """Get all parallel assignments for a mail"""
         mail_record = self.get_object()
-        assignments = mail_record.parallel_assignments.all()
+        assignments = self._filter_assignments_for_user(mail_record, request.user)
         return Response(MailAssignmentSerializer(assignments, many=True).data)
 
 

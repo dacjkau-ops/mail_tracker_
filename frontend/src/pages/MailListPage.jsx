@@ -268,7 +268,22 @@ const MailListPage = () => {
                         mail.assigned_to_name || mail.assigned_to?.full_name || 'N/A'
                       )}
                     </TableCell>
-                    <TableCell>{mail.current_handler_name || mail.current_handler?.full_name || 'N/A'}</TableCell>
+                    <TableCell>
+                      {mail.is_multi_assigned && mail.current_handlers_display?.length > 0 ? (
+                        <Box>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            {mail.current_handler_count || mail.current_handlers_display.length} handlers
+                          </Typography>
+                          <Tooltip title={mail.current_handlers_display.join(', ')}>
+                            <Typography variant="body2" sx={{ maxWidth: 220 }} noWrap>
+                              {mail.current_handlers_display.join(', ')}
+                            </Typography>
+                          </Tooltip>
+                        </Box>
+                      ) : (
+                        mail.current_handler_name || mail.current_handler?.full_name || 'N/A'
+                      )}
+                    </TableCell>
                     <TableCell>
                       {mail.is_multi_assigned && mail.assignment_snapshots?.length > 0 ? (
                         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', maxWidth: 280 }}>

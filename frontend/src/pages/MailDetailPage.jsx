@@ -341,18 +341,34 @@ const MailDetailPage = () => {
             <Typography variant="body2" color="text.secondary">
               Assigned To (Original)
             </Typography>
-            <Typography variant="body1" gutterBottom>
-              {mail.assigned_to_details?.full_name || 'N/A'}
-            </Typography>
+            {mail.is_multi_assigned && mail.assignees_display?.length > 0 ? (
+              <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
+                {mail.assignees_display.map((name, idx) => (
+                  <Chip key={`${name}-${idx}`} label={name} size="small" />
+                ))}
+              </Box>
+            ) : (
+              <Typography variant="body1" gutterBottom>
+                {mail.assigned_to_details?.full_name || 'N/A'}
+              </Typography>
+            )}
           </Grid>
 
           <Grid item xs={12} md={6}>
             <Typography variant="body2" color="text.secondary">
               Current Handler
             </Typography>
-            <Typography variant="body1" gutterBottom>
-              {mail.current_handler_details?.full_name || 'N/A'}
-            </Typography>
+            {mail.is_multi_assigned && mail.current_handlers_display?.length > 0 ? (
+              <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
+                {mail.current_handlers_display.map((name, idx) => (
+                  <Chip key={`${name}-${idx}`} label={name} color="primary" size="small" variant="outlined" />
+                ))}
+              </Box>
+            ) : (
+              <Typography variant="body1" gutterBottom>
+                {mail.current_handler_details?.full_name || 'N/A'}
+              </Typography>
+            )}
           </Grid>
 
           <Grid item xs={12} md={6}>

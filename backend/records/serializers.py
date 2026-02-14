@@ -4,6 +4,57 @@ from users.serializers import UserMinimalSerializer
 from sections.serializers import SectionSerializer, SubsectionSerializer
 
 
+def _officer_in_dag_sections(officer, dag_section_ids):
+    if not officer:
+        return False
+    if officer.role == 'DAG':
+        return officer.sections.filter(id__in=dag_section_ids).exists()
+    if officer.subsection_id:
+        return officer.subsection.section_id in dag_section_ids
+    return False
+
+
+def _get_visible_assignments(obj, user):
+    assignments = list(obj.parallel_assignments.all())
+    assignments.sort(key=lambda a: (a.created_at, a.id))
+
+    if not user:
+        return assignments
+
+    if user.is_ag() or obj.created_by_id == user.id:
+        return assignments
+
+    if user.is_dag():
+        dag_section_ids = set(user.sections.values_list('id', flat=True))
+        visible = []
+        for assignment in assignments:
+            current_assignee = assignment.reassigned_to or assignment.assigned_to
+
+            # Always include assignments directly involving this DAG
+            if (
+                assignment.assigned_by_id == user.id
+                or assignment.assigned_to_id == user.id
+                or assignment.reassigned_to_id == user.id
+            ):
+                visible.append(assignment)
+                continue
+
+            # Include assignments in DAG-managed section scope only
+            if (
+                _officer_in_dag_sections(assignment.assigned_to, dag_section_ids)
+                or _officer_in_dag_sections(assignment.reassigned_to, dag_section_ids)
+                or _officer_in_dag_sections(current_assignee, dag_section_ids)
+            ):
+                visible.append(assignment)
+        return visible
+
+    # Staff: only assignments directly assigned/reassigned to them
+    return [
+        assignment for assignment in assignments
+        if assignment.assigned_to_id == user.id or assignment.reassigned_to_id == user.id
+    ]
+
+
 class MailRecordListSerializer(serializers.ModelSerializer):
     """Serializer for list view"""
     assigned_to_name = serializers.CharField(source='assigned_to.full_name', read_only=True)
@@ -13,7 +64,9 @@ class MailRecordListSerializer(serializers.ModelSerializer):
     time_in_stage = serializers.SerializerMethodField()
     is_overdue = serializers.SerializerMethodField()
     assignees_display = serializers.SerializerMethodField()
+    current_handlers_display = serializers.SerializerMethodField()
     assignee_count = serializers.SerializerMethodField()
+    current_handler_count = serializers.SerializerMethodField()
     assignment_snapshots = serializers.SerializerMethodField()
 
     def get_section_name(self, obj):
@@ -27,7 +80,8 @@ class MailRecordListSerializer(serializers.ModelSerializer):
             'assigned_to', 'assigned_to_name', 'current_handler', 'current_handler_name',
             'section', 'section_name', 'subsection', 'subsection_name', 'due_date', 'status', 'date_of_completion',
             'time_in_stage', 'is_overdue', 'created_at', 'current_action_status', 'current_action_remarks', 'current_action_updated_at',
-            'is_multi_assigned', 'assignees_display', 'assignee_count', 'assignment_snapshots'
+            'is_multi_assigned', 'assignees_display', 'current_handlers_display',
+            'assignee_count', 'current_handler_count', 'assignment_snapshots'
         ]
         read_only_fields = ['id', 'sl_no', 'created_at', 'current_action_updated_at']
 
@@ -38,9 +92,9 @@ class MailRecordListSerializer(serializers.ModelSerializer):
         return obj.is_overdue()
 
     def _get_sorted_assignments(self, obj):
-        assignments = list(obj.parallel_assignments.all())
-        assignments.sort(key=lambda a: (a.created_at, a.id))
-        return assignments
+        request = self.context.get('request')
+        user = getattr(request, 'user', None) if request else None
+        return _get_visible_assignments(obj, user)
 
     def get_assignees_display(self, obj):
         assignments = self._get_sorted_assignments(obj)
@@ -55,6 +109,22 @@ class MailRecordListSerializer(serializers.ModelSerializer):
         if assignments:
             return len(assignments)
         return 1 if obj.assigned_to_id else 0
+
+    def get_current_handlers_display(self, obj):
+        assignments = self._get_sorted_assignments(obj)
+        if assignments:
+            names = []
+            for assignment in assignments:
+                current_assignee = assignment.reassigned_to or assignment.assigned_to
+                names.append(current_assignee.full_name)
+            return names
+        if obj.current_handler_id:
+            return [obj.current_handler.full_name]
+        return []
+
+    def get_current_handler_count(self, obj):
+        handlers = self.get_current_handlers_display(obj)
+        return len(handlers)
 
     def get_assignment_snapshots(self, obj):
         """
@@ -91,6 +161,8 @@ class MailRecordDetailSerializer(serializers.ModelSerializer):
     time_in_stage = serializers.SerializerMethodField()
     is_overdue = serializers.SerializerMethodField()
     active_assignments_count = serializers.SerializerMethodField()
+    assignees_display = serializers.SerializerMethodField()
+    current_handlers_display = serializers.SerializerMethodField()
 
     class Meta:
         model = MailRecord
@@ -110,18 +182,35 @@ class MailRecordDetailSerializer(serializers.ModelSerializer):
             return []
 
         user = request.user
-        assignments = obj.parallel_assignments.all()
+        assignments = _get_visible_assignments(obj, user)
 
-        # AG, DAG, or creator sees all assignments
-        if user.is_ag() or user.is_dag() or obj.created_by == user:
+        if user.is_ag() or user.is_dag() or obj.created_by_id == user.id:
             return MailAssignmentSerializer(assignments, many=True, context=self.context).data
 
-        # Assignee sees only their own assignment (isolated view)
-        own_assignments = assignments.filter(assigned_to=user)
-        return MailAssignmentIsolatedSerializer(own_assignments, many=True, context=self.context).data
+        return MailAssignmentIsolatedSerializer(assignments, many=True, context=self.context).data
 
     def get_active_assignments_count(self, obj):
         return obj.parallel_assignments.filter(status='Active').count()
+
+    def get_assignees_display(self, obj):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None) if request else None
+        assignments = _get_visible_assignments(obj, user)
+        if assignments:
+            return [a.assigned_to.full_name for a in assignments]
+        if obj.assigned_to_id:
+            return [obj.assigned_to.full_name]
+        return []
+
+    def get_current_handlers_display(self, obj):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None) if request else None
+        assignments = _get_visible_assignments(obj, user)
+        if assignments:
+            return [(a.reassigned_to or a.assigned_to).full_name for a in assignments]
+        if obj.current_handler_id:
+            return [obj.current_handler.full_name]
+        return []
 
 
 class MailRecordCreateSerializer(serializers.ModelSerializer):
