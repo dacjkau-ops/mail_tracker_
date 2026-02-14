@@ -23,17 +23,19 @@ import {
   CheckCircle as CloseIcon,
   Replay as ReopenIcon,
   GroupAdd as MultiAssignIcon,
+  Update as UpdateActionIcon,
 } from '@mui/icons-material';
 import mailService from '../services/mailService';
 import { useAuth } from '../context/AuthContext';
 import { formatDate, formatDateTime, calculateTimeInStage, isOverdue } from '../utils/dateHelpers';
-import { STATUS_COLORS } from '../utils/constants';
+import { STATUS_COLORS, ACTION_STATUS_COLORS } from '../utils/constants';
 import RemarksEditDialog from '../components/RemarksEditDialog';
 import ReassignDialog from '../components/ReassignDialog';
 import CloseMailDialog from '../components/CloseMailDialog';
 import ReopenDialog from '../components/ReopenDialog';
 import MultiAssignDialog from '../components/MultiAssignDialog';
 import AssignmentsPanel from '../components/AssignmentsPanel';
+import UpdateCurrentActionDialog from '../components/UpdateCurrentActionDialog';
 
 const MailDetailPage = () => {
   const { id } = useParams();
@@ -50,6 +52,7 @@ const MailDetailPage = () => {
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [reopenDialogOpen, setReopenDialogOpen] = useState(false);
   const [multiAssignDialogOpen, setMultiAssignDialogOpen] = useState(false);
+  const [updateActionDialogOpen, setUpdateActionDialogOpen] = useState(false);
 
   useEffect(() => {
     loadMail();
@@ -120,6 +123,17 @@ const MailDetailPage = () => {
       loadAuditTrail();
     } catch (err) {
       throw new Error('Failed to reopen mail');
+    }
+  };
+
+  const handleUpdateCurrentAction = async (data) => {
+    try {
+      await mailService.updateCurrentAction(id, data);
+      setUpdateActionDialogOpen(false);
+      loadMail();
+      loadAuditTrail();
+    } catch (err) {
+      throw new Error('Failed to update current action');
     }
   };
 
@@ -321,6 +335,35 @@ const MailDetailPage = () => {
             </Typography>
           </Grid>
 
+          <Grid item xs={12} md={6}>
+            <Typography variant="body2" color="text.secondary">
+              Current Action Status
+            </Typography>
+            <Box display="flex" alignItems="center" gap={1} mt={0.5}>
+              {mail.current_action_status ? (
+                <Chip
+                  label={mail.current_action_status}
+                  color={ACTION_STATUS_COLORS[mail.current_action_status] || 'default'}
+                  size="small"
+                />
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  Not set
+                </Typography>
+              )}
+              {mail.current_action_updated_at && (
+                <Typography variant="caption" color="text.secondary">
+                  (Updated: {formatDateTime(mail.current_action_updated_at)})
+                </Typography>
+              )}
+            </Box>
+            {mail.current_action_remarks && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontStyle: 'italic' }}>
+                {mail.current_action_remarks}
+              </Typography>
+            )}
+          </Grid>
+
           {mail.date_of_completion && (
             <Grid item xs={12} md={6}>
               <Typography variant="body2" color="text.secondary">
@@ -354,6 +397,15 @@ const MailDetailPage = () => {
         </Typography>
         <Divider sx={{ mb: 2 }} />
         <Box display="flex" gap={2} flexWrap="wrap">
+          {canEditRemarks() && mail.status !== 'Closed' && (
+            <Button
+              variant="contained"
+              startIcon={<UpdateActionIcon />}
+              onClick={() => setUpdateActionDialogOpen(true)}
+            >
+              Update Current Action
+            </Button>
+          )}
           {canReassignMail() && (
             <Button
               variant="outlined"
@@ -488,6 +540,14 @@ const MailDetailPage = () => {
         mailId={id}
         onSuccess={() => { loadMail(); loadAuditTrail(); }}
         currentUser={user}
+      />
+
+      <UpdateCurrentActionDialog
+        open={updateActionDialogOpen}
+        onClose={() => setUpdateActionDialogOpen(false)}
+        currentActionStatus={mail.current_action_status}
+        currentActionRemarks={mail.current_action_remarks}
+        onUpdate={handleUpdateCurrentAction}
       />
     </Box>
   );

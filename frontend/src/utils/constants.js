@@ -27,6 +27,19 @@ export const ACTION_REQUIRED_OPTIONS = [
   'Other',
 ];
 
+// Current Action Status Options (what handler is actively doing)
+export const CURRENT_ACTION_STATUS_OPTIONS = [
+  'Under Review',
+  'Drafting Reply',
+  'Seeking Clarification',
+  'Awaiting Information',
+  'Processing',
+  'Finalizing',
+  'On Hold',
+  'Consulting',
+  'Verification',
+];
+
 // Audit Actions
 export const AUDIT_ACTIONS = {
   CREATE: 'CREATE',
@@ -43,4 +56,17 @@ export const STATUS_COLORS = {
   [MAIL_STATUS.ASSIGNED]: 'warning',
   [MAIL_STATUS.IN_PROGRESS]: 'primary',
   [MAIL_STATUS.CLOSED]: 'success',
+};
+
+// Current Action Status Colors
+export const ACTION_STATUS_COLORS = {
+  'Under Review': 'info',
+  'Drafting Reply': 'primary',
+  'Seeking Clarification': 'warning',
+  'Awaiting Information': 'warning',
+  'Processing': 'primary',
+  'Finalizing': 'success',
+  'On Hold': 'error',
+  'Consulting': 'secondary',
+  'Verification': 'info',
 };

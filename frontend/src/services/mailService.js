@@ -84,6 +84,17 @@ const mailService = {
   },
 
   /**
+   * Update current action status (current handler only)
+   * @param {string} id - Mail ID
+   * @param {Object} data - { current_action_status, current_action_remarks }
+   * @returns {Promise}
+   */
+  async updateCurrentAction(id, data) {
+    const response = await api.post(`/records/${id}/update-current-action/`, data);
+    return response.data;
+  },
+
+  /**
    * Get audit trail for a mail
    * @param {string} id - Mail ID
    * @returns {Promise}

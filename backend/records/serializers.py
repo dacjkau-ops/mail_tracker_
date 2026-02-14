@@ -23,9 +23,9 @@ class MailRecordListSerializer(serializers.ModelSerializer):
             'id', 'sl_no', 'letter_no', 'mail_reference_subject', 'from_office',
             'assigned_to', 'assigned_to_name', 'current_handler', 'current_handler_name',
             'section', 'section_name', 'subsection', 'subsection_name', 'due_date', 'status', 'date_of_completion',
-            'time_in_stage', 'is_overdue', 'created_at'
+            'time_in_stage', 'is_overdue', 'created_at', 'current_action_status', 'current_action_remarks', 'current_action_updated_at'
         ]
-        read_only_fields = ['id', 'sl_no', 'created_at']
+        read_only_fields = ['id', 'sl_no', 'created_at', 'current_action_updated_at']
 
     def get_time_in_stage(self, obj):
         return obj.time_in_current_stage()
@@ -164,6 +164,20 @@ class MailRecordReassignSerializer(serializers.Serializer):
 class MailRecordCloseSerializer(serializers.Serializer):
     """Serializer for closing mail records"""
     remarks = serializers.CharField(required=True, allow_blank=False)
+
+
+class CurrentActionUpdateSerializer(serializers.Serializer):
+    """Serializer for updating current action status by the current handler"""
+    current_action_status = serializers.ChoiceField(
+        choices=MailRecord.CURRENT_ACTION_STATUS_CHOICES,
+        required=True,
+        help_text="What you are currently doing with this mail"
+    )
+    current_action_remarks = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Optional details about the current action"
+    )
 
 
 # Multi-assignment serializers

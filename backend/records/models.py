@@ -21,6 +21,19 @@ class MailRecord(models.Model):
         ('Other', 'Other'),
     ]
 
+    # Current work status choices - what the current handler is actively doing
+    CURRENT_ACTION_STATUS_CHOICES = [
+        ('Under Review', 'Under Review'),
+        ('Drafting Reply', 'Drafting Reply'),
+        ('Seeking Clarification', 'Seeking Clarification'),
+        ('Awaiting Information', 'Awaiting Information'),
+        ('Processing', 'Processing'),
+        ('Finalizing', 'Finalizing'),
+        ('On Hold', 'On Hold'),
+        ('Consulting', 'Consulting'),
+        ('Verification', 'Verification'),
+    ]
+
     # Auto-generated serial number
     sl_no = models.CharField(max_length=20, unique=True, editable=False)
 
@@ -76,6 +89,25 @@ class MailRecord(models.Model):
     date_of_completion = models.DateField(null=True, blank=True)
     last_status_change = models.DateTimeField(auto_now_add=True)
 
+    # Current handler's work status (what they're actively doing with the mail)
+    current_action_status = models.CharField(
+        max_length=50,
+        choices=CURRENT_ACTION_STATUS_CHOICES,
+        null=True,
+        blank=True,
+        help_text="What the current handler is actively doing with this mail"
+    )
+    current_action_remarks = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Optional details about the current action being performed"
+    )
+    current_action_updated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the current action status was last updated"
+    )
+
     # Additional info
     initial_instructions = models.TextField(blank=True, null=True, help_text="Initial instructions from creator, visible to all assignees")
     remarks = models.TextField(blank=True, null=True, help_text="DEPRECATED: Use initial_instructions or assignment-level remarks")
@@ -104,6 +136,7 @@ class MailRecord(models.Model):
             models.Index(fields=['due_date']),
             models.Index(fields=['created_at']),
             models.Index(fields=['section', 'status']),  # Composite for common filter
+            models.Index(fields=['current_action_status']),  # For filtering by current work status
         ]
 
     def __str__(self):

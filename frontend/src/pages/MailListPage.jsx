@@ -23,7 +23,7 @@ import {
 } from '@mui/material';
 import { PictureAsPdf as PdfIcon } from '@mui/icons-material';
 import mailService from '../services/mailService';
-import { MAIL_STATUS, STATUS_COLORS } from '../utils/constants';
+import { MAIL_STATUS, STATUS_COLORS, ACTION_STATUS_COLORS } from '../utils/constants';
 import { formatDate, calculateTimeInStage, isOverdue } from '../utils/dateHelpers';
 import { exportMailListToPDF } from '../utils/pdfExport';
 
@@ -197,6 +197,7 @@ const MailListPage = () => {
                 </TableSortLabel>
               </TableCell>
               <TableCell>Current Handler</TableCell>
+              <TableCell>Current Action</TableCell>
               <TableCell>
                 <TableSortLabel
                   active={orderBy === 'due_date'}
@@ -214,7 +215,7 @@ const MailListPage = () => {
           <TableBody>
             {sortedMails.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} align="center">
+                <TableCell colSpan={11} align="center">
                   <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
                     No mails found
                   </Typography>
@@ -247,6 +248,20 @@ const MailListPage = () => {
                     <TableCell>{mail.from_office}</TableCell>
                     <TableCell>{mail.assigned_to_name || mail.assigned_to?.full_name || 'N/A'}</TableCell>
                     <TableCell>{mail.current_handler_name || mail.current_handler?.full_name || 'N/A'}</TableCell>
+                    <TableCell>
+                      {mail.current_action_status ? (
+                        <Chip
+                          label={mail.current_action_status}
+                          color={ACTION_STATUS_COLORS[mail.current_action_status] || 'default'}
+                          size="small"
+                          sx={{ fontSize: '0.75rem' }}
+                        />
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">
+                          Not set
+                        </Typography>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {formatDate(mail.due_date)}
                       {overdue && (

@@ -12,6 +12,7 @@ from .serializers import (
     MailRecordUpdateSerializer,
     MailRecordReassignSerializer,
     MailRecordCloseSerializer,
+    CurrentActionUpdateSerializer,
     MailAssignmentSerializer,
     MailAssignmentIsolatedSerializer,
     MultiAssignSerializer,
@@ -423,6 +424,70 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             old_value={'status': old_status},
             new_value={'status': 'In Progress'},
             remarks=remarks
+        )
+
+        response_serializer = MailRecordDetailSerializer(mail_record, context={'request': request})
+        return Response(response_serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='update-current-action')
+    def update_current_action(self, request, pk=None):
+        """Update current action status (what the handler is actively doing)"""
+        mail_record = self.get_object()
+
+        from .serializers import CurrentActionUpdateSerializer
+        serializer = CurrentActionUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        current_action_status = serializer.validated_data['current_action_status']
+        current_action_remarks = serializer.validated_data.get('current_action_remarks', '')
+
+        user = request.user
+
+        # Only current handler can update current action status
+        if mail_record.current_handler != user:
+            return Response(
+                {'error': 'Only the current handler can update the current action status.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Cannot update if mail is closed
+        if mail_record.status == 'Closed':
+            return Response(
+                {'error': 'Cannot update action status of a closed mail.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Store old values for audit trail
+        old_action_status = mail_record.current_action_status
+        old_action_remarks = mail_record.current_action_remarks
+
+        # Update current action status
+        mail_record.current_action_status = current_action_status
+        mail_record.current_action_remarks = current_action_remarks
+        mail_record.current_action_updated_at = timezone.now()
+
+        # Auto-transition to In Progress if currently Assigned
+        if mail_record.status == 'Assigned':
+            mail_record.status = 'In Progress'
+            mail_record.last_status_change = timezone.now()
+
+        mail_record.save()
+
+        # Create audit trail
+        AuditTrail.objects.create(
+            mail_record=mail_record,
+            action='UPDATE',
+            performed_by=user,
+            old_value={
+                'current_action_status': old_action_status,
+                'current_action_remarks': old_action_remarks
+            },
+            new_value={
+                'current_action_status': current_action_status,
+                'current_action_remarks': current_action_remarks,
+                'status': mail_record.status
+            },
+            remarks=f"Updated current action to: {current_action_status}"
         )
 
         response_serializer = MailRecordDetailSerializer(mail_record, context={'request': request})
