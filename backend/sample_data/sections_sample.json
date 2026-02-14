@@ -1,0 +1,114 @@
+[
+    {
+        "name": "Admin",
+        "description": "Administrative section",
+        "directly_under_ag": true,
+        "subsections": [
+            {
+                "name": "Admin-1",
+                "description": "General administration"
+            },
+            {
+                "name": "Admin-2",
+                "description": "Establishment matters"
+            },
+            {
+                "name": "Admin-3",
+                "description": "File management"
+            }
+        ]
+    },
+    {
+        "name": "Finance",
+        "description": "Finance department",
+        "directly_under_ag": false,
+        "subsections": [
+            {
+                "name": "Finance-A",
+                "description": "Budget and accounts"
+            },
+            {
+                "name": "Finance-B",
+                "description": "Audit and compliance"
+            },
+            {
+                "name": "Finance-C",
+                "description": "Treasury operations"
+            }
+        ]
+    },
+    {
+        "name": "Legal",
+        "description": "Legal affairs department",
+        "directly_under_ag": true,
+        "subsections": [
+            {
+                "name": "Legal-North",
+                "description": "Northern region legal matters"
+            },
+            {
+                "name": "Legal-South",
+                "description": "Southern region legal matters"
+            }
+        ]
+    },
+    {
+        "name": "HR",
+        "description": "Human Resources",
+        "directly_under_ag": false,
+        "subsections": [
+            {
+                "name": "HR-Recruitment",
+                "description": "Recruitment and onboarding"
+            },
+            {
+                "name": "HR-Training",
+                "description": "Training and development"
+            },
+            {
+                "name": "HR-Payroll",
+                "description": "Payroll and benefits"
+            }
+        ]
+    },
+    {
+        "name": "IT",
+        "description": "Information Technology",
+        "directly_under_ag": false,
+        "subsections": [
+            {
+                "name": "IT-Development",
+                "description": "Software development"
+            },
+            {
+                "name": "IT-Support",
+                "description": "Technical support"
+            },
+            {
+                "name": "IT-Infrastructure",
+                "description": "Infrastructure management"
+            }
+        ]
+    },
+    {
+        "name": "Procurement",
+        "description": "Procurement and supplies",
+        "directly_under_ag": false,
+        "subsections": []
+    },
+    {
+        "name": "Operations",
+        "description": "Operations management",
+        "directly_under_ag": false,
+        "subsections": [
+            {
+                "name": "Ops-Field",
+                "description": "Field operations"
+            },
+            {
+                "name": "Ops-Office",
+                "description": "Office operations"
+            }
+        ]
+    }
+]

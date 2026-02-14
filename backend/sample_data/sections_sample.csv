@@ -1,0 +1,18 @@
+section_name,description,directly_under_ag,subsection_name,subsection_description
+Admin,Administrative section,true,Admin-1,General administration
+Admin,,,Admin-2,Establishment matters
+Admin,,,Admin-3,File management
+Finance,Finance department,false,Finance-A,Budget and accounts
+Finance,,,Finance-B,Audit and compliance
+Finance,,,Finance-C,Treasury operations
+Legal,Legal affairs department,true,Legal-North,Northern region legal matters
+Legal,,,Legal-South,Southern region legal matters
+HR,Human Resources,false,HR-Recruitment,Recruitment and onboarding
+HR,,,HR-Training,Training and development
+HR,,,HR-Payroll,Payroll and benefits
+IT,Information Technology,false,IT-Development,Software development
+IT,,,IT-Support,Technical support
+IT,,,IT-Infrastructure,Infrastructure management
+Procurement,Procurement and supplies,false,,,
+Operations,Operations management,false,Ops-Field,Field operations
+Operations,,,Ops-Office,Office operations

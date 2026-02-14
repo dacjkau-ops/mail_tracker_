@@ -1,0 +1,83 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div id="content-main">
+    <h1>Import Sections and Subsections</h1>
+
+    <div class="module">
+        <h2>Upload File</h2>
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <div class="submit-row">
+                <input type="submit" value="Import" class="default" />
+                <a href="{% url 'admin:sections_section_changelist' %}" class="button cancel-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="module" style="margin-top: 20px;">
+        <h2>File Format Instructions</h2>
+
+        <h3>CSV Format</h3>
+        <p>Required columns: <code>section_name</code></p>
+        <p>Optional columns: <code>description</code>, <code>directly_under_ag</code>, <code>subsection_name</code>, <code>subsection_description</code></p>
+
+        <p><strong>Example CSV:</strong></p>
+        <pre style="background: #f5f5f5; padding: 10px; border: 1px solid #ddd;">
+section_name,description,directly_under_ag,subsection_name,subsection_description
+Admin,Administrative section,true,Admin-1,First admin subsection
+Admin,,,Admin-2,Second admin subsection
+Finance,Finance department,false,Finance-A,Finance subsection A
+Finance,,,Finance-B,Finance subsection B
+Legal,Legal affairs,true,,</pre>
+
+        <p><strong>Notes:</strong></p>
+        <ul>
+            <li>To add multiple subsections to the same section, repeat the section name with different subsection names</li>
+            <li>Leave description blank for repeated sections (it will use the first occurrence)</li>
+            <li><code>directly_under_ag</code> accepts: true/false, 1/0, yes/no, t/f (default: false)</li>
+            <li>If subsection_name is empty, only the section will be created</li>
+        </ul>
+
+        <h3>JSON Format</h3>
+        <p><strong>Example JSON:</strong></p>
+        <pre style="background: #f5f5f5; padding: 10px; border: 1px solid #ddd;">
+[
+    {
+        "name": "Admin",
+        "description": "Administrative section",
+        "directly_under_ag": true,
+        "subsections": [
+            {"name": "Admin-1", "description": "First admin subsection"},
+            {"name": "Admin-2", "description": "Second admin subsection"}
+        ]
+    },
+    {
+        "name": "Finance",
+        "description": "Finance department",
+        "directly_under_ag": false,
+        "subsections": [
+            {"name": "Finance-A", "description": "Finance subsection A"},
+            {"name": "Finance-B", "description": "Finance subsection B"}
+        ]
+    },
+    {
+        "name": "Legal",
+        "description": "Legal affairs",
+        "directly_under_ag": true,
+        "subsections": []
+    }
+]</pre>
+
+        <p><strong>Notes:</strong></p>
+        <ul>
+            <li>JSON must be an array of section objects</li>
+            <li>Each section must have a "name" field</li>
+            <li>"subsections" is optional and should be an array of subsection objects</li>
+            <li>Each subsection must have a "name" field</li>
+            <li>Existing sections/subsections will be skipped (no duplicates)</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

@@ -157,6 +157,28 @@ SubsectionViewSet (read-only):
     - GET /api/subsections/
 ```
 
+#### **admin.py - Section Admin + Import**
+- **CSV/JSON Import**: `/admin/sections/section/import/`
+- **CSV Format**:
+  - Required: `section_name`
+  - Optional: `description`, `directly_under_ag`, `subsection_name`, `subsection_description`
+  - Repeat section name for multiple subsections
+- **JSON Format**:
+  ```json
+  [
+    {
+      "name": "Admin",
+      "description": "Administrative section",
+      "directly_under_ag": true,
+      "subsections": [
+        {"name": "Admin-1", "description": "General admin"},
+        {"name": "Admin-2", "description": "Establishment"}
+      ]
+    }
+  ]
+  ```
+- **Sample Files**: `backend/sample_data/sections_sample.csv` and `sections_sample.json`
+
 ---
 
 ### **records/ - Mail Tracking (CORE)**
@@ -349,9 +371,18 @@ GET /api/audit/{id}/           # Audit detail
 3. Update permission methods in `backend/records/models.py`
 4. Run migrations
 
-### **CSV Import for Users**
-- **Template**: username, email, password, full_name, role, sections (comma-sep for DAG), subsection (for SrAO/AAO)
-- **Upload**: Django admin → Users → Import button
+### **Bulk Import (CSV/JSON)**
+
+#### **Sections and Subsections Import**
+- **Location**: Django admin → Sections → Import Sections/Subsections button
+- **CSV Template**: `backend/sample_data/sections_sample.csv`
+- **JSON Template**: `backend/sample_data/sections_sample.json`
+- **CSV Columns**: section_name (required), description, directly_under_ag, subsection_name, subsection_description
+- **JSON Structure**: Array of section objects with nested subsections array
+
+#### **Users Import**
+- **Location**: Django admin → Users → Import button
+- **CSV Columns**: username, email, password, full_name, role, sections (comma-sep for DAG), subsection (for SrAO/AAO)
 
 ### **Deployment**
 - **Backend (Render)**: `backend/build.sh` runs on deploy (collectstatic, migrate, create superuser)
@@ -500,9 +531,18 @@ http://localhost:8000/admin/              # Django admin interface
 
 ---
 
-## 📝 Recent Major Changes (2026-02-14)
+## 📝 Recent Major Changes
 
-### ✅ Subsection Support Added
+### 2026-02-14 (Latest)
+
+#### ✅ Bulk Import for Sections/Subsections
+- **New Feature**: CSV/JSON import for sections and subsections
+- **Location**: Django admin → Sections → Import Sections/Subsections button
+- **Sample Files**: `backend/sample_data/sections_sample.csv` and `sections_sample.json`
+- **Supports**: Nested subsections, directly_under_ag flag, bulk creation
+- **Skips Duplicates**: Won't overwrite existing sections/subsections
+
+#### ✅ Subsection Support Added
 - **Breaking Change**: User.section (FK) → User.sections (M2M) for DAG
 - **New Model**: Subsection (belongs to Section)
 - **New Field**: User.subsection (for SrAO/AAO)
@@ -513,7 +553,8 @@ http://localhost:8000/admin/              # Django admin interface
 - DAG can now manage multiple sections
 - SrAO/AAO belong to specific subsections
 - Sections can report directly to AG (no DAG)
-- CSV import format changed (see users/admin.py)
+- Bulk import available for easy setup
+- CSV import format changed for users (see users/admin.py)
 
 ---
 
