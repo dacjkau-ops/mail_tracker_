@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import MailRecord, MailAssignment, AssignmentRemark
 from users.serializers import UserMinimalSerializer
-from sections.serializers import SectionSerializer
+from sections.serializers import SectionSerializer, SubsectionSerializer
 
 
 class MailRecordListSerializer(serializers.ModelSerializer):
@@ -9,6 +9,7 @@ class MailRecordListSerializer(serializers.ModelSerializer):
     assigned_to_name = serializers.CharField(source='assigned_to.full_name', read_only=True)
     current_handler_name = serializers.CharField(source='current_handler.full_name', read_only=True)
     section_name = serializers.SerializerMethodField()
+    subsection_name = serializers.CharField(source='subsection.name', read_only=True)
     time_in_stage = serializers.SerializerMethodField()
     is_overdue = serializers.SerializerMethodField()
 
@@ -21,7 +22,7 @@ class MailRecordListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'sl_no', 'letter_no', 'mail_reference_subject', 'from_office',
             'assigned_to', 'assigned_to_name', 'current_handler', 'current_handler_name',
-            'section', 'section_name', 'due_date', 'status', 'date_of_completion',
+            'section', 'section_name', 'subsection', 'subsection_name', 'due_date', 'status', 'date_of_completion',
             'time_in_stage', 'is_overdue', 'created_at'
         ]
         read_only_fields = ['id', 'sl_no', 'created_at']
@@ -39,6 +40,7 @@ class MailRecordDetailSerializer(serializers.ModelSerializer):
     current_handler_details = UserMinimalSerializer(source='current_handler', read_only=True)
     monitoring_officer_details = UserMinimalSerializer(source='monitoring_officer', read_only=True)
     section_details = SectionSerializer(source='section', read_only=True)
+    subsection_details = SubsectionSerializer(source='subsection', read_only=True)
     created_by_details = UserMinimalSerializer(source='created_by', read_only=True)
     assignments = serializers.SerializerMethodField()
     time_in_stage = serializers.SerializerMethodField()
@@ -87,12 +89,13 @@ class MailRecordCreateSerializer(serializers.ModelSerializer):
     initial_instructions = serializers.CharField(required=False, allow_blank=True)
     # Section is now optional - will be auto-detected based on role and assignees
     section = serializers.IntegerField(required=False, allow_null=True)
+    subsection = serializers.IntegerField(required=False, allow_null=True)
 
     class Meta:
         model = MailRecord
         fields = [
             'letter_no', 'date_received', 'mail_reference_subject', 'from_office',
-            'action_required', 'action_required_other', 'section', 'assigned_to',
+            'action_required', 'action_required_other', 'section', 'subsection', 'assigned_to',
             'due_date', 'initial_instructions'
         ]
 

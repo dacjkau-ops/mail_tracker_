@@ -20,7 +20,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from users.views import UserViewSet, CustomTokenObtainPairView
-from sections.views import SectionViewSet
+from sections.views import SectionViewSet, SubsectionViewSet
 from records.views import MailRecordViewSet, MailAssignmentViewSet
 from audit.views import AuditTrailViewSet
 
@@ -28,6 +28,7 @@ from audit.views import AuditTrailViewSet
 router = DefaultRouter()
 router.register(r'users', UserViewSet, basename='user')
 router.register(r'sections', SectionViewSet, basename='section')
+router.register(r'subsections', SubsectionViewSet, basename='subsection')
 router.register(r'records', MailRecordViewSet, basename='mailrecord')
 router.register(r'assignments', MailAssignmentViewSet, basename='assignment')
 router.register(r'audit', AuditTrailViewSet, basename='audit')

@@ -1,7 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
-from sections.models import Section
+from sections.models import Section, Subsection
 
 
 class MailRecord(models.Model):
@@ -60,6 +60,14 @@ class MailRecord(models.Model):
         null=True,
         blank=True,
         help_text="Section owning this mail. Null for cross-section multi-assignments."
+    )
+    subsection = models.ForeignKey(
+        Subsection,
+        on_delete=models.PROTECT,
+        related_name='mails',
+        null=True,
+        blank=True,
+        help_text="Subsection within the section (optional, used when assigned to SrAO/AAO)"
     )
     due_date = models.DateField()
 
@@ -167,8 +175,8 @@ class MailRecord(models.Model):
             return True
 
         if user.is_dag():
-            # DAG can view own section's mails
-            if self.section == user.section:
+            # DAG can view mails from any of their managed sections
+            if self.section and user.sections.filter(id=self.section.id).exists():
                 return True
             # DAG can view mails they touched at any point
             from audit.models import AuditTrail
@@ -193,7 +201,8 @@ class MailRecord(models.Model):
             return True
 
         if user.is_dag():
-            return self.section == user.section
+            # DAG can edit if mail belongs to any of their managed sections
+            return self.section and user.sections.filter(id=self.section.id).exists()
 
         # Staff officers can only edit remarks
         return False
@@ -203,8 +212,9 @@ class MailRecord(models.Model):
         if user.is_ag():
             return True
 
-        if user.is_dag() and self.section == user.section:
-            return True
+        if user.is_dag():
+            # DAG can reassign if mail belongs to any of their managed sections
+            return self.section and user.sections.filter(id=self.section.id).exists()
 
         # Current handler can reassign their own mail
         return self.current_handler == user
@@ -227,7 +237,12 @@ class MailRecord(models.Model):
         """Check if user can assign this mail to multiple people"""
         if self.status == 'Closed':
             return False
-        return user.is_ag() or (user.is_dag() and self.section == user.section)
+        if user.is_ag():
+            return True
+        if user.is_dag():
+            # DAG can multi-assign if mail belongs to any of their managed sections
+            return self.section and user.sections.filter(id=self.section.id).exists()
+        return False
 
     def update_consolidated_remarks(self):
         """Update consolidated remarks from all parallel assignments"""

@@ -4,6 +4,12 @@ Copy and paste this 👇
 
 ---
 
+## 🗺️ Quick Navigation
+
+**NEW**: Before exploring the codebase, read **MAP.md** for a complete codebase map with ASCII tree structure, file descriptions, and quick reference guide. This will significantly reduce token usage by helping you navigate directly to the right files.
+
+---
+
 ## Project Context
 Build a secure, role-based office workflow and mail tracking application for internal office use.
 The system tracks received mails/actions, assigns them to officers, monitors progress through different stages, and maintains audit trail.

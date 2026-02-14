@@ -35,7 +35,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
 
 class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.filter(is_active=True).select_related('section')
+    queryset = User.objects.filter(is_active=True).prefetch_related('sections').select_related('subsection', 'subsection__section')
     permission_classes = [IsAuthenticated]
 
     def get_serializer_class(self):
@@ -52,10 +52,15 @@ class UserViewSet(viewsets.ModelViewSet):
         if role:
             queryset = queryset.filter(role=role)
 
-        # Filter by section if requested
+        # Filter by section if requested (for DAG managing multiple sections)
         section = self.request.query_params.get('section', None)
         if section:
-            queryset = queryset.filter(section=section)
+            queryset = queryset.filter(sections=section)
+
+        # Filter by subsection if requested (for SrAO/AAO)
+        subsection = self.request.query_params.get('subsection', None)
+        if subsection:
+            queryset = queryset.filter(subsection=subsection)
 
         return queryset
 

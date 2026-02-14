@@ -7,7 +7,7 @@ from django.shortcuts import render, redirect
 from django.urls import path
 from django import forms
 from .models import User
-from sections.models import Section
+from sections.models import Section, Subsection
 
 
 class ImportUsersForm(forms.Form):
@@ -27,16 +27,26 @@ class ImportUsersForm(forms.Form):
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ['username', 'full_name', 'email', 'role', 'section', 'is_active']
-    list_filter = ['role', 'section', 'is_active']
+    list_display = ['username', 'full_name', 'email', 'role', 'get_sections_display', 'subsection', 'is_active']
+    list_filter = ['role', 'is_active']
     search_fields = ['username', 'full_name', 'email']
+    filter_horizontal = ['sections']  # For ManyToMany field
     fieldsets = BaseUserAdmin.fieldsets + (
-        ('Additional Info', {'fields': ('role', 'section', 'full_name')}),
+        ('Additional Info', {'fields': ('role', 'sections', 'subsection', 'full_name')}),
     )
     add_fieldsets = BaseUserAdmin.add_fieldsets + (
-        ('Additional Info', {'fields': ('role', 'section', 'full_name', 'email')}),
+        ('Additional Info', {'fields': ('role', 'sections', 'subsection', 'full_name', 'email')}),
     )
     change_list_template = 'admin/users/user/change_list.html'
+
+    def get_sections_display(self, obj):
+        """Display sections for DAG or subsection's section for SrAO/AAO"""
+        if obj.role == 'DAG':
+            return ', '.join([s.name for s in obj.sections.all()]) or '-'
+        elif obj.subsection:
+            return obj.subsection.section.name
+        return '-'
+    get_sections_display.short_description = 'Sections'
 
     def get_urls(self):
         urls = super().get_urls()
@@ -104,7 +114,7 @@ class UserAdmin(BaseUserAdmin):
 
         missing = [col for col in required_columns if col not in reader.fieldnames]
         if missing:
-            raise ValueError(f'Missing required columns: {", ".join(missing)}')
+            raise ValueError(f'Missing required columns: {", ".join(missing)}. Optional: sections (for DAG), subsection (for SrAO/AAO)')
 
         for row_num, row in enumerate(reader, start=2):
             result = self._create_user_from_row(row, row_num)
@@ -146,7 +156,8 @@ class UserAdmin(BaseUserAdmin):
         password = row.get('password', '').strip()
         full_name = row.get('full_name', '').strip()
         role = row.get('role', '').strip().upper()
-        section_name = row.get('section_name', '').strip()
+        sections_str = row.get('sections', '').strip()  # Comma-separated for DAG
+        subsection_name = row.get('subsection', '').strip()  # For SrAO/AAO
 
         # Validate required fields
         if not all([username, email, password, full_name, role]):
@@ -167,27 +178,65 @@ class UserAdmin(BaseUserAdmin):
         if User.objects.filter(username=username).exists():
             return {'status': 'skipped', 'username': username}
 
-        # Get section if specified
-        section = None
-        if section_name:
-            try:
-                section = Section.objects.get(name=section_name)
-            except Section.DoesNotExist:
-                return {
-                    'status': 'error',
-                    'message': f'Row {row_num} ({username}): Section "{section_name}" does not exist'
-                }
+        # Get sections for DAG (ManyToMany)
+        sections_list = []
+        if role == 'DAG' and sections_str:
+            section_names = [s.strip() for s in sections_str.split(',')]
+            for section_name in section_names:
+                try:
+                    section = Section.objects.get(name=section_name)
+                    sections_list.append(section)
+                except Section.DoesNotExist:
+                    return {
+                        'status': 'error',
+                        'message': f'Row {row_num} ({username}): Section "{section_name}" does not exist'
+                    }
+
+        # Get subsection for SrAO/AAO
+        subsection = None
+        if role in ['SRAO', 'AAO'] and subsection_name:
+            # Expected format: "Section Name - Subsection Name"
+            if ' - ' in subsection_name:
+                section_name, sub_name = subsection_name.split(' - ', 1)
+                section_name = section_name.strip()
+                sub_name = sub_name.strip()
+                try:
+                    section = Section.objects.get(name=section_name)
+                    subsection = Subsection.objects.get(section=section, name=sub_name)
+                except (Section.DoesNotExist, Subsection.DoesNotExist):
+                    return {
+                        'status': 'error',
+                        'message': f'Row {row_num} ({username}): Subsection "{subsection_name}" does not exist'
+                    }
+            else:
+                # Try to find subsection by name only (assuming unique)
+                try:
+                    subsection = Subsection.objects.get(name=subsection_name)
+                except Subsection.DoesNotExist:
+                    return {
+                        'status': 'error',
+                        'message': f'Row {row_num} ({username}): Subsection "{subsection_name}" does not exist'
+                    }
+                except Subsection.MultipleObjectsReturned:
+                    return {
+                        'status': 'error',
+                        'message': f'Row {row_num} ({username}): Multiple subsections named "{subsection_name}" found. Use format: "Section - Subsection"'
+                    }
 
         # Create user
         try:
-            User.objects.create_user(
+            user = User.objects.create_user(
                 username=username,
                 email=email,
                 password=password,
                 full_name=full_name,
                 role=role,
-                section=section,
+                subsection=subsection,
             )
+            # Add sections for DAG (ManyToMany)
+            if sections_list:
+                user.sections.set(sections_list)
+
             return {'status': 'created', 'username': username}
         except Exception as e:
             return {

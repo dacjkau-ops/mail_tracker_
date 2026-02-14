@@ -46,7 +46,7 @@ class MailRecordViewSet(viewsets.ModelViewSet):
         user = self.request.user
         queryset = MailRecord.objects.select_related(
             'assigned_to', 'current_handler', 'monitoring_officer',
-            'section', 'created_by'
+            'section', 'subsection', 'subsection__section', 'created_by'
         )
 
         # AG can see all records
@@ -66,9 +66,13 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 status='Active'
             ).values_list('mail_record_id', flat=True).distinct())
 
+            # Get all sections managed by this DAG
+            dag_section_ids = list(user.sections.values_list('id', flat=True))
+
             # NEW: Get records where DAG's section officers have assignments (cross-section visibility)
+            # Get all officers in any of the DAG's managed sections
             section_officer_ids = list(User.objects.filter(
-                section=user.section, is_active=True
+                subsection__section_id__in=dag_section_ids, is_active=True
             ).values_list('id', flat=True))
             cross_section_mail_ids = list(MailAssignment.objects.filter(
                 assigned_to_id__in=section_officer_ids,
@@ -77,7 +81,7 @@ class MailRecordViewSet(viewsets.ModelViewSet):
 
             # Combine: section records OR touched records OR parallel assignments OR cross-section where officers assigned
             queryset = queryset.filter(
-                Q(section=user.section) |
+                Q(section_id__in=dag_section_ids) |
                 Q(id__in=touched_record_ids) |
                 Q(id__in=assigned_via_parallel) |
                 Q(id__in=cross_section_mail_ids)
