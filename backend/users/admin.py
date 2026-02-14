@@ -155,7 +155,7 @@ class UserAdmin(BaseUserAdmin):
         email = row.get('email', '').strip()
         password = row.get('password', '').strip()
         full_name = row.get('full_name', '').strip()
-        role = row.get('role', '').strip().upper()
+        role = row.get('role', '').strip()
         sections_str = row.get('sections', '').strip()  # Comma-separated for DAG
         subsection_name = row.get('subsection', '').strip()  # For SrAO/AAO
 

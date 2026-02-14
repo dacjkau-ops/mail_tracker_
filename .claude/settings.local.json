@@ -9,7 +9,8 @@
       "Bash(npm run dev:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(python manage.py runserver:*)"
+      "Bash(python manage.py runserver:*)",
+      "Bash(echo:*)"
     ]
   }
 }
