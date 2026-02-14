@@ -178,6 +178,9 @@ class MailRecord(models.Model):
             # DAG can view mails from any of their managed sections
             if self.section and user.sections.filter(id=self.section.id).exists():
                 return True
+            # DAG can view mails where they have a parallel assignment
+            if self.parallel_assignments.filter(assigned_to=user, status='Active').exists():
+                return True
             # DAG can view mails they touched at any point
             from audit.models import AuditTrail
             return AuditTrail.objects.filter(
@@ -187,6 +190,10 @@ class MailRecord(models.Model):
 
         # SrAO/AAO can view mails assigned to them or they touched
         if self.current_handler == user or self.assigned_to == user:
+            return True
+
+        # Staff can view mails where they have a parallel assignment
+        if self.parallel_assignments.filter(assigned_to=user, status='Active').exists():
             return True
 
         from audit.models import AuditTrail

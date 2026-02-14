@@ -22,8 +22,8 @@ The app is hosted locally (laptop server) and prioritizes correctness, security,
    - Full system access across all sections
 
 2. **DAG (Deputy Accountant General)** - Section heads
-   - Can create mail entries for their section
-   - Can assign/reassign within their section
+   - **CANNOT create** mail entries (only AG can create)
+   - Can reassign mails within their managed sections
    - Can view: Own section records + all records they've ever touched
    - Can update status and close records they're handling
 

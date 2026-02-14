@@ -126,11 +126,11 @@ class MailRecordViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
 
-        # Check permissions - only AG and DAG can create
+        # Check permissions - only AG can create
         user = request.user
-        if user.role not in ['AG', 'DAG']:
+        if user.role != 'AG':
             return Response(
-                {'error': 'You do not have permission to create mail records.'},
+                {'error': 'Only Accountant General can create mail records.'},
                 status=status.HTTP_403_FORBIDDEN
             )
 

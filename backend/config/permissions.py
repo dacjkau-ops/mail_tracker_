@@ -44,9 +44,9 @@ class MailRecordPermission(permissions.BasePermission):
         if view.action in ['list', 'retrieve']:
             return True
 
-        # Only AG and DAG can create
+        # Only AG can create
         if view.action == 'create':
-            return request.user.role in ['AG', 'DAG']
+            return request.user.role == 'AG'
 
         # All users can potentially update/close/reassign (checked at object level)
         if view.action in ['update', 'partial_update', 'close', 'reassign', 'reopen']:
