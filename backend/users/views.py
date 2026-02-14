@@ -19,8 +19,11 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         try:
             data = super().validate(attrs)
-            # Add user data to the response
-            user_serializer = UserSerializer(self.user)
+            # Fetch user with prefetched sections for proper M2M serialization
+            user = User.objects.prefetch_related('sections').select_related(
+                'subsection', 'subsection__section'
+            ).get(pk=self.user.pk)
+            user_serializer = UserSerializer(user)
             data['user'] = user_serializer.data
             logger.info(f"Login successful for user: {username}")
             return data
@@ -74,5 +77,8 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def me(self, request):
         """Return current logged-in user's info"""
-        serializer = UserSerializer(request.user)
+        user = User.objects.prefetch_related('sections').select_related(
+            'subsection', 'subsection__section'
+        ).get(pk=request.user.pk)
+        serializer = UserSerializer(user)
         return Response(serializer.data)

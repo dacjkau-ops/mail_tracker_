@@ -52,8 +52,22 @@ const MultiAssignDialog = ({ open, onClose, mailId, onSuccess, currentUser }) =>
     setLoadingUsers(true);
     try {
       const usersData = await mailService.getUsers();
-      // Filter out current user from the list
-      const filteredUsers = usersData.filter(u => u.id !== currentUser?.id);
+      // Filter out current user and apply section-based filtering
+      let filteredUsers = usersData.filter(u => u.id !== currentUser?.id);
+
+      if (currentUser?.role === 'DAG') {
+        const dagSectionIds = currentUser.sections || [];
+        filteredUsers = filteredUsers.filter((u) => {
+          if (u.subsection_detail && dagSectionIds.includes(u.subsection_detail.section)) {
+            return true;
+          }
+          if (u.role === 'DAG' && u.sections) {
+            return u.sections.some((sId) => dagSectionIds.includes(sId));
+          }
+          return false;
+        });
+      }
+
       setUsers(filteredUsers);
     } catch (err) {
       console.error('Error loading users:', err);
@@ -139,7 +153,7 @@ const MultiAssignDialog = ({ open, onClose, mailId, onSuccess, currentUser }) =>
                     <Checkbox checked={selectedUserIds.indexOf(user.id) > -1} />
                     <ListItemText
                       primary={user.full_name}
-                      secondary={`${user.role}${user.section_details ? ` - ${user.section_details.name}` : ''}`}
+                      secondary={`${user.role}${user.subsection_detail ? ` - ${user.subsection_detail.name}` : ''}`}
                     />
                   </MenuItem>
                 ))

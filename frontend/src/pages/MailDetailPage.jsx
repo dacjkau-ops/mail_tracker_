@@ -89,7 +89,7 @@ const MailDetailPage = () => {
       loadMail();
       loadAuditTrail();
     } catch (err) {
-      throw new Error('Failed to update remarks');
+      throw new Error(err.response?.data?.error || 'Failed to update remarks');
     }
   };
 
@@ -100,7 +100,7 @@ const MailDetailPage = () => {
       loadMail();
       loadAuditTrail();
     } catch (err) {
-      throw new Error('Failed to reassign mail');
+      throw new Error(err.response?.data?.error || 'Failed to reassign mail');
     }
   };
 
@@ -111,7 +111,7 @@ const MailDetailPage = () => {
       loadMail();
       loadAuditTrail();
     } catch (err) {
-      throw new Error('Failed to close mail');
+      throw new Error(err.response?.data?.error || 'Failed to close mail');
     }
   };
 
@@ -122,7 +122,7 @@ const MailDetailPage = () => {
       loadMail();
       loadAuditTrail();
     } catch (err) {
-      throw new Error('Failed to reopen mail');
+      throw new Error(err.response?.data?.error || 'Failed to reopen mail');
     }
   };
 
@@ -133,7 +133,7 @@ const MailDetailPage = () => {
       loadMail();
       loadAuditTrail();
     } catch (err) {
-      throw new Error('Failed to update current action');
+      throw new Error(err.response?.data?.error || 'Failed to update current action');
     }
   };
 
@@ -518,6 +518,7 @@ const MailDetailPage = () => {
         onClose={() => setReassignDialogOpen(false)}
         mailId={id}
         onReassign={handleReassign}
+        currentUser={user}
       />
 
       <CloseMailDialog
