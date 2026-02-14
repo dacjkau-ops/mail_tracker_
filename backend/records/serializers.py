@@ -128,26 +128,43 @@ class MailRecordCreateSerializer(serializers.ModelSerializer):
                     'assigned_to': 'One or more assigned users do not exist or are inactive.'
                 })
 
-            # DAG: Must assign within their own section only
+            # DAG: Must assign within their own sections only
             if user.is_dag():
+                dag_section_ids = set(user.sections.values_list('id', flat=True))
+                if not dag_section_ids:
+                    raise serializers.ValidationError({
+                        'assigned_to': 'DAG must be assigned to at least one section before creating mails.'
+                    })
+
                 for assignee in assignees:
-                    if assignee.section != user.section:
+                    # Get assignee's section (either from subsection or direct section if any)
+                    assignee_section_id = None
+                    if assignee.subsection:
+                        assignee_section_id = assignee.subsection.section_id
+
+                    # Check if assignee's section is in DAG's managed sections
+                    if assignee_section_id not in dag_section_ids:
                         raise serializers.ValidationError({
-                            'assigned_to': f'DAG can only assign to officers within their section. {assignee.full_name} is from a different section.'
+                            'assigned_to': f'DAG can only assign to officers within their managed sections. {assignee.full_name} is from a different section.'
                         })
-                # Auto-set section for DAG
-                data['section'] = user.section.id if user.section else None
+
+                # Auto-set section for DAG (use first section if multiple)
+                data['section'] = list(dag_section_ids)[0] if dag_section_ids else None
 
             # AG: Can assign cross-section
             elif user.is_ag():
                 # Check if all assignees are from same section or different sections
-                sections = set(a.section_id for a in assignees if a.section_id)
-                if len(sections) > 1:
+                assignee_sections = set()
+                for a in assignees:
+                    if a.subsection:
+                        assignee_sections.add(a.subsection.section_id)
+
+                if len(assignee_sections) > 1:
                     # Cross-section assignment - section will be null
                     data['section'] = None
-                elif len(sections) == 1:
+                elif len(assignee_sections) == 1:
                     # Single section - keep the section
-                    data['section'] = sections.pop()
+                    data['section'] = assignee_sections.pop()
                 # If no sections found, keep as null
 
         return data

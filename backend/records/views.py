@@ -257,17 +257,19 @@ class MailRecordViewSet(viewsets.ModelViewSet):
         # Check permissions
         user = request.user
         if user.role == 'DAG':
-            # DAG can only reassign within their section
-            if mail_record.section and mail_record.section != user.section:
+            # DAG can only reassign within their managed sections
+            if mail_record.section and not user.sections.filter(id=mail_record.section.id).exists():
                 return Response(
-                    {'error': 'You can only reassign mails within your section.'},
+                    {'error': 'You can only reassign mails within your managed sections.'},
                     status=status.HTTP_403_FORBIDDEN
                 )
-            if new_handler.section != user.section:
-                return Response(
-                    {'error': 'You can only reassign to users in your section.'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
+            # Check if new handler's subsection is in DAG's managed sections
+            if new_handler.subsection:
+                if not user.sections.filter(id=new_handler.subsection.section_id).exists():
+                    return Response(
+                        {'error': 'You can only reassign to users in your managed sections.'},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
         elif user.role in ['SrAO', 'AAO']:
             # Staff can only reassign if they're current handler or have an active assignment
             user_assignment = mail_record.parallel_assignments.filter(
@@ -444,12 +446,13 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # DAG can only assign within their section
-        if user.role == 'DAG' and mail_record.section != user.section:
-            return Response(
-                {'error': 'You can only assign mails within your section.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
+        # DAG can only assign within their managed sections
+        if user.role == 'DAG':
+            if mail_record.section and not user.sections.filter(id=mail_record.section.id).exists():
+                return Response(
+                    {'error': 'You can only assign mails within your managed sections.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
         # Validate all users exist and are active
         users = User.objects.filter(id__in=user_ids, is_active=True)
@@ -459,12 +462,14 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # For DAG, validate all users are in their section
+        # For DAG, validate all users are in their managed sections
         if user.role == 'DAG':
+            dag_section_ids = set(user.sections.values_list('id', flat=True))
             for u in users:
-                if u.section != user.section:
+                user_section_id = u.subsection.section_id if u.subsection else None
+                if user_section_id not in dag_section_ids:
                     return Response(
-                        {'error': f'{u.full_name} is not in your section.'},
+                        {'error': f'{u.full_name} is not in your managed sections.'},
                         status=status.HTTP_403_FORBIDDEN
                     )
 
@@ -678,10 +683,20 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             )
 
         # CRITICAL: Same-section only for non-AG users
-        if user.role != 'AG':
-            if new_assignee.section != user.section:
+        if user.role == 'DAG':
+            # DAG can only reassign within managed sections
+            dag_section_ids = set(user.sections.values_list('id', flat=True))
+            new_assignee_section_id = new_assignee.subsection.section_id if new_assignee.subsection else None
+            if new_assignee_section_id not in dag_section_ids:
                 return Response(
-                    {'error': 'You can only reassign to officers within your section.'},
+                    {'error': 'You can only reassign to officers within your managed sections.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        elif user.role in ['SrAO', 'AAO']:
+            # Staff officers can only reassign within their own subsection
+            if new_assignee.subsection != user.subsection:
+                return Response(
+                    {'error': 'You can only reassign to officers within your subsection.'},
                     status=status.HTTP_403_FORBIDDEN
                 )
 
@@ -728,8 +743,10 @@ class MailAssignmentViewSet(viewsets.ModelViewSet):
         if user.role == 'AG':
             return MailAssignment.objects.all()
         elif user.role == 'DAG':
+            # DAG can see assignments from their managed sections
+            dag_section_ids = list(user.sections.values_list('id', flat=True))
             return MailAssignment.objects.filter(
-                Q(mail_record__section=user.section) |
+                Q(mail_record__section_id__in=dag_section_ids) |
                 Q(assigned_to=user) |
                 Q(assigned_by=user)
             )

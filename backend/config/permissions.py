@@ -66,7 +66,8 @@ class MailRecordPermission(permissions.BasePermission):
         if view.action in ['retrieve']:
             # DAG can view own section records + records they've touched
             if user.role == 'DAG':
-                if obj.section == user.section:
+                # Check if mail's section is in DAG's managed sections
+                if obj.section and user.sections.filter(id=obj.section.id).exists():
                     return True
                 # PERFORMANCE FIX: Use cached touched_record_ids from request if available
                 # This avoids N+1 queries when checking multiple objects
@@ -111,9 +112,10 @@ class MailRecordPermission(permissions.BasePermission):
             # AG can reassign any mail
             if user.role == 'AG':
                 return True
-            # DAG can reassign within their section
-            if user.role == 'DAG' and obj.section == user.section:
-                return True
+            # DAG can reassign within their managed sections
+            if user.role == 'DAG':
+                if obj.section and user.sections.filter(id=obj.section.id).exists():
+                    return True
             # Current handler can reassign
             return obj.current_handler == user
 
