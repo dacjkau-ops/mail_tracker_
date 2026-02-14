@@ -132,7 +132,8 @@ const MailDetailPage = () => {
     if (!mail) return false;
     if (user?.role === 'AG') return true;
     const sectionId = mail?.section_details?.id || mail?.section;
-    if (user?.role === 'DAG' && user?.section === sectionId) return true;
+    // DAG can reassign if mail's section is in their managed sections
+    if (user?.role === 'DAG' && sectionId && user?.sections?.includes(sectionId)) return true;
     const handlerId = mail?.current_handler_details?.id || mail?.current_handler;
     if (user?.id === handlerId) return true;
     return false;
@@ -159,7 +160,8 @@ const MailDetailPage = () => {
     if (!mail || mail.status === 'Closed') return false;
     if (user?.role === 'AG') return true;
     const sectionId = mail?.section_details?.id || mail?.section;
-    if (user?.role === 'DAG' && user?.section === sectionId) return true;
+    // DAG can multi-assign if mail's section is in their managed sections
+    if (user?.role === 'DAG' && sectionId && user?.sections?.includes(sectionId)) return true;
     return false;
   };
 
