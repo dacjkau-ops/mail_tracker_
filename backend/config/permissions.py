@@ -52,6 +52,15 @@ class MailRecordPermission(permissions.BasePermission):
         if view.action in ['update', 'partial_update', 'close', 'reassign', 'reopen']:
             return True
 
+        # Custom actions on detail records - allow authenticated users
+        # Object-level permissions and view logic handle authorization
+        if view.action in [
+            'multi_assign', 'assignments', 'update_assignment',
+            'complete_assignment', 'add_assignment_remark',
+            'reassign_assignment', 'update_current_action',
+        ]:
+            return True
+
         return False
 
     def has_object_permission(self, request, view, obj):
@@ -62,15 +71,34 @@ class MailRecordPermission(permissions.BasePermission):
         if user.role == 'AG':
             return True
 
-        # View permission
-        if view.action in ['retrieve']:
+        # View permission (retrieve + read-only custom actions)
+        if view.action in ['retrieve', 'assignments']:
             # DAG can view own section records + records they've touched
+            # + records where their section officers have assignments
             if user.role == 'DAG':
                 # Check if mail's section is in DAG's managed sections
                 if obj.section and user.sections.filter(id=obj.section.id).exists():
                     return True
+                # Check if DAG has an active parallel assignment
+                from records.models import MailAssignment
+                if MailAssignment.objects.filter(
+                    mail_record=obj, assigned_to=user, status='Active'
+                ).exists():
+                    return True
+                # Check if any of DAG's section officers have assignments on this mail
+                from users.models import User
+                dag_section_ids = list(user.sections.values_list('id', flat=True))
+                if dag_section_ids:
+                    section_officer_ids = User.objects.filter(
+                        subsection__section_id__in=dag_section_ids, is_active=True
+                    ).values_list('id', flat=True)
+                    if MailAssignment.objects.filter(
+                        mail_record=obj,
+                        assigned_to_id__in=section_officer_ids,
+                        status__in=['Active', 'Completed']
+                    ).exists():
+                        return True
                 # PERFORMANCE FIX: Use cached touched_record_ids from request if available
-                # This avoids N+1 queries when checking multiple objects
                 touched_ids = getattr(request, '_touched_record_ids_cache', None)
                 if touched_ids is None:
                     from audit.models import AuditTrail
@@ -83,6 +111,12 @@ class MailRecordPermission(permissions.BasePermission):
             # Staff officers can view records assigned to them or they've touched
             if user.role in ['SrAO', 'AAO']:
                 if obj.current_handler == user or obj.assigned_to == user:
+                    return True
+                # Check parallel assignments
+                from records.models import MailAssignment
+                if MailAssignment.objects.filter(
+                    mail_record=obj, assigned_to=user, status='Active'
+                ).exists():
                     return True
                 # PERFORMANCE FIX: Check touched records with caching
                 touched_ids = getattr(request, '_touched_record_ids_cache', None)
