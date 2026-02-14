@@ -67,17 +67,9 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             if not user.subsection_id:
                 return User.objects.none()
 
-            if mail_record.subsection_id:
-                # If mail is tied to a subsection, keep reassignment within that subsection
-                if mail_record.subsection_id != user.subsection_id:
-                    return User.objects.none()
-                return candidates.filter(subsection_id=user.subsection_id).distinct()
-
-            # Section-scoped mail: still keep staff reassignment within own subsection only
-            if mail_record.section_id and mail_record.section_id == user.subsection.section_id:
-                return candidates.filter(subsection_id=user.subsection_id).distinct()
-
-            return User.objects.none()
+            # Staff reassignment is always bounded to the current handler's own subsection.
+            # This avoids false denials when mail_record.subsection is stale from earlier hops.
+            return candidates.filter(subsection_id=user.subsection_id).distinct()
 
         return User.objects.none()
 
