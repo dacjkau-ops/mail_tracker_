@@ -58,6 +58,7 @@ class MailRecordPermission(permissions.BasePermission):
             'multi_assign', 'assignments', 'update_assignment',
             'complete_assignment', 'add_assignment_remark',
             'reassign_assignment', 'update_current_action',
+            'reassign_candidates',
         ]:
             return True
 
@@ -150,6 +151,11 @@ class MailRecordPermission(permissions.BasePermission):
 
         # Reassign permission
         if view.action == 'reassign':
+            if self._is_dag_for_section(user, obj):
+                return True
+            return obj.current_handler == user
+
+        if view.action == 'reassign_candidates':
             if self._is_dag_for_section(user, obj):
                 return True
             return obj.current_handler == user

@@ -518,7 +518,6 @@ const MailDetailPage = () => {
         onClose={() => setReassignDialogOpen(false)}
         mailId={id}
         onReassign={handleReassign}
-        currentUser={user}
       />
 
       <CloseMailDialog

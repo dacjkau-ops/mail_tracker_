@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from django.db.models import Q
+from django.db import transaction
 from config.permissions import MailRecordPermission
 from .models import MailRecord, MailAssignment, AssignmentRemark
 from .serializers import (
@@ -24,11 +25,61 @@ from .serializers import (
 )
 from audit.models import AuditTrail
 from users.models import User
+from users.serializers import UserSerializer
 from sections.models import Section
 
 
 class MailRecordViewSet(viewsets.ModelViewSet):
     permission_classes = [MailRecordPermission]
+
+    def _get_reassign_candidates_queryset(self, mail_record, user):
+        """Return eligible users for reassignment based on role + mail context."""
+        candidates = User.objects.filter(is_active=True).exclude(id=user.id)
+
+        # Helper filters based on mail scope
+        def filter_by_mail_scope(qs):
+            if mail_record.subsection_id:
+                # Subsection-scoped mail: only officers in that subsection
+                return qs.filter(subsection_id=mail_record.subsection_id)
+            if mail_record.section_id:
+                return qs.filter(
+                    Q(subsection__section_id=mail_record.section_id) |
+                    Q(role='DAG', sections=mail_record.section_id)
+                )
+            return qs
+
+        if user.role == 'AG':
+            return filter_by_mail_scope(candidates).distinct()
+
+        if user.role == 'DAG':
+            dag_section_ids = set(user.sections.values_list('id', flat=True))
+            if mail_record.section_id and mail_record.section_id not in dag_section_ids:
+                return User.objects.none()
+
+            scoped = filter_by_mail_scope(candidates)
+            return scoped.filter(
+                Q(subsection__section_id__in=dag_section_ids) |
+                Q(role='DAG', sections__in=dag_section_ids)
+            ).distinct()
+
+        # SrAO/AAO: section/subsection constrained
+        if user.role in ['SrAO', 'AAO']:
+            if not user.subsection_id:
+                return User.objects.none()
+
+            if mail_record.subsection_id:
+                # If mail is tied to a subsection, keep reassignment within that subsection
+                if mail_record.subsection_id != user.subsection_id:
+                    return User.objects.none()
+                return candidates.filter(subsection_id=user.subsection_id).distinct()
+
+            # Section-scoped mail: still keep staff reassignment within own subsection only
+            if mail_record.section_id and mail_record.section_id == user.subsection.section_id:
+                return candidates.filter(subsection_id=user.subsection_id).distinct()
+
+            return User.objects.none()
+
+        return User.objects.none()
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -283,34 +334,51 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_403_FORBIDDEN
                 )
 
+        # Enforce backend-approved reassignment target list
+        allowed_candidates = self._get_reassign_candidates_queryset(mail_record, user)
+        if not allowed_candidates.filter(id=new_handler.id).exists():
+            return Response(
+                {'error': 'Selected user is not eligible for reassignment.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         # Store old handler
         old_handler = mail_record.current_handler
 
-        # For multi-assigned mails: Also update the user's assignment record
-        if mail_record.is_multi_assigned:
-            user_assignment = mail_record.parallel_assignments.filter(
-                assigned_to=user, status='Active'
+        with transaction.atomic():
+            # Mark old handler's active assignment as completed and add timeline note
+            old_assignment = mail_record.parallel_assignments.filter(
+                status='Active'
+            ).filter(
+                Q(reassigned_to=old_handler) | Q(reassigned_to__isnull=True, assigned_to=old_handler)
             ).first()
-            
-            if user_assignment:
-                # Update the assignment with reassignment info
-                user_assignment.reassigned_to = new_handler
-                user_assignment.reassigned_at = timezone.now()
-                user_assignment.save()
-                
-                # Add to remarks timeline to track the reassignment
-                from .models import AssignmentRemark
+
+            if old_assignment:
+                old_assignment.status = 'Completed'
+                old_assignment.completed_at = timezone.now()
+                old_assignment.save(update_fields=['status', 'completed_at', 'updated_at'])
                 AssignmentRemark.objects.create(
-                    assignment=user_assignment,
-                    content=f"Reassigned to {new_handler.full_name}: {remarks}",
+                    assignment=old_assignment,
+                    content=f"Forwarded to {new_handler.full_name}: {remarks}",
                     created_by=user
                 )
 
-        # Reassign at mail level
-        mail_record.current_handler = new_handler
-        mail_record.status = 'In Progress'  # Auto-transition
-        mail_record.last_status_change = timezone.now()
-        mail_record.save()
+            # Ensure new handler has an active assignment record for history/counters
+            MailAssignment.objects.get_or_create(
+                mail_record=mail_record,
+                assigned_to=new_handler,
+                status='Active',
+                defaults={
+                    'assigned_by': user,
+                    'assignment_remarks': f"Reassigned from {old_handler.full_name}: {remarks}"
+                }
+            )
+
+            # Reassign at mail level
+            mail_record.current_handler = new_handler
+            mail_record.status = 'In Progress'  # Auto-transition
+            mail_record.last_status_change = timezone.now()
+            mail_record.save(update_fields=['current_handler', 'status', 'last_status_change', 'updated_at'])
 
         # Create audit trail
         AuditTrail.objects.create(
@@ -324,6 +392,14 @@ class MailRecordViewSet(viewsets.ModelViewSet):
 
         response_serializer = MailRecordDetailSerializer(mail_record, context={'request': request})
         return Response(response_serializer.data)
+
+    @action(detail=True, methods=['get'], url_path='reassign-candidates')
+    def reassign_candidates(self, request, pk=None):
+        """Get eligible users to show in reassignment dropdown."""
+        mail_record = self.get_object()
+        candidates = self._get_reassign_candidates_queryset(mail_record, request.user)
+        serializer = UserSerializer(candidates.order_by('full_name'), many=True)
+        return Response(serializer.data)
 
     @action(detail=True, methods=['post'])
     def close(self, request, pk=None):
@@ -349,10 +425,6 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                     {'error': 'Only AG can close multi-assigned mails after reviewing all responses.'},
                     status=status.HTTP_403_FORBIDDEN
                 )
-            # Note pending assignments in remarks if any
-            active_count = mail_record.parallel_assignments.filter(status='Active').count()
-            if active_count > 0:
-                remarks = f"{remarks} [Note: {active_count} assignment(s) still pending at closure]"
 
         # Single-assigned mails: current handler or AG can close
         else:
@@ -362,13 +434,30 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_403_FORBIDDEN
                 )
 
-        # Close the mail
-        old_status = mail_record.status
-        mail_record.status = 'Closed'
-        mail_record.date_of_completion = timezone.now().date()
-        mail_record.last_status_change = timezone.now()
-        mail_record.remarks = remarks
-        mail_record.save()
+        now = timezone.now()
+        with transaction.atomic():
+            # Close the mail
+            old_status = mail_record.status
+            mail_record.status = 'Closed'
+            mail_record.date_of_completion = now.date()
+            mail_record.last_status_change = now
+            mail_record.remarks = remarks
+            mail_record.current_action_status = 'Completed'
+            mail_record.current_action_remarks = remarks
+            mail_record.current_action_updated_at = now
+            mail_record.save()
+
+            # Keep assignment history in sync: all active assignments become completed on close
+            active_assignments = mail_record.parallel_assignments.filter(status='Active')
+            for assignment in active_assignments:
+                assignment.status = 'Completed'
+                assignment.completed_at = now
+                assignment.save(update_fields=['status', 'completed_at', 'updated_at'])
+                AssignmentRemark.objects.create(
+                    assignment=assignment,
+                    content=f"Auto-completed when mail was closed by {user.full_name}.",
+                    created_by=user
+                )
 
         # Create audit trail
         AuditTrail.objects.create(
@@ -414,6 +503,9 @@ class MailRecordViewSet(viewsets.ModelViewSet):
         mail_record.status = 'In Progress'
         mail_record.date_of_completion = None
         mail_record.last_status_change = timezone.now()
+        mail_record.current_action_status = None
+        mail_record.current_action_remarks = None
+        mail_record.current_action_updated_at = timezone.now()
         mail_record.save()
 
         # Create audit trail

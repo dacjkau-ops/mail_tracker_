@@ -69,12 +69,8 @@ const IsolatedAssignmentView = ({ assignment, mailId, onUpdate, currentUser }) =
 
   const loadUsersForReassign = async () => {
     try {
-      const allUsers = await mailService.getUsers();
-      // Filter to same section only (unless AG)
-      const filteredUsers = currentUser?.role === 'AG'
-        ? allUsers
-        : allUsers.filter(u => u.section === currentUser?.section && u.id !== currentUser?.id);
-      setUsers(filteredUsers);
+      const eligibleUsers = await mailService.getReassignCandidates(mailId);
+      setUsers(eligibleUsers);
     } catch (err) {
       console.error('Error loading users:', err);
     }
@@ -284,7 +280,7 @@ const IsolatedAssignmentView = ({ assignment, mailId, onUpdate, currentUser }) =
           <Alert severity="info" sx={{ mb: 2 }}>
             {currentUser?.role === 'AG'
               ? 'You can reassign to any officer.'
-              : 'You can only reassign to officers within your section.'}
+              : 'You can only reassign to officers within your subsection.'}
           </Alert>
           <Autocomplete
             sx={{ mt: 2 }}

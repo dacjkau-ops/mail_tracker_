@@ -62,6 +62,16 @@ const mailService = {
   },
 
   /**
+   * Get eligible users for reassignment for a specific mail
+   * @param {string} id - Mail ID
+   * @returns {Promise<Array>}
+   */
+  async getReassignCandidates(id) {
+    const response = await api.get(`/records/${id}/reassign-candidates/`);
+    return response.data.results || response.data;
+  },
+
+  /**
    * Close mail
    * @param {string} id - Mail ID
    * @param {string} remarks

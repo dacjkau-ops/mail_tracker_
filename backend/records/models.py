@@ -29,6 +29,7 @@ class MailRecord(models.Model):
         ('Awaiting Information', 'Awaiting Information'),
         ('Processing', 'Processing'),
         ('Finalizing', 'Finalizing'),
+        ('Completed', 'Completed'),
         ('On Hold', 'On Hold'),
         ('Consulting', 'Consulting'),
         ('Verification', 'Verification'),
