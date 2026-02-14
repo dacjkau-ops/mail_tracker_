@@ -107,29 +107,27 @@ class MailRecordViewSet(viewsets.ModelViewSet):
 
         # DAG can see own section records + records they've touched + cross-section where their officers are assigned
         elif user.role == 'DAG':
-            # PERFORMANCE FIX: Get all touched record IDs in ONE query upfront
-            touched_record_ids = list(AuditTrail.objects.filter(
+            touched_record_ids = AuditTrail.objects.filter(
                 performed_by=user
-            ).values_list('mail_record_id', flat=True).distinct())
+            ).values_list('mail_record_id', flat=True).distinct()
 
-            # Get records where user is assigned via parallel assignment
-            assigned_via_parallel = list(MailAssignment.objects.filter(
+            assigned_via_parallel = MailAssignment.objects.filter(
                 assigned_to=user,
                 status='Active'
-            ).values_list('mail_record_id', flat=True).distinct())
+            ).values_list('mail_record_id', flat=True).distinct()
 
             # Get all sections managed by this DAG
-            dag_section_ids = list(user.sections.values_list('id', flat=True))
+            dag_section_ids = user.sections.values_list('id', flat=True)
 
             # NEW: Get records where DAG's section officers have assignments (cross-section visibility)
             # Get all officers in any of the DAG's managed sections
-            section_officer_ids = list(User.objects.filter(
+            section_officer_ids = User.objects.filter(
                 subsection__section_id__in=dag_section_ids, is_active=True
-            ).values_list('id', flat=True))
-            cross_section_mail_ids = list(MailAssignment.objects.filter(
+            ).values_list('id', flat=True)
+            cross_section_mail_ids = MailAssignment.objects.filter(
                 assigned_to_id__in=section_officer_ids,
                 status__in=['Active', 'Completed']
-            ).values_list('mail_record_id', flat=True).distinct())
+            ).values_list('mail_record_id', flat=True).distinct()
 
             # Combine: section records OR touched records OR parallel assignments OR cross-section where officers assigned
             queryset = queryset.filter(
@@ -141,16 +139,14 @@ class MailRecordViewSet(viewsets.ModelViewSet):
 
         # Staff officers can see records assigned to them OR they've touched
         else:  # SrAO or AAO
-            # PERFORMANCE FIX: Include records they've touched (from audit trail)
-            touched_record_ids = list(AuditTrail.objects.filter(
+            touched_record_ids = AuditTrail.objects.filter(
                 performed_by=user
-            ).values_list('mail_record_id', flat=True).distinct())
+            ).values_list('mail_record_id', flat=True).distinct()
             
-            # CRITICAL: Get records where user is assigned via parallel assignment
-            assigned_via_parallel = list(MailAssignment.objects.filter(
+            assigned_via_parallel = MailAssignment.objects.filter(
                 assigned_to=user,
                 status='Active'
-            ).values_list('mail_record_id', flat=True).distinct())
+            ).values_list('mail_record_id', flat=True).distinct()
 
             queryset = queryset.filter(
                 Q(current_handler=user) | Q(assigned_to=user) | Q(id__in=touched_record_ids) | Q(id__in=assigned_via_parallel)
@@ -190,8 +186,11 @@ class MailRecordViewSet(viewsets.ModelViewSet):
         assigned_to_ids = serializer.validated_data.pop('assigned_to')
         initial_instructions = serializer.validated_data.get('initial_instructions', '')
 
-        # Get assignees
-        assignees = list(User.objects.filter(id__in=assigned_to_ids, is_active=True))
+        # Get assignees preserving user-selected order (deterministic primary assignee)
+        assignee_map = {
+            u.id: u for u in User.objects.filter(id__in=assigned_to_ids, is_active=True)
+        }
+        assignees = [assignee_map[user_id] for user_id in assigned_to_ids if user_id in assignee_map]
 
         # Set first assignee as primary (for backward compatibility)
         primary_assignee = assignees[0]

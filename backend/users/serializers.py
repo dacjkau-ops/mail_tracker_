@@ -9,7 +9,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'full_name', 'role', 'sections', 'sections_list', 'subsection', 'subsection_detail', 'is_active']
+        fields = ['id', 'username', 'email', 'full_name', 'role', 'is_primary_ag', 'sections', 'sections_list', 'subsection', 'subsection_detail', 'is_active']
         read_only_fields = ['id']
 
     def get_sections_list(self, obj):
@@ -27,12 +27,14 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'password', 'full_name', 'role', 'sections', 'subsection', 'is_active']
+        fields = ['id', 'username', 'email', 'password', 'full_name', 'role', 'is_primary_ag', 'sections', 'subsection', 'is_active']
         read_only_fields = ['id']
 
     def create(self, validated_data):
         password = validated_data.pop('password')
         sections = validated_data.pop('sections', [])
+        if validated_data.get('role') != 'AG':
+            validated_data['is_primary_ag'] = False
         user = User.objects.create(**validated_data)
         user.set_password(password)
         if sections:

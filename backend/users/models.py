@@ -35,12 +35,28 @@ class User(AbstractUser):
     )
 
     full_name = models.CharField(max_length=200)
+    is_primary_ag = models.BooleanField(
+        default=False,
+        help_text="Use this AG as default monitoring fallback when multiple AG users exist."
+    )
 
     class Meta:
         ordering = ['full_name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['is_primary_ag'],
+                condition=models.Q(role='AG', is_primary_ag=True),
+                name='unique_primary_ag_user'
+            )
+        ]
 
     def __str__(self):
         return f"{self.full_name} ({self.role})"
+
+    def save(self, *args, **kwargs):
+        if self.role != 'AG':
+            self.is_primary_ag = False
+        super().save(*args, **kwargs)
 
     def is_ag(self):
         return self.role == 'AG'
@@ -71,18 +87,33 @@ class User(AbstractUser):
         if self.role == 'AG':
             return self
         elif self.role == 'DAG':
-            # Return any AG in the system
-            return User.objects.filter(role='AG', is_active=True).first()
+            return User.get_primary_ag()
         else:  # SrAO or AAO
             # Return the DAG managing their subsection's parent section
             if self.subsection and self.subsection.section:
                 # Check if section reports directly to AG
                 if self.subsection.section.directly_under_ag:
-                    return User.objects.filter(role='AG', is_active=True).first()
+                    return User.get_primary_ag()
                 # Otherwise find the DAG managing this section
                 return User.objects.filter(
                     role='DAG',
                     sections=self.subsection.section,
                     is_active=True
-                ).first()
+                ).order_by('id').first()
         return None
+
+    @classmethod
+    def get_primary_ag(cls):
+        """
+        Deterministic AG resolver:
+        1) active AG marked is_primary_ag
+        2) fallback to earliest active AG by id
+        """
+        primary = cls.objects.filter(
+            role='AG',
+            is_active=True,
+            is_primary_ag=True
+        ).order_by('id').first()
+        if primary:
+            return primary
+        return cls.objects.filter(role='AG', is_active=True).order_by('id').first()

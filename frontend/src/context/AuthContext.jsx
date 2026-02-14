@@ -23,26 +23,23 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     // Initialize auth state from localStorage
-    const initializeAuth = () => {
+    const initializeAuth = async () => {
       try {
         const hasToken = authService.isAuthenticated();
-        const currentUser = authService.getCurrentUser();
 
-        if (hasToken && currentUser) {
-          // Validate user object has required fields
-          if (currentUser.id && currentUser.username && currentUser.role) {
-            setUser(currentUser);
-          } else {
-            // Invalid user data, clear auth
-            console.warn('Invalid user data in localStorage, clearing auth');
+        if (hasToken) {
+          try {
+            const currentUser = await authService.fetchMe();
+            if (currentUser?.id && currentUser?.username && currentUser?.role) {
+              setUser(currentUser);
+            } else {
+              authService.clearAuth();
+            }
+          } catch (fetchError) {
+            console.warn('Token exists but profile fetch failed, clearing auth');
             authService.clearAuth();
           }
-        } else if (hasToken && !currentUser) {
-          // Token exists but no user data - corrupted state
-          console.warn('Token exists but no user data, clearing auth');
-          authService.clearAuth();
         }
-        // If neither token nor user, that's fine - just not logged in
       } catch (error) {
         console.error('Error initializing auth:', error);
         authService.clearAuth();
@@ -67,8 +64,13 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password) => {
     try {
-      const { user: userData } = await authService.login(username, password);
-      setUser(userData);
+      const { user: loginUser } = await authService.login(username, password);
+      if (loginUser?.id && loginUser?.username && loginUser?.role) {
+        setUser(loginUser);
+      } else {
+        const refreshedUser = await authService.fetchMe();
+        setUser(refreshedUser);
+      }
       return { success: true };
     } catch (error) {
       console.error('Login error:', error);

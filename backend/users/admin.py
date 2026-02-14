@@ -27,15 +27,15 @@ class ImportUsersForm(forms.Form):
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ['username', 'full_name', 'email', 'role', 'get_sections_display', 'subsection', 'is_active']
-    list_filter = ['role', 'is_active']
+    list_display = ['username', 'full_name', 'email', 'role', 'is_primary_ag', 'get_sections_display', 'subsection', 'is_active']
+    list_filter = ['role', 'is_primary_ag', 'is_active']
     search_fields = ['username', 'full_name', 'email']
     filter_horizontal = ['sections']  # For ManyToMany field
     fieldsets = BaseUserAdmin.fieldsets + (
-        ('Additional Info', {'fields': ('role', 'sections', 'subsection', 'full_name')}),
+        ('Additional Info', {'fields': ('role', 'is_primary_ag', 'sections', 'subsection', 'full_name')}),
     )
     add_fieldsets = BaseUserAdmin.add_fieldsets + (
-        ('Additional Info', {'fields': ('role', 'sections', 'subsection', 'full_name', 'email')}),
+        ('Additional Info', {'fields': ('role', 'is_primary_ag', 'sections', 'subsection', 'full_name', 'email')}),
     )
     change_list_template = 'admin/users/user/change_list.html'
 

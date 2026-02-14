@@ -23,6 +23,7 @@ from users.views import UserViewSet, CustomTokenObtainPairView
 from sections.views import SectionViewSet, SubsectionViewSet
 from records.views import MailRecordViewSet, MailAssignmentViewSet
 from audit.views import AuditTrailViewSet
+from .views import health_check
 
 # Create router
 router = DefaultRouter()
@@ -35,6 +36,7 @@ router.register(r'audit', AuditTrailViewSet, basename='audit')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/health/', health_check, name='health_check'),
     # JWT authentication endpoints
     path('api/auth/login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),

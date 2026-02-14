@@ -11,10 +11,9 @@ const authService = {
     const response = await api.post('/auth/login/', { username, password });
     const { access, refresh, user } = response.data;
 
-    // Store tokens and user data
+    // Store tokens only (user profile is fetched from /users/me when needed)
     localStorage.setItem('access_token', access);
     localStorage.setItem('refresh_token', refresh);
-    localStorage.setItem('user', JSON.stringify(user));
 
     return { user, access, refresh };
   },
@@ -33,15 +32,6 @@ const authService = {
    * @returns {Object|null}
    */
   getCurrentUser() {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      try {
-        return JSON.parse(userStr);
-      } catch (error) {
-        console.error('Error parsing user data:', error);
-        return null;
-      }
-    }
     return null;
   },
 
@@ -75,6 +65,15 @@ const authService = {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
+  },
+
+  /**
+   * Fetch current user profile from backend
+   * @returns {Promise<Object>}
+   */
+  async fetchMe() {
+    const response = await api.get('/users/me/');
+    return response.data;
   },
 
   /**

@@ -21,7 +21,8 @@ if not User.objects.filter(is_superuser=True).exists():
         email='admin@office.gov',
         password='admin123',  # CHANGE THIS PASSWORD AFTER FIRST LOGIN!
         full_name='System Administrator',
-        role='AG'
+        role='AG',
+        is_primary_ag=True
     )
     print("✅ Superuser 'admin' created successfully!")
     print("⚠️  Default password: admin123")
