@@ -20,6 +20,7 @@ import {
   Button,
   CircularProgress,
   Alert,
+  Tooltip,
 } from '@mui/material';
 import { PictureAsPdf as PdfIcon } from '@mui/icons-material';
 import mailService from '../services/mailService';
@@ -40,6 +41,11 @@ const MailListPage = () => {
   const [searchInput, setSearchInput] = useState('');
   const [orderBy, setOrderBy] = useState('created_at');
   const [order, setOrder] = useState('desc');
+  const assignmentStatusColors = {
+    Active: 'primary',
+    Completed: 'success',
+    Revoked: 'error',
+  };
 
   // Debounce search input - only update filters.search after 400ms of no typing
   useEffect(() => {
@@ -246,16 +252,65 @@ const MailListPage = () => {
                         : mail.mail_reference_subject}
                     </TableCell>
                     <TableCell>{mail.from_office}</TableCell>
-                    <TableCell>{mail.assigned_to_name || mail.assigned_to?.full_name || 'N/A'}</TableCell>
+                    <TableCell>
+                      {mail.is_multi_assigned && mail.assignees_display?.length > 0 ? (
+                        <Box>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            {mail.assignee_count} assignees
+                          </Typography>
+                          <Tooltip title={mail.assignees_display.join(', ')}>
+                            <Typography variant="body2" sx={{ maxWidth: 220 }} noWrap>
+                              {mail.assignees_display.join(', ')}
+                            </Typography>
+                          </Tooltip>
+                        </Box>
+                      ) : (
+                        mail.assigned_to_name || mail.assigned_to?.full_name || 'N/A'
+                      )}
+                    </TableCell>
                     <TableCell>{mail.current_handler_name || mail.current_handler?.full_name || 'N/A'}</TableCell>
                     <TableCell>
-                      {mail.current_action_status ? (
-                        <Chip
-                          label={mail.current_action_status}
-                          color={ACTION_STATUS_COLORS[mail.current_action_status] || 'default'}
-                          size="small"
-                          sx={{ fontSize: '0.75rem' }}
-                        />
+                      {mail.is_multi_assigned && mail.assignment_snapshots?.length > 0 ? (
+                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', maxWidth: 280 }}>
+                          {mail.assignment_snapshots.map((snap) => (
+                            <Tooltip
+                              key={`${mail.id}-${snap.ref}`}
+                              title={`${snap.assignee_name} (${snap.ref})`}
+                            >
+                              <Chip
+                                label={`${snap.ref}: ${snap.status}`}
+                                size="small"
+                                color={assignmentStatusColors[snap.status] || 'default'}
+                                sx={{ fontSize: '0.7rem' }}
+                              />
+                            </Tooltip>
+                          ))}
+                        </Box>
+                      ) : mail.current_action_status ? (
+                        <Box>
+                          <Chip
+                            label={mail.current_action_status}
+                            color={ACTION_STATUS_COLORS[mail.current_action_status] || 'default'}
+                            size={mail.current_action_status === 'Completed' ? 'medium' : 'small'}
+                            sx={{
+                              fontSize: mail.current_action_status === 'Completed' ? '0.85rem' : '0.75rem',
+                              fontWeight: mail.current_action_status === 'Completed' ? 700 : 500,
+                            }}
+                          />
+                          {mail.current_action_status === 'Completed' && mail.current_action_remarks && (
+                            <Tooltip title={mail.current_action_remarks}>
+                              <Typography
+                                variant="caption"
+                                color="success.dark"
+                                display="block"
+                                sx={{ mt: 0.5, maxWidth: 220 }}
+                                noWrap
+                              >
+                                {mail.current_action_remarks}
+                              </Typography>
+                            </Tooltip>
+                          )}
+                        </Box>
                       ) : (
                         <Typography variant="caption" color="text.secondary">
                           Not set

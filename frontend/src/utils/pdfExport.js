@@ -35,8 +35,10 @@ export const exportMailListToPDF = (mails, filters = {}) => {
     mail.letter_no || '',
     (mail.mail_reference_subject || '').substring(0, 40) + (mail.mail_reference_subject?.length > 40 ? '...' : ''),
     mail.from_office || '',
-    mail.assigned_to?.full_name || 'N/A',
-    mail.current_handler?.full_name || 'N/A',
+    (mail.is_multi_assigned && mail.assignees_display?.length > 0)
+      ? mail.assignees_display.join(', ')
+      : (mail.assigned_to_name || mail.assigned_to?.full_name || 'N/A'),
+    mail.current_handler_name || mail.current_handler?.full_name || 'N/A',
     formatDate(mail.due_date),
     mail.status || '',
     calculateTimeInStage(mail.last_status_change, mail.date_of_completion),

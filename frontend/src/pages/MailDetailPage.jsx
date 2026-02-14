@@ -21,6 +21,7 @@ import {
   Edit as EditIcon,
   SwapHoriz as ReassignIcon,
   CheckCircle as CloseIcon,
+  TaskAlt as TaskAltIcon,
   Replay as ReopenIcon,
   GroupAdd as MultiAssignIcon,
   Update as UpdateActionIcon,
@@ -199,6 +200,8 @@ const MailDetailPage = () => {
   }
 
   const overdue = isOverdue(mail.due_date, mail.status);
+  const finalActionTaken = (mail.current_action_remarks || mail.remarks || '').trim();
+  const isCompletedMail = mail.status === 'Closed';
 
   return (
     <Box>
@@ -227,6 +230,41 @@ const MailDetailPage = () => {
           </Box>
         </Box>
       </Paper>
+
+      {/* Completion Highlight */}
+      {isCompletedMail && (
+        <Paper
+          sx={{
+            p: 3,
+            mb: 3,
+            border: '2px solid',
+            borderColor: 'success.main',
+            bgcolor: 'success.lighter',
+          }}
+        >
+          <Box display="flex" alignItems="center" gap={1} mb={1}>
+            <TaskAltIcon color="success" />
+            <Typography variant="overline" color="success.dark" sx={{ fontWeight: 800, letterSpacing: 1 }}>
+              Final Action Taken
+            </Typography>
+          </Box>
+          <Typography
+            variant="h5"
+            sx={{
+              color: 'success.dark',
+              fontWeight: 800,
+              lineHeight: 1.3,
+              mb: 1,
+            }}
+          >
+            {finalActionTaken || 'Task Completed'}
+          </Typography>
+          <Typography variant="body2" color="success.dark">
+            Completed on {mail.date_of_completion ? formatDate(mail.date_of_completion) : 'N/A'} by{' '}
+            {mail.current_handler_details?.full_name || 'Current Handler'}
+          </Typography>
+        </Paper>
+      )}
 
       {/* Mail Information */}
       <Paper sx={{ p: 3, mb: 3 }}>
@@ -344,7 +382,8 @@ const MailDetailPage = () => {
                 <Chip
                   label={mail.current_action_status}
                   color={ACTION_STATUS_COLORS[mail.current_action_status] || 'default'}
-                  size="small"
+                  size={mail.current_action_status === 'Completed' ? 'medium' : 'small'}
+                  sx={mail.current_action_status === 'Completed' ? { fontWeight: 700 } : undefined}
                 />
               ) : (
                 <Typography variant="body2" color="text.secondary">

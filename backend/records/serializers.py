@@ -12,6 +12,9 @@ class MailRecordListSerializer(serializers.ModelSerializer):
     subsection_name = serializers.CharField(source='subsection.name', read_only=True)
     time_in_stage = serializers.SerializerMethodField()
     is_overdue = serializers.SerializerMethodField()
+    assignees_display = serializers.SerializerMethodField()
+    assignee_count = serializers.SerializerMethodField()
+    assignment_snapshots = serializers.SerializerMethodField()
 
     def get_section_name(self, obj):
         """Return section name or 'Cross-Section' for null sections"""
@@ -23,7 +26,8 @@ class MailRecordListSerializer(serializers.ModelSerializer):
             'id', 'sl_no', 'letter_no', 'mail_reference_subject', 'from_office',
             'assigned_to', 'assigned_to_name', 'current_handler', 'current_handler_name',
             'section', 'section_name', 'subsection', 'subsection_name', 'due_date', 'status', 'date_of_completion',
-            'time_in_stage', 'is_overdue', 'created_at', 'current_action_status', 'current_action_remarks', 'current_action_updated_at'
+            'time_in_stage', 'is_overdue', 'created_at', 'current_action_status', 'current_action_remarks', 'current_action_updated_at',
+            'is_multi_assigned', 'assignees_display', 'assignee_count', 'assignment_snapshots'
         ]
         read_only_fields = ['id', 'sl_no', 'created_at', 'current_action_updated_at']
 
@@ -32,6 +36,47 @@ class MailRecordListSerializer(serializers.ModelSerializer):
 
     def get_is_overdue(self, obj):
         return obj.is_overdue()
+
+    def _get_sorted_assignments(self, obj):
+        assignments = list(obj.parallel_assignments.all())
+        assignments.sort(key=lambda a: (a.created_at, a.id))
+        return assignments
+
+    def get_assignees_display(self, obj):
+        assignments = self._get_sorted_assignments(obj)
+        if assignments:
+            return [a.assigned_to.full_name for a in assignments]
+        if obj.assigned_to_id:
+            return [obj.assigned_to.full_name]
+        return []
+
+    def get_assignee_count(self, obj):
+        assignments = self._get_sorted_assignments(obj)
+        if assignments:
+            return len(assignments)
+        return 1 if obj.assigned_to_id else 0
+
+    def get_assignment_snapshots(self, obj):
+        """
+        Display-only per-assignee refs for list page, e.g. 2026/006_1, 2026/006_2.
+        Base mail identity remains the same (no record duplication).
+        """
+        snapshots = []
+        assignments = self._get_sorted_assignments(obj)
+        if not assignments and obj.assigned_to_id:
+            return [{
+                'ref': f"{obj.sl_no}_1",
+                'assignee_name': obj.assigned_to.full_name,
+                'status': 'Active' if obj.status != 'Closed' else 'Completed',
+            }]
+
+        for idx, assignment in enumerate(assignments, start=1):
+            snapshots.append({
+                'ref': f"{obj.sl_no}_{idx}",
+                'assignee_name': assignment.assigned_to.full_name,
+                'status': assignment.status,
+            })
+        return snapshots
 
 
 class MailRecordDetailSerializer(serializers.ModelSerializer):
@@ -102,6 +147,7 @@ class MailRecordCreateSerializer(serializers.ModelSerializer):
     def validate(self, data):
         from django.utils import timezone
         from users.models import User
+        from sections.models import Section
 
         # Validate that due_date is not in the past
         if data.get('due_date') and data['due_date'] < timezone.now().date():
@@ -120,29 +166,65 @@ class MailRecordCreateSerializer(serializers.ModelSerializer):
         if request and request.user:
             user = request.user
             assigned_to_ids = data.get('assigned_to', [])
+            selected_section = data.get('section')
 
             # Validate assignees exist and are active
-            assignees = User.objects.filter(id__in=assigned_to_ids, is_active=True)
+            assignees = User.objects.filter(
+                id__in=assigned_to_ids,
+                is_active=True
+            ).select_related('subsection', 'subsection__section').prefetch_related('sections')
             if len(assignees) != len(assigned_to_ids):
                 raise serializers.ValidationError({
                     'assigned_to': 'One or more assigned users do not exist or are inactive.'
                 })
 
+            if selected_section is not None:
+                if not Section.objects.filter(id=selected_section).exists():
+                    raise serializers.ValidationError({
+                        'section': 'Selected section does not exist.'
+                    })
+
             # Only AG can create mails
             if user.is_ag():
-                # Check if all assignees are from same section or different sections
-                assignee_sections = set()
-                for a in assignees:
-                    if a.subsection:
-                        assignee_sections.add(a.subsection.section_id)
+                # Infer section from assignees when possible.
+                # For DAG assignees, infer only when they manage exactly one section.
+                inferred_sections = set()
+                ambiguous_dags = []
 
-                if len(assignee_sections) > 1:
-                    # Cross-section assignment - section will be null
+                for assignee in assignees:
+                    if assignee.subsection_id:
+                        inferred_sections.add(assignee.subsection.section_id)
+                        continue
+
+                    if assignee.role == 'DAG':
+                        dag_sections = list(assignee.sections.values_list('id', flat=True))
+                        if selected_section is not None:
+                            if selected_section not in dag_sections:
+                                raise serializers.ValidationError({
+                                    'section': f'Selected section is not managed by DAG {assignee.full_name}.'
+                                })
+                            inferred_sections.add(selected_section)
+                        elif len(dag_sections) == 1:
+                            inferred_sections.add(dag_sections[0])
+                        elif len(dag_sections) > 1:
+                            ambiguous_dags.append(assignee.full_name)
+
+                if selected_section is not None:
+                    data['section'] = selected_section
+                elif len(inferred_sections) == 1:
+                    data['section'] = inferred_sections.pop()
+                elif len(inferred_sections) > 1:
+                    # Cross-section assignment
                     data['section'] = None
-                elif len(assignee_sections) == 1:
-                    # Single section - keep the section
-                    data['section'] = assignee_sections.pop()
-                # If no sections found, keep as null
+                elif ambiguous_dags:
+                    raise serializers.ValidationError({
+                        'section': (
+                            'Section is required when assigning to DAG(s) managing multiple sections: '
+                            + ', '.join(ambiguous_dags)
+                        )
+                    })
+                else:
+                    data['section'] = None
 
         return data
 

@@ -92,6 +92,8 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             'assigned_to', 'current_handler', 'monitoring_officer',
             'section', 'subsection', 'subsection__section', 'created_by'
         )
+        if self.action == 'list':
+            queryset = queryset.prefetch_related('parallel_assignments__assigned_to')
 
         # AG can see all records
         if user.role == 'AG':

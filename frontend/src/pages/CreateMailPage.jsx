@@ -55,6 +55,7 @@ const CreateMailPage = () => {
       from_office: '',
       action_required: '',
       action_required_other: '',
+      section: '',
       assigned_to: [],
       due_date: null,
       initial_instructions: '',
@@ -106,6 +107,7 @@ const CreateMailPage = () => {
         assigned_to: Array.isArray(data.assigned_to)
           ? data.assigned_to.map(u => u.id)
           : [data.assigned_to],
+        section: data.section ? Number(data.section) : null,
         due_date: data.due_date ? data.due_date.toISOString().split('T')[0] : null,
         initial_instructions: data.initial_instructions || '',
       };
@@ -286,7 +288,35 @@ const CreateMailPage = () => {
               </Box>
             )}
 
-            {/* Row 4: Assign To (Section is auto-detected on backend) */}
+            {/* Row 4: Optional Section (helps when assigning DAG handling multiple sections) */}
+            {isAG && (
+              <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                <Box sx={{ flex: '1 1 300px', minWidth: '250px', maxWidth: '400px' }}>
+                  <Controller
+                    name="section"
+                    control={control}
+                    render={({ field }) => (
+                      <FormControl fullWidth>
+                        <InputLabel>Section (Optional)</InputLabel>
+                        <Select {...field} label="Section (Optional)">
+                          <MenuItem value="">Auto-detect / Cross-section</MenuItem>
+                          {sections.map((section) => (
+                            <MenuItem key={section.id} value={section.id}>
+                              {section.name}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, ml: 2 }}>
+                          Choose section when assigning to DAGs with multiple managed sections.
+                        </Typography>
+                      </FormControl>
+                    )}
+                  />
+                </Box>
+              </Box>
+            )}
+
+            {/* Row 5: Assign To (Section can be auto-detected on backend) */}
             <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
               <Box sx={{ flex: '1 1 100%', minWidth: '250px' }}>
                 <Controller
@@ -359,7 +389,7 @@ const CreateMailPage = () => {
               </Box>
             </Box>
 
-            {/* Row 5: Due Date */}
+            {/* Row 6: Due Date */}
             <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
               <Box sx={{ flex: '1 1 300px', minWidth: '250px', maxWidth: '400px' }}>
                 <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -386,7 +416,7 @@ const CreateMailPage = () => {
               </Box>
             </Box>
 
-            {/* Row 6: Initial Instructions (full width) */}
+            {/* Row 7: Initial Instructions (full width) */}
             <Box>
               <Controller
                 name="initial_instructions"
