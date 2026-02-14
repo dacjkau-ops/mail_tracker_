@@ -5,10 +5,10 @@ from sections.models import Section, Subsection
 
 class User(AbstractUser):
     ROLE_CHOICES = [
-        ('AG', 'Additional General'),
-        ('DAG', 'Deputy Additional General'),
-        ('SrAO', 'Senior Accounts Officer'),
-        ('AAO', 'Assistant Accounts Officer'),
+        ('AG', 'Accountant General'),
+        ('DAG', 'Deputy Accountant General'),
+        ('SrAO', 'Senior Audit Officer'),
+        ('AAO', 'Assistant Audit Officer'),
     ]
 
     # Override email to make it required and unique

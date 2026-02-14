@@ -17,17 +17,17 @@ The system tracks received mails/actions, assigns them to officers, monitors pro
 The app is hosted locally (laptop server) and prioritizes correctness, security, and long-term maintainability over scale.
 
 ### Roles and Permissions
-1. **AG (Additional General)** - Head of office
+1. **AG (Accountant General)** - Head of office
    - Can do anything: create, assign, reassign, close, view all records
    - Full system access across all sections
 
-2. **DAG (Deputy Additional General)** - Section heads
+2. **DAG (Deputy Accountant General)** - Section heads
    - Can create mail entries for their section
    - Can assign/reassign within their section
    - Can view: Own section records + all records they've ever touched
    - Can update status and close records they're handling
 
-3. **SrAO/AAO (Senior/Assistant Accounts Officer)** - Staff officers
+3. **SrAO/AAO (Senior Audit Officer / Assistant Audit Officer)** - Staff officers
    - Can update status of mails assigned to them
    - Can close mails they're currently handling
    - Can view records assigned to them

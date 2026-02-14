@@ -167,7 +167,7 @@ class UserAdmin(BaseUserAdmin):
             }
 
         # Validate role
-        valid_roles = ['AG', 'DAG', 'SRAO', 'AAO']
+        valid_roles = ['AG', 'DAG', 'SrAO', 'AAO']
         if role not in valid_roles:
             return {
                 'status': 'error',
