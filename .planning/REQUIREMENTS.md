@@ -1,0 +1,144 @@
+# Requirements: Mail Tracker Enhancements
+
+**Defined:** 2026-02-20
+**Core Value:** Users can securely attach, store, and view PDF documents with proper access control and audit logging
+
+## v1 Requirements
+
+### PDF Attachment System
+
+- [ ] **PDF-01**: RecordAttachment model exists with fields: record (FK), stored_name (UUID.pdf), original_name, size_bytes, uploaded_by (FK), uploaded_at
+- [ ] **PDF-02**: Upload endpoint POST /api/records/{id}/pdf/ accepts multipart/form-data with PDF file (max 10MB)
+- [ ] **PDF-03**: Upload endpoint enforces role-based permissions matching record access
+- [ ] **PDF-04**: Upload replaces existing PDF if one exists (one PDF per record)
+- [ ] **PDF-05**: Metadata endpoint GET /api/records/{id}/pdf/ returns attachment metadata and exists flag
+- [ ] **PDF-06**: View endpoint GET /api/records/{id}/pdf/view/ returns 200 with X-Accel-Redirect header to internal nginx location
+- [ ] **PDF-07**: View endpoint enforces read permissions before issuing redirect
+- [ ] **PDF-08**: PDF stored at configurable path (/srv/mailtracker/pdfs in production, local path in dev)
+- [ ] **PDF-09**: Audit log entry created on PDF upload with action PDF_UPLOAD
+- [ ] **PDF-10**: Audit log entry created on PDF replacement with action PDF_REPLACE
+- [ ] **PDF-11**: Audit log entry created on PDF delete with action PDF_DELETE
+
+### Docker Deployment
+
+- [ ] **DOCKER-01**: docker-compose.yml defines postgres, backend, and nginx services
+- [ ] **DOCKER-02**: postgres service uses persistent volume at /srv/mailtracker/postgres
+- [ ] **DOCKER-03**: backend service builds from Dockerfile and runs migrations on startup
+- [ ] **DOCKER-04**: backend service runs gunicorn on port 8000
+- [ ] **DOCKER-05**: nginx service proxies /api/ to backend service
+- [ ] **DOCKER-06**: nginx service serves /static/ from shared volume
+- [ ] **DOCKER-07**: PDFs volume mounted to both backend (write) and nginx (read) at /srv/mailtracker/pdfs
+- [ ] **DOCKER-08**: Static files volume mounted to backend (write) and nginx (read)
+- [ ] **DOCKER-09**: Environment variables loaded from .env file: DJANGO_SECRET_KEY, DEBUG, ALLOWED_HOSTS, DB_NAME, DB_USER, DB_PASSWORD, DB_HOST
+- [ ] **DOCKER-10**: Services communicate via internal Docker network
+
+### Nginx Configuration
+
+- [ ] **NGINX-01**: nginx.conf configures upstream backend for gunicorn
+- [ ] **NGINX-02**: Location /api/ proxies to backend with proper headers
+- [ ] **NGINX-03**: Location /static/ serves files from shared volume
+- [ ] **NGINX-04**: Internal location /_protected_pdfs/ defined with internal directive
+- [ ] **NGINX-05**: /_protected_pdfs/ maps to /srv/mailtracker/pdfs/ filesystem path
+- [ ] **NGINX-06**: X-Accel-Redirect responses handled correctly
+- [ ] **NGINX-07**: Range requests enabled for PDF streaming
+- [ ] **NGINX-08**: Correct MIME types set for PDF files
+
+### Role System Expansion
+
+- [ ] **ROLE-01**: User model supports new roles: auditor, clerk
+- [ ] **ROLE-02**: AG has full access (unchanged)
+- [ ] **ROLE-03**: DAG has section-level visibility (can see all mails in their section)
+- [ ] **ROLE-04**: SrAO/AAO have subsection-level visibility (can see mails in their subsection)
+- [ ] **ROLE-05**: Clerk has subsection-level visibility (can see mails in their subsection)
+- [ ] **ROLE-06**: Auditor has read-only access with configurable visibility level
+- [ ] **ROLE-07**: All authenticated users can create mails (AG, DAG, SrAO, AAO, clerk)
+- [ ] **ROLE-08**: Role hierarchy enforced in all list/detail endpoints
+
+### Workflow Changes
+
+- [ ] **WORKFLOW-01**: Create mail page includes PDF upload field
+- [ ] **WORKFLOW-02**: PDF uploaded during mail creation is attached to the record
+- [ ] **WORKFLOW-03**: action_required field changed from dropdown to free text input
+- [ ] **WORKFLOW-04**: Free text action_required has max length validation (500 chars)
+- [ ] **WORKFLOW-05**: Existing action_required choices preserved for data compatibility
+- [ ] **WORKFLOW-06**: Mail detail page shows PDF attachment if exists
+- [ ] **WORKFLOW-07**: PDF can be viewed inline or downloaded from detail page
+
+### Backend Updates
+
+- [ ] **BACKEND-01**: Permission classes updated for new hierarchy
+- [ ] **BACKEND-02**: List endpoints filter by user's visibility level
+- [ ] **BACKEND-03**: MailRecordSerializer includes attachment metadata
+- [ ] **BACKEND-04**: Settings support both SQLite (dev) and PostgreSQL (docker)
+- [ ] **BACKEND-05**: File storage backend configurable via environment
+- [ ] **BACKEND-06**: AuditTrail ACTION_CHOICES includes PDF operations
+
+### Frontend Updates
+
+- [ ] **FRONTEND-01**: Create mail form includes file input for PDF upload
+- [ ] **FRONTEND-02**: File input shows selected filename and validation
+- [ ] **FRONTEND-03**: Action required changed from Select to TextField
+- [ ] **FRONTEND-04**: Mail detail page displays PDF attachment section
+- [ ] **FRONTEND-05**: PDF view button opens in new tab or downloads
+- [ ] **FRONTEND-06**: Role badge updated to show new roles
+
+### Codebase Cleanup
+
+- [ ] **CLEANUP-01**: Unused imports removed from all Python files
+- [ ] **CLEANUP-02**: Unused components removed from frontend
+- [ ] **CLEANUP-03**: Sample data files organized or removed if not needed
+- [ ] **CLEANUP-04**: Deprecated fields marked or removed
+- [ ] **CLEANUP-05**: Build artifacts not tracked in git
+- [ ] **CLEANUP-06**: Documentation updated to reflect changes
+
+## v2 Requirements (Future)
+
+### Additional Features
+
+- **V2-01**: Multiple PDF attachments per record
+- **V2-02**: PDF preview thumbnail generation
+- **V2-03**: Drag-and-drop file upload
+- **V2-04**: Upload progress indicator
+- **V2-05**: PDF virus scanning on upload
+- **V2-06**: Backup and restore functionality for PDFs
+
+### Advanced Deployment
+
+- **V2-07**: Health checks for all services
+- **V2-08**: Automated database backups
+- **V2-09**: Log aggregation with structured logging
+- **V2-10**: SSL/TLS termination in nginx
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Cloud storage integration | On-premise requirement |
+| Email notifications | Already excluded per CLAUDE.md |
+| Real-time chat | Already excluded per CLAUDE.md |
+| Mobile app | Web-only per CLAUDE.md |
+| OCR/text extraction | Not needed for viewing |
+| PDF annotation/editing | View-only requirement |
+| Advanced reporting | Deferred to v2 |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| PDF-01 to PDF-11 | Phase 1 | Pending |
+| DOCKER-01 to DOCKER-10 | Phase 1 | Pending |
+| NGINX-01 to NGINX-08 | Phase 1 | Pending |
+| ROLE-01 to ROLE-08 | Phase 2 | Pending |
+| WORKFLOW-01 to WORKFLOW-07 | Phase 2 | Pending |
+| BACKEND-01 to BACKEND-06 | Phase 2 | Pending |
+| FRONTEND-01 to FRONTEND-06 | Phase 3 | Pending |
+| CLEANUP-01 to CLEANUP-06 | Phase 3 | Pending |
+
+**Coverage:**
+- v1 requirements: 52 total
+- Mapped to phases: 52
+- Unmapped: 0 ✓
+
+---
+*Requirements defined: 2026-02-20*
+*Last updated: 2026-02-20 after initial definition*
