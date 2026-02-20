@@ -1,8 +1,8 @@
 # State: Mail Tracker Enhancements
 
 **Current Phase:** 3
-**Current Plan:** Not started
-**Last Action:** Completed Phase 2 (all 3 plans, verified) — advancing to Phase 3
+**Current Plan:** 1 complete, advancing to Plan 02
+**Last Action:** Completed Phase 3 Plan 01 — CreateMailPage free-text action_required + PDF upload, canCreateMail expanded to all 6 roles
 **Date:** 2026-02-21
 
 ## Project Reference
@@ -18,7 +18,7 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 |-------|--------|--------------|-----------|
 | 1. Infrastructure & PDF Backend | ● Done | 29 | 3/3 plans done |
 | 2. Role System & Backend Updates | ● Done | 16 | 3/3 plans done |
-| 3. Frontend & Workflow | ○ Pending | 17 | 0/17 |
+| 3. Frontend & Workflow | ◑ In Progress | 17 | 6/17 |
 
 ## Active Context
 
@@ -54,6 +54,9 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 - **create() branches on role in view body** — serializer validates assignee scope, view forces section/subsection from creator's profile
 - **DAG section defaults to first managed section in create()** — avoids error when DAG omits section field; safe default
 - **auditor_subsections exposed on UserSerializer** — /api/users/me/ and login response returns subsection IDs for frontend role-scoping
+- **canCreateMail() uses array includes()** — expanding from AG-only to all 6 roles; flat array, easy to extend
+- **PDF upload failure redirects to ?pdfError=1** — mail record is already created; blocking navigation would orphan the record from user's perspective
+- **Two-step form submit pattern** — createMail() then uploadPdf() with graceful degradation; client-side PDF validation (MIME + size) before any network call
 
 ## Current Blockers
 
@@ -77,10 +80,11 @@ None
 | 02 | 01 | ~12 min | 3/3 | 4 |
 | 02 | 02 | ~3 min | 2/2 | 2 |
 | 02 | 03 | ~4 min | 3/3 | 3 |
+| 03 | 01 | ~3 min | 2/2 | 3 |
 
 ## Stopped At
 
-Completed Phase 2 (3/3 plans, verified). Next: Phase 3, Plan 01.
+Completed Phase 3 Plan 01 (2/2 tasks). Next: Phase 3, Plan 02.
 
 ---
 *State tracking for Mail Tracker Enhancements*
