@@ -1,8 +1,8 @@
 # State: Mail Tracker Enhancements
 
 **Current Phase:** 2
-**Current Plan:** 03 (next)
-**Last Action:** Completed Phase 2 Plan 02 - Permission and Queryset Role Hierarchy
+**Current Plan:** 04 (next)
+**Last Action:** Completed Phase 2 Plan 03 - Serializer Completeness and Role-Based Creation
 **Date:** 2026-02-21
 
 ## Project Reference
@@ -17,7 +17,7 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 | Phase | Status | Requirements | Completed |
 |-------|--------|--------------|-----------|
 | 1. Infrastructure & PDF Backend | ● Done | 29 | 3/3 plans done |
-| 2. Role System & Backend Updates | ◑ In Progress | 16 | 5/16 (Plans 01, 02 complete) |
+| 2. Role System & Backend Updates | ◑ In Progress | 16 | 8/16 (Plans 01, 02, 03 complete) |
 | 3. Frontend & Workflow | ○ Pending | 17 | 0/17 |
 
 ## Active Context
@@ -49,6 +49,11 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 - **Auditor reassign target double-enforced** — both _get_reassign_candidates_queryset() (SrAO/AAO only) and reassign() view (explicit 403) enforce auditor-to-SrAO/AAO restriction
 - **Auditor section-level fallback in queryset** — Q(subsection__isnull=True, section__subsections__id__in=ids) covers mails with no subsection set
 - **Existing view guards untouched** — multi_assign, reopen, close-multi already correctly block auditor/clerk
+- **attachment_metadata on both list and detail serializers** — frontend can show attachment status on list rows without an extra API call
+- **Other sentinel validation removed from CreateSerializer** — action_required is free-text; the old 'Other' check was obsolete
+- **create() branches on role in view body** — serializer validates assignee scope, view forces section/subsection from creator's profile
+- **DAG section defaults to first managed section in create()** — avoids error when DAG omits section field; safe default
+- **auditor_subsections exposed on UserSerializer** — /api/users/me/ and login response returns subsection IDs for frontend role-scoping
 
 ## Current Blockers
 
@@ -71,10 +76,11 @@ None
 | 01 | 03 | ~6 min | 3/3 | 5 |
 | 02 | 01 | ~12 min | 3/3 | 4 |
 | 02 | 02 | ~3 min | 2/2 | 2 |
+| 02 | 03 | ~4 min | 3/3 | 3 |
 
 ## Stopped At
 
-Completed 02-02-PLAN.md (Permission and Queryset Role Hierarchy). Phase 2 Plan 02 complete (2/2 tasks). Next: Phase 2, Plan 03.
+Completed 02-03-PLAN.md (Serializer Completeness and Role-Based Creation). Phase 2 Plan 03 complete (3/3 tasks). Next: Phase 2, Plan 04.
 
 ---
 *State tracking for Mail Tracker Enhancements*
