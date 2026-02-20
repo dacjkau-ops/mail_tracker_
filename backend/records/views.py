@@ -1,11 +1,12 @@
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.http import HttpResponse
 from django.utils import timezone
 from django.db.models import Q
 from django.db import transaction
 from config.permissions import MailRecordPermission
-from .models import MailRecord, MailAssignment, AssignmentRemark
+from .models import MailRecord, MailAssignment, AssignmentRemark, RecordAttachment
 from .serializers import (
     MailRecordListSerializer,
     MailRecordDetailSerializer,
@@ -21,7 +22,9 @@ from .serializers import (
     AssignmentCompleteSerializer,
     AddRemarkSerializer,
     AssignmentReassignSerializer,
-    AssignmentRemarkSerializer
+    AssignmentRemarkSerializer,
+    PDFUploadSerializer,
+    PDFMetadataSerializer,
 )
 from audit.models import AuditTrail
 from users.models import User
@@ -922,6 +925,156 @@ class MailRecordViewSet(viewsets.ModelViewSet):
         mail_record = self.get_object()
         assignments = self._filter_assignments_for_user(mail_record, request.user)
         return Response(MailAssignmentSerializer(assignments, many=True).data)
+
+    @action(detail=True, methods=['post'], url_path='pdf', url_name='upload-pdf')
+    def upload_pdf(self, request, pk=None):
+        """
+        POST /api/records/{id}/pdf/
+        Upload a PDF to a mail record. Accepts multipart/form-data with:
+          - file: PDF file (required, max 10MB, must be .pdf extension)
+          - upload_stage: 'created' or 'closed' (required)
+
+        Permissions:
+          - AG: always allowed
+          - DAG: allowed if mail.section is in their managed sections
+          - SrAO/AAO: allowed only if they are current_handler
+
+        Behavior:
+          - If a current PDF already exists for the same upload_stage,
+            mark it is_current=False (replacement, not deletion).
+          - Store new file using UUID filename via RecordAttachment model.
+          - Return 201 with attachment metadata on success.
+        """
+        mail_record = self.get_object()  # triggers has_object_permission
+
+        serializer = PDFUploadSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        uploaded_file = serializer.validated_data['file']
+        upload_stage = serializer.validated_data['upload_stage']
+
+        # Enforce workflow stage restriction
+        if upload_stage == 'created' and mail_record.status not in ['Received', 'Assigned']:
+            return Response(
+                {'error': "PDF can only be uploaded at the 'created' stage when the record status is 'Received' or 'Assigned'."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        if upload_stage == 'closed' and mail_record.status != 'Closed':
+            return Response(
+                {'error': "PDF can only be uploaded at the 'closed' stage when the record has been closed."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        with transaction.atomic():
+            # Mark any existing current attachment for this stage as replaced
+            existing = mail_record.attachments.filter(
+                upload_stage=upload_stage,
+                is_current=True
+            ).first()
+            if existing:
+                existing.is_current = False
+                existing.save(update_fields=['is_current'])
+
+            # Create new attachment record — file saved by FileField
+            attachment = RecordAttachment.objects.create(
+                mail_record=mail_record,
+                file=uploaded_file,
+                original_filename=uploaded_file.name,
+                file_size=uploaded_file.size,
+                uploaded_by=request.user,
+                upload_stage=upload_stage,
+                is_current=True,
+            )
+
+        return Response(attachment.get_metadata_dict(), status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get'], url_path='pdf', url_name='pdf-metadata')
+    def get_pdf_metadata(self, request, pk=None):
+        """
+        GET /api/records/{id}/pdf/
+        Returns metadata for all current PDF attachments on this record.
+        One entry per upload_stage that has a current attachment.
+
+        Response shape:
+        {
+          "exists": true,
+          "attachments": [
+            {
+              "id": "...",
+              "original_filename": "document.pdf",
+              "file_size": 102400,
+              "file_size_human": "100.0 KB",
+              "uploaded_at": "2026-02-20T10:00:00+00:00",
+              "uploaded_by": "John Smith",
+              "upload_stage": "created"
+            }
+          ]
+        }
+
+        Permissions: same as viewing the mail record.
+        """
+        mail_record = self.get_object()  # triggers has_object_permission
+
+        current_attachments = mail_record.attachments.filter(is_current=True).order_by('upload_stage')
+        attachments_data = [a.get_metadata_dict() for a in current_attachments]
+
+        return Response({
+            'exists': len(attachments_data) > 0,
+            'attachments': attachments_data,
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], url_path='pdf/view', url_name='view-pdf')
+    def view_pdf(self, request, pk=None):
+        """
+        GET /api/records/{id}/pdf/view/?stage=created
+        Returns 200 with X-Accel-Redirect header. Nginx intercepts and serves the PDF file.
+        Query param 'stage' selects which stage PDF to serve (default: 'created').
+
+        Response headers set:
+          - X-Accel-Redirect: /_protected_pdfs/{uuid}.pdf
+          - Content-Type: application/pdf
+          - Content-Disposition: inline; filename="{original_filename}"
+          - X-Accel-Buffering: no
+
+        Permissions: same as viewing the mail record (PDF-07).
+        """
+        mail_record = self.get_object()  # triggers has_object_permission
+
+        stage = request.query_params.get('stage', 'created')
+        if stage not in ('created', 'closed'):
+            return Response(
+                {'error': "Invalid stage. Must be 'created' or 'closed'."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        attachment = mail_record.attachments.filter(
+            upload_stage=stage,
+            is_current=True
+        ).first()
+
+        if not attachment:
+            return Response(
+                {'error': f"No PDF found for stage '{stage}' on this record."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        stored_filename = attachment.stored_filename
+        if not stored_filename:
+            return Response(
+                {'error': "PDF file reference is missing. Contact an administrator."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        response = HttpResponse(status=200)
+        response['X-Accel-Redirect'] = f'/_protected_pdfs/{stored_filename}'
+        response['X-Accel-Buffering'] = 'no'
+        response['Content-Type'] = 'application/pdf'
+        # Sanitize original filename for Content-Disposition (remove quotes/special chars)
+        safe_filename = attachment.original_filename.replace('"', '').replace('\\', '')
+        response['Content-Disposition'] = f'inline; filename="{safe_filename}"'
+
+        return response
 
 
 class MailAssignmentViewSet(viewsets.ModelViewSet):

@@ -59,6 +59,7 @@ class MailRecordPermission(permissions.BasePermission):
             'complete_assignment', 'add_assignment_remark',
             'reassign_assignment', 'update_current_action',
             'reassign_candidates',
+            'upload_pdf', 'get_pdf_metadata', 'view_pdf',  # PDF endpoints
         ]:
             return True
 
@@ -174,6 +175,19 @@ class MailRecordPermission(permissions.BasePermission):
             'update_assignment', 'complete_assignment',
             'add_assignment_remark', 'reassign_assignment',
         ]:
+            return self._can_view_mail(user, obj, request)
+
+        # PDF upload permission
+        # Allowed: AG always, DAG if mail section in their sections, SrAO/AAO if current_handler
+        if view.action == 'upload_pdf':
+            if user.role == 'DAG':
+                return self._is_dag_for_section(user, obj)
+            if user.role in ['SrAO', 'AAO']:
+                return obj.current_handler == user
+            return False
+
+        # PDF metadata and view permission — mirrors view permission
+        if view.action in ['get_pdf_metadata', 'view_pdf']:
             return self._can_view_mail(user, obj, request)
 
         return False

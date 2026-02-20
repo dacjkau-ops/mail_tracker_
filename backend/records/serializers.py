@@ -1,3 +1,5 @@
+import os
+
 from rest_framework import serializers
 from .models import MailRecord, MailAssignment, AssignmentRemark
 from users.serializers import UserMinimalSerializer
@@ -487,3 +489,37 @@ class MailAssignmentFullSerializer(serializers.ModelSerializer):
     def get_has_responded(self, obj):
         """Check if assignee has added any remarks"""
         return obj.remarks_timeline.exists() or bool(obj.user_remarks)
+
+
+class PDFUploadSerializer(serializers.Serializer):
+    """Serializer for validating PDF file uploads."""
+    file = serializers.FileField(
+        max_length=255,
+        allow_empty_file=False,
+        help_text="PDF file to upload. Maximum size: 10MB."
+    )
+    upload_stage = serializers.ChoiceField(
+        choices=[('created', 'Created'), ('closed', 'Closed')],
+        help_text="Workflow stage this PDF belongs to: 'created' or 'closed'."
+    )
+
+    def validate_file(self, value):
+        # Validate extension
+        ext = os.path.splitext(value.name)[1].lower()
+        if ext != '.pdf':
+            raise serializers.ValidationError("Only PDF files are allowed. File must have a .pdf extension.")
+
+        # Validate size (settings fallback if not configured)
+        from django.conf import settings
+        max_size = getattr(settings, 'FILE_UPLOAD_MAX_MEMORY_SIZE', 10 * 1024 * 1024)
+        if value.size > max_size:
+            max_mb = max_size // (1024 * 1024)
+            raise serializers.ValidationError(f"File size exceeds {max_mb}MB limit. Received {value.size / (1024*1024):.1f}MB.")
+
+        return value
+
+
+class PDFMetadataSerializer(serializers.Serializer):
+    """Read-only serializer for PDF attachment metadata response."""
+    exists = serializers.BooleanField()
+    attachments = serializers.ListField(child=serializers.DictField(), required=False)
