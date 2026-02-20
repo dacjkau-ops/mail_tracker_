@@ -1,8 +1,8 @@
 # State: Mail Tracker Enhancements
 
 **Current Phase:** Phase 1 - Infrastructure & PDF Backend
-**Current Plan:** 02 (next to execute)
-**Last Action:** Completed Phase 1 Plan 01 - Docker Infrastructure
+**Current Plan:** 03 (next to execute)
+**Last Action:** Completed Phase 1 Plan 02 - RecordAttachment Data Model
 **Date:** 2026-02-20
 
 ## Project Reference
@@ -16,7 +16,7 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 
 | Phase | Status | Requirements | Completed |
 |-------|--------|--------------|-----------|
-| 1. Infrastructure & PDF Backend | ◑ In Progress | 29 | 1/2 plans done |
+| 1. Infrastructure & PDF Backend | ◑ In Progress | 29 | 2/2 plans done |
 | 2. Role System & Backend Updates | ○ Pending | 16 | 0/16 |
 | 3. Frontend & Workflow | ○ Pending | 17 | 0/17 |
 
@@ -33,6 +33,10 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 - **pdf_storage volume rw/ro split** — backend writes, nginx reads-only (enforces storage isolation)
 - **pg_isready in entrypoint.sh** rather than Docker-level depends_on healthcheck (uses actual DB credentials)
 - **nginx /_protected_pdfs/ with internal directive** — direct browser access blocked, only X-Accel-Redirect from Django allowed
+- **UUID primary key on RecordAttachment** — prevents enumeration attacks on future attachment API endpoints
+- **pdf_upload_path uses UUID, not original filename** — prevents path traversal from malicious filenames
+- **No AuditTrail entries for PDF operations** — PDF_UPLOAD/PDF_REPLACE/PDF_DELETE choices are schema-only for future compatibility; audit captured in RecordAttachment model fields
+- **validate_pdf_size reads MAX_PDF_SIZE_MB from settings** — configurable per deployment, defaults to 10MB
 
 ## Current Blockers
 
@@ -51,10 +55,11 @@ None
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
 | 01 | 01 | ~3 min | 5/5 | 6 |
+| 01 | 02 | ~4 min | 4/4 | 5 |
 
 ## Stopped At
 
-Completed 01-01-PLAN.md (Docker Infrastructure). Next: execute 01-02-PLAN.md.
+Completed 01-02-PLAN.md (RecordAttachment Data Model). Phase 1 complete. Next: Phase 2.
 
 ---
 *State tracking for Mail Tracker Enhancements*
