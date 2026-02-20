@@ -24,6 +24,8 @@ must_haves:
   truths:
     - "POST /api/records/{id}/pdf/ accepts a multipart PDF upload and returns 201 with attachment metadata"
     - "POST /api/records/{id}/pdf/ returns 403 when called by a user without create/close permission for the record"
+    - "POST /api/records/{id}/pdf/ with upload_stage='created' returns 403 if record status is not 'Received' or 'Assigned'"
+    - "POST /api/records/{id}/pdf/ with upload_stage='closed' returns 403 if record status is not 'Closed'"
     - "GET /api/records/{id}/pdf/ returns attachment metadata JSON including exists, stage, original_filename, file_size, uploaded_by, uploaded_at"
     - "GET /api/records/{id}/pdf/view/ returns 200 with X-Accel-Redirect header pointing to /_protected_pdfs/{uuid}.pdf"
     - "GET /api/records/{id}/pdf/view/ returns 403 when called by a user who cannot view the mail record"
@@ -170,15 +172,16 @@ First, read the current state of backend/records/models.py to find the RecordAtt
    )
    ```
 
-4. Ensure the `file` FileField uses the custom storage and upload path:
+4. Ensure the `file` FileField uses the custom storage and upload path, and retains the validators added by 02-PLAN.md Task 4:
    ```python
    file = models.FileField(
        upload_to=pdf_upload_path,
        storage=get_pdf_storage,  # callable — evaluated lazily, not at import time
-       max_length=255
+       max_length=255,
+       validators=[validate_pdf_extension, validate_pdf_size]
    )
    ```
-   NOTE: Pass `get_pdf_storage` (the function) not `get_pdf_storage()` (the result). Django accepts a callable for storage to allow lazy evaluation.
+   NOTE: Pass `get_pdf_storage` (the function) not `get_pdf_storage()` (the result). Django accepts a callable for storage to allow lazy evaluation. `validate_pdf_extension` and `validate_pdf_size` are already defined in models.py by 02-PLAN.md Task 4 — do not redefine them.
 
 5. Add a property `stored_filename` that extracts just the filename from the file field path (needed for X-Accel-Redirect):
    ```python
@@ -213,8 +216,21 @@ First, read the current state of backend/records/models.py to find the RecordAtt
            return f"{size_bytes / (1024 * 1024):.1f} MB"
    ```
 
-If RecordAttachment does not yet exist in models.py (02-PLAN.md may not have been executed yet), create the full class with all fields from 02-PLAN.md plus upload_stage:
+If RecordAttachment does not yet exist in models.py (02-PLAN.md may not have been executed yet), create the full class with all fields from 02-PLAN.md plus upload_stage. In this scenario, also define the validator functions BEFORE the class (since 02-PLAN.md Task 4 did not run):
 ```python
+def validate_pdf_extension(value):
+    ext = os.path.splitext(value.name)[1].lower()
+    if ext != '.pdf':
+        raise ValidationError('Only PDF files are allowed.')
+
+
+def validate_pdf_size(value):
+    max_mb = getattr(django_settings, 'MAX_PDF_SIZE_MB', 10)
+    max_size = max_mb * 1024 * 1024
+    if value.size > max_size:
+        raise ValidationError(f'File size exceeds {max_mb}MB limit.')
+
+
 class RecordAttachment(models.Model):
     UPLOAD_STAGE_CHOICES = [
         ('created', 'Created'),
@@ -230,7 +246,8 @@ class RecordAttachment(models.Model):
     file = models.FileField(
         upload_to=pdf_upload_path,
         storage=get_pdf_storage,
-        max_length=255
+        max_length=255,
+        validators=[validate_pdf_extension, validate_pdf_size]
     )
     original_filename = models.CharField(max_length=255)
     file_size = models.PositiveIntegerField(help_text="File size in bytes")
@@ -506,6 +523,18 @@ def upload_pdf(self, request, pk=None):
 
     uploaded_file = serializer.validated_data['file']
     upload_stage = serializer.validated_data['upload_stage']
+
+    # Enforce workflow stage restriction
+    if upload_stage == 'created' and mail_record.status not in ['Received', 'Assigned']:
+        return Response(
+            {'error': "PDF can only be uploaded at the 'created' stage when the record status is 'Received' or 'Assigned'."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    if upload_stage == 'closed' and mail_record.status != 'Closed':
+        return Response(
+            {'error': "PDF can only be uploaded at the 'closed' stage when the record has been closed."},
+            status=status.HTTP_403_FORBIDDEN
+        )
 
     with transaction.atomic():
         # Mark any existing current attachment for this stage as replaced
