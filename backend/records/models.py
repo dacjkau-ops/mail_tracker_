@@ -3,14 +3,26 @@ import os
 
 from django.db import models
 from django.conf import settings
+from django.conf import settings as django_settings
 from django.core.exceptions import ValidationError
+from django.core.files.storage import FileSystemStorage
 from django.utils import timezone
 from sections.models import Section, Subsection
 
 
+def get_pdf_storage():
+    """Return FileSystemStorage pointed at PDF_STORAGE_PATH setting."""
+    storage_path = getattr(django_settings, 'PDF_STORAGE_PATH', None)
+    if storage_path is None:
+        from pathlib import Path
+        storage_path = Path(django_settings.BASE_DIR) / 'pdfs'
+    os.makedirs(storage_path, exist_ok=True)
+    return FileSystemStorage(location=str(storage_path))
+
+
 def pdf_upload_path(instance, filename):
-    # Store as UUID.pdf, ignore original filename to prevent path traversal
-    return f'pdfs/{instance.id}.pdf'
+    """Store PDF as UUID.pdf, ignoring original filename to prevent path traversal."""
+    return f"{uuid.uuid4()}.pdf"
 
 
 def validate_pdf_extension(value):
@@ -470,6 +482,11 @@ class AssignmentRemark(models.Model):
 
 
 class RecordAttachment(models.Model):
+    UPLOAD_STAGE_CHOICES = [
+        ('created', 'Created'),
+        ('closed', 'Closed'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     mail_record = models.ForeignKey(
         MailRecord,
@@ -478,6 +495,7 @@ class RecordAttachment(models.Model):
     )
     file = models.FileField(
         upload_to=pdf_upload_path,
+        storage=get_pdf_storage,  # callable — evaluated lazily, not at import time
         max_length=255,
         validators=[validate_pdf_extension, validate_pdf_size]
     )
@@ -490,9 +508,15 @@ class RecordAttachment(models.Model):
         related_name='uploaded_attachments'
     )
     uploaded_at = models.DateTimeField(auto_now_add=True)
+    upload_stage = models.CharField(
+        max_length=10,
+        choices=UPLOAD_STAGE_CHOICES,
+        default='created',
+        help_text="Workflow stage at which this PDF was uploaded"
+    )
     is_current = models.BooleanField(
         default=True,
-        help_text="False when superseded by a replacement"
+        help_text="False when superseded by a replacement for the same stage"
     )
 
     class Meta:
@@ -501,7 +525,34 @@ class RecordAttachment(models.Model):
         verbose_name_plural = 'Record Attachments'
 
     def __str__(self):
-        return f"{self.original_filename} ({self.mail_record.sl_no})"
+        return f"{self.original_filename} ({self.mail_record.sl_no}) [{self.upload_stage}]"
+
+    @property
+    def stored_filename(self):
+        """Return just the UUID filename (e.g., 'abc123.pdf') for X-Accel-Redirect."""
+        return os.path.basename(self.file.name) if self.file else None
+
+    def get_metadata_dict(self):
+        return {
+            'id': str(self.id),
+            'original_filename': self.original_filename,
+            'file_size': self.file_size,
+            'file_size_human': self._human_readable_size(self.file_size),
+            'uploaded_at': self.uploaded_at.isoformat() if self.uploaded_at else None,
+            'uploaded_by': self.uploaded_by.full_name if self.uploaded_by else None,
+            'upload_stage': self.upload_stage,
+        }
+
+    @staticmethod
+    def _human_readable_size(size_bytes):
+        if size_bytes is None:
+            return None
+        if size_bytes < 1024:
+            return f"{size_bytes} B"
+        elif size_bytes < 1024 * 1024:
+            return f"{size_bytes / 1024:.1f} KB"
+        else:
+            return f"{size_bytes / (1024 * 1024):.1f} MB"
 
     def delete_file(self):
         """Delete physical file from storage."""
