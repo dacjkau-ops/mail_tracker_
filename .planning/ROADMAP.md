@@ -33,13 +33,20 @@
 **Phase ID:** 2
 **Depends On:** Phase 1
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Add auditor/clerk roles to User model, auditor_subsections M2M, convert action_required to free-text
+- [ ] 02-02-PLAN.md — Update permissions and queryset visibility for new role hierarchy
+- [ ] 02-03-PLAN.md — Enable all roles to create mails with subsection scoping, add attachment_metadata to serializers
+
 ### Success Criteria
 
 1. User model supports auditor and clerk roles
 2. All authenticated users can create mails
 3. Bottom-up visibility enforced in list/detail endpoints
 4. DAG sees all section mails, SrAO/AAO/Clerk see subsection mails
-5. Auditor has read-only access
+5. Auditor has configurable subsection visibility
 6. action_required accepts free text with validation
 7. Existing data compatibility preserved
 
