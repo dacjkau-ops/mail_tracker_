@@ -1,8 +1,8 @@
 # State: Mail Tracker Enhancements
 
 **Current Phase:** 2
-**Current Plan:** 02 (next)
-**Last Action:** Completed Phase 2 Plan 01 - Role System Data Model
+**Current Plan:** 03 (next)
+**Last Action:** Completed Phase 2 Plan 02 - Permission and Queryset Role Hierarchy
 **Date:** 2026-02-21
 
 ## Project Reference
@@ -17,7 +17,7 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 | Phase | Status | Requirements | Completed |
 |-------|--------|--------------|-----------|
 | 1. Infrastructure & PDF Backend | ● Done | 29 | 3/3 plans done |
-| 2. Role System & Backend Updates | ◑ In Progress | 16 | 3/16 (Plan 01 complete) |
+| 2. Role System & Backend Updates | ◑ In Progress | 16 | 5/16 (Plans 01, 02 complete) |
 | 3. Frontend & Workflow | ○ Pending | 17 | 0/17 |
 
 ## Active Context
@@ -44,6 +44,11 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 - **clerk reuses subsection FK** — no new field; clerk uses existing subsection ForeignKey, get_dag() falls into same else branch as SrAO/AAO
 - **action_required_other retained** — legacy field preserved as-is; cleanup deferred
 - **action_required free-text with no data migration** — existing values all fit in 500 chars; blank=True allows empty strings
+- **create action allows all authenticated users in has_permission()** — view enforces role-based scoping (DAG/clerk create logic in Plan 03)
+- **SrAO/AAO visibility expanded to subsection-level** — Q(subsection=user.subsection) added; existing assignment/touched fallbacks preserved
+- **Auditor reassign target double-enforced** — both _get_reassign_candidates_queryset() (SrAO/AAO only) and reassign() view (explicit 403) enforce auditor-to-SrAO/AAO restriction
+- **Auditor section-level fallback in queryset** — Q(subsection__isnull=True, section__subsections__id__in=ids) covers mails with no subsection set
+- **Existing view guards untouched** — multi_assign, reopen, close-multi already correctly block auditor/clerk
 
 ## Current Blockers
 
@@ -65,10 +70,11 @@ None
 | 01 | 02 | ~4 min | 4/4 | 5 |
 | 01 | 03 | ~6 min | 3/3 | 5 |
 | 02 | 01 | ~12 min | 3/3 | 4 |
+| 02 | 02 | ~3 min | 2/2 | 2 |
 
 ## Stopped At
 
-Completed 02-01-PLAN.md (Role System Data Model). Phase 2 Plan 01 complete (3/3 tasks). Next: Phase 2, Plan 02.
+Completed 02-02-PLAN.md (Permission and Queryset Role Hierarchy). Phase 2 Plan 02 complete (2/2 tasks). Next: Phase 2, Plan 03.
 
 ---
 *State tracking for Mail Tracker Enhancements*
