@@ -33,7 +33,7 @@
 **Phase ID:** 2
 **Depends On:** Phase 1
 
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 - [ ] 02-01-PLAN.md — Add auditor/clerk roles to User model, auditor_subsections M2M, convert action_required to free-text
@@ -78,8 +78,7 @@ Plans:
 |-------------|-------|-------------|
 | PDF-01 to PDF-11 | 1 | PDF model and endpoints | Complete    | 2026-02-20 | 1 | Docker infrastructure |
 | NGINX-01 to NGINX-08 | 1 | Nginx configuration |
-| ROLE-01 to ROLE-08 | 2 | Role system expansion |
-| BACKEND-01 to BACKEND-06 | 2 | Backend updates |
+| ROLE-01 to ROLE-08 | 2 | Role system expansion | Complete    | 2026-02-20 | 2 | Backend updates |
 | WORKFLOW-04 to WORKFLOW-05 | 2 | Free-text action backend |
 | WORKFLOW-01 to WORKFLOW-03 | 3 | PDF in create mail |
 | WORKFLOW-06 to WORKFLOW-07 | 3 | PDF viewing |

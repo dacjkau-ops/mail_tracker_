@@ -45,33 +45,33 @@
 
 ### Role System Expansion
 
-- [ ] **ROLE-01**: User model supports new roles: auditor, clerk
+- [x] **ROLE-01**: User model supports new roles: auditor, clerk
 - [ ] **ROLE-02**: AG has full access (unchanged)
 - [ ] **ROLE-03**: DAG has section-level visibility (can see all mails in their section)
 - [ ] **ROLE-04**: SrAO/AAO have subsection-level visibility (can see mails in their subsection)
 - [ ] **ROLE-05**: Clerk has subsection-level visibility (can see mails in their subsection)
 - [ ] **ROLE-06**: Auditor has read-only access with configurable visibility level
 - [ ] **ROLE-07**: All authenticated users can create mails (AG, DAG, SrAO, AAO, clerk)
-- [ ] **ROLE-08**: Role hierarchy enforced in all list/detail endpoints
+- [x] **ROLE-08**: Role hierarchy enforced in all list/detail endpoints
 
 ### Workflow Changes
 
 - [ ] **WORKFLOW-01**: Create mail page includes PDF upload field
 - [ ] **WORKFLOW-02**: PDF uploaded during mail creation is attached to the record
 - [ ] **WORKFLOW-03**: action_required field changed from dropdown to free text input
-- [ ] **WORKFLOW-04**: Free text action_required has max length validation (500 chars)
-- [ ] **WORKFLOW-05**: Existing action_required choices preserved for data compatibility
+- [x] **WORKFLOW-04**: Free text action_required has max length validation (500 chars)
+- [x] **WORKFLOW-05**: Existing action_required choices preserved for data compatibility
 - [ ] **WORKFLOW-06**: Mail detail page shows PDF attachment if exists
 - [ ] **WORKFLOW-07**: PDF can be viewed inline or downloaded from detail page
 
 ### Backend Updates
 
-- [ ] **BACKEND-01**: Permission classes updated for new hierarchy
+- [x] **BACKEND-01**: Permission classes updated for new hierarchy
 - [ ] **BACKEND-02**: List endpoints filter by user's visibility level
 - [ ] **BACKEND-03**: MailRecordSerializer includes attachment metadata
 - [ ] **BACKEND-04**: Settings support both SQLite (dev) and PostgreSQL (docker)
 - [ ] **BACKEND-05**: File storage backend configurable via environment
-- [ ] **BACKEND-06**: AuditTrail ACTION_CHOICES includes PDF operations
+- [x] **BACKEND-06**: AuditTrail ACTION_CHOICES includes PDF operations
 
 ### Frontend Updates
 
