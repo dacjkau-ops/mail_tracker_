@@ -1,23 +1,23 @@
 # State: Mail Tracker Enhancements
 
-**Current Phase:** 1
-**Current Plan:** Not started
-**Last Action:** Completed Phase 1 Plan 03 - PDF API Endpoints
-**Date:** 2026-02-20
+**Current Phase:** 2
+**Current Plan:** 02 (next)
+**Last Action:** Completed Phase 2 Plan 01 - Role System Data Model
+**Date:** 2026-02-21
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** Users can securely attach, store, and view PDF documents with proper access control and audit logging
-**Current focus:** Phase 1 - Infrastructure & PDF Backend
+**Current focus:** Phase 2 - Role System & Backend Updates
 
 ## Phase Status
 
 | Phase | Status | Requirements | Completed |
 |-------|--------|--------------|-----------|
 | 1. Infrastructure & PDF Backend | ● Done | 29 | 3/3 plans done |
-| 2. Role System & Backend Updates | ◑ In Progress | 16 | 0/16 |
+| 2. Role System & Backend Updates | ◑ In Progress | 16 | 3/16 (Plan 01 complete) |
 | 3. Frontend & Workflow | ○ Pending | 17 | 0/17 |
 
 ## Active Context
@@ -40,6 +40,10 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 - **get_pdf_storage passed as callable** to FileField.storage, not called at definition time — avoids import-time filesystem side effects
 - **view_pdf returns raw HttpResponse** (not DRF Response) to preserve X-Accel-Redirect header through DRF content negotiation
 - **Workflow stage restrictions in upload_pdf**: created-stage upload requires Received/Assigned; closed-stage requires Closed status
+- **auditor escalates to SrAO/AAO, not DAG** — get_dag() for auditor returns first active SrAO/AAO in primary auditor subsection
+- **clerk reuses subsection FK** — no new field; clerk uses existing subsection ForeignKey, get_dag() falls into same else branch as SrAO/AAO
+- **action_required_other retained** — legacy field preserved as-is; cleanup deferred
+- **action_required free-text with no data migration** — existing values all fit in 500 chars; blank=True allows empty strings
 
 ## Current Blockers
 
@@ -60,10 +64,11 @@ None
 | 01 | 01 | ~3 min | 5/5 | 6 |
 | 01 | 02 | ~4 min | 4/4 | 5 |
 | 01 | 03 | ~6 min | 3/3 | 5 |
+| 02 | 01 | ~12 min | 3/3 | 4 |
 
 ## Stopped At
 
-Completed 01-03-PLAN.md (PDF API Endpoints). Phase 1 complete (3/3 plans). Next: Phase 2, Plan 01.
+Completed 02-01-PLAN.md (Role System Data Model). Phase 2 Plan 01 complete (3/3 tasks). Next: Phase 2, Plan 02.
 
 ---
 *State tracking for Mail Tracker Enhancements*
