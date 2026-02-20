@@ -1,7 +1,30 @@
+import uuid
+import os
+
 from django.db import models
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from sections.models import Section, Subsection
+
+
+def pdf_upload_path(instance, filename):
+    # Store as UUID.pdf, ignore original filename to prevent path traversal
+    return f'pdfs/{instance.id}.pdf'
+
+
+def validate_pdf_extension(value):
+    ext = os.path.splitext(value.name)[1].lower()
+    if ext != '.pdf':
+        raise ValidationError('Only PDF files are allowed.')
+
+
+def validate_pdf_size(value):
+    from django.conf import settings as django_settings
+    max_mb = getattr(django_settings, 'MAX_PDF_SIZE_MB', 10)
+    max_size = max_mb * 1024 * 1024
+    if value.size > max_size:
+        raise ValidationError(f'File size exceeds {max_mb}MB limit.')
 
 
 class MailRecord(models.Model):
@@ -285,6 +308,43 @@ class MailRecord(models.Model):
             return self.section and user.sections.filter(id=self.section.id).exists()
         return False
 
+    @property
+    def current_attachment(self):
+        return self.attachments.filter(is_current=True).first()
+
+    @property
+    def has_attachment(self):
+        return bool(self.current_attachment)
+
+    def get_attachment_metadata(self):
+        attachment = self.current_attachment
+        if not attachment:
+            return {
+                'has_attachment': False,
+                'attachment_id': None,
+                'original_filename': None,
+                'file_size': None,
+                'file_size_human': None,
+                'uploaded_at': None,
+                'uploaded_by': None,
+            }
+        size = attachment.file_size
+        if size < 1024:
+            size_human = f"{size} B"
+        elif size < 1024 * 1024:
+            size_human = f"{size / 1024:.1f} KB"
+        else:
+            size_human = f"{size / (1024 * 1024):.1f} MB"
+        return {
+            'has_attachment': True,
+            'attachment_id': str(attachment.id),
+            'original_filename': attachment.original_filename,
+            'file_size': size,
+            'file_size_human': size_human,
+            'uploaded_at': attachment.uploaded_at.isoformat() if attachment.uploaded_at else None,
+            'uploaded_by': attachment.uploaded_by.username if attachment.uploaded_by else None,
+        }
+
     def update_consolidated_remarks(self):
         """Update consolidated remarks from all parallel assignments"""
         assignments = self.parallel_assignments.filter(
@@ -407,3 +467,44 @@ class AssignmentRemark(models.Model):
 
     def __str__(self):
         return f"Remark by {self.created_by.full_name} on {self.created_at.strftime('%Y-%m-%d %H:%M')}"
+
+
+class RecordAttachment(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    mail_record = models.ForeignKey(
+        MailRecord,
+        on_delete=models.CASCADE,
+        related_name='attachments'
+    )
+    file = models.FileField(
+        upload_to=pdf_upload_path,
+        max_length=255,
+        validators=[validate_pdf_extension, validate_pdf_size]
+    )
+    original_filename = models.CharField(max_length=255)
+    file_size = models.PositiveIntegerField(help_text="File size in bytes")
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='uploaded_attachments'
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    is_current = models.BooleanField(
+        default=True,
+        help_text="False when superseded by a replacement"
+    )
+
+    class Meta:
+        ordering = ['-uploaded_at']
+        verbose_name = 'Record Attachment'
+        verbose_name_plural = 'Record Attachments'
+
+    def __str__(self):
+        return f"{self.original_filename} ({self.mail_record.sl_no})"
+
+    def delete_file(self):
+        """Delete physical file from storage."""
+        if self.file:
+            if os.path.isfile(self.file.path):
+                os.remove(self.file.path)
