@@ -70,6 +70,7 @@ class MailRecordListSerializer(serializers.ModelSerializer):
     assignee_count = serializers.SerializerMethodField()
     current_handler_count = serializers.SerializerMethodField()
     assignment_snapshots = serializers.SerializerMethodField()
+    attachment_metadata = serializers.SerializerMethodField()
 
     def get_section_name(self, obj):
         """Return section name or 'Cross-Section' for null sections"""
@@ -83,7 +84,8 @@ class MailRecordListSerializer(serializers.ModelSerializer):
             'section', 'section_name', 'subsection', 'subsection_name', 'due_date', 'status', 'date_of_completion',
             'time_in_stage', 'is_overdue', 'created_at', 'current_action_status', 'current_action_remarks', 'current_action_updated_at',
             'is_multi_assigned', 'assignees_display', 'current_handlers_display',
-            'assignee_count', 'current_handler_count', 'assignment_snapshots'
+            'assignee_count', 'current_handler_count', 'assignment_snapshots',
+            'attachment_metadata'
         ]
         read_only_fields = ['id', 'sl_no', 'created_at', 'current_action_updated_at']
 
@@ -150,6 +152,9 @@ class MailRecordListSerializer(serializers.ModelSerializer):
             })
         return snapshots
 
+    def get_attachment_metadata(self, obj):
+        return obj.get_attachment_metadata()
+
 
 class MailRecordDetailSerializer(serializers.ModelSerializer):
     """Serializer for detail view with all fields"""
@@ -165,6 +170,7 @@ class MailRecordDetailSerializer(serializers.ModelSerializer):
     active_assignments_count = serializers.SerializerMethodField()
     assignees_display = serializers.SerializerMethodField()
     current_handlers_display = serializers.SerializerMethodField()
+    attachment_metadata = serializers.SerializerMethodField()
 
     class Meta:
         model = MailRecord
@@ -214,6 +220,9 @@ class MailRecordDetailSerializer(serializers.ModelSerializer):
             return [obj.current_handler.full_name]
         return []
 
+    def get_attachment_metadata(self, obj):
+        return obj.get_attachment_metadata()
+
 
 class MailRecordCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating mail records"""
@@ -246,12 +255,6 @@ class MailRecordCreateSerializer(serializers.ModelSerializer):
                 'due_date': 'Due date cannot be in the past.'
             })
 
-        # Validate action_required_other is provided when action_required is 'Other'
-        if data.get('action_required') == 'Other' and not data.get('action_required_other'):
-            raise serializers.ValidationError({
-                'action_required_other': 'This field is required when action is "Other".'
-            })
-
         # Get the requesting user for role-based validation
         request = self.context.get('request')
         if request and request.user:
@@ -275,9 +278,9 @@ class MailRecordCreateSerializer(serializers.ModelSerializer):
                         'section': 'Selected section does not exist.'
                     })
 
-            # Only AG can create mails
+            # Role-based section validation and assignee scope enforcement
             if user.is_ag():
-                # Infer section from assignees when possible.
+                # AG: infer section from assignees when possible.
                 # For DAG assignees, infer only when they manage exactly one section.
                 inferred_sections = set()
                 ambiguous_dags = []
@@ -316,6 +319,38 @@ class MailRecordCreateSerializer(serializers.ModelSerializer):
                     })
                 else:
                     data['section'] = None
+
+            elif user.is_dag():
+                # DAG: validate selected section is one they manage
+                if selected_section is not None:
+                    if not user.sections.filter(id=selected_section).exists():
+                        raise serializers.ValidationError({
+                            'section': 'You can only create mails for sections you manage.'
+                        })
+                    data['section'] = selected_section
+                else:
+                    data['section'] = None  # Will be resolved in view
+
+            elif user.role in ['SrAO', 'AAO', 'clerk']:
+                # Assignees must be in same subsection as creator
+                if user.subsection_id:
+                    for assignee in assignees:
+                        if assignee.subsection_id != user.subsection_id:
+                            raise serializers.ValidationError({
+                                'assigned_to': f'{assignee.full_name} is not in your subsection.'
+                            })
+                # Section is determined by the view based on creator's subsection
+                # No section validation needed here
+
+            elif user.role == 'auditor':
+                # Assignees must be in one of auditor's configured subsections
+                auditor_sub_ids = set(user.auditor_subsections.values_list('id', flat=True))
+                for assignee in assignees:
+                    if assignee.subsection_id not in auditor_sub_ids:
+                        raise serializers.ValidationError({
+                            'assigned_to': f'{assignee.full_name} is not in your configured subsections.'
+                        })
+                # Section is determined by the view based on auditor's first configured subsection
 
         return data
 
