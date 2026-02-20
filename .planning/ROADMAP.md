@@ -60,6 +60,13 @@ Plans:
 **Phase ID:** 3
 **Depends On:** Phase 2
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Create mail form: free-text action_required + two-step PDF upload + canCreateMail expansion
+- [ ] 03-02-PLAN.md — Mail detail page: PDF view/download section + role badge labels + remove RemarksEditDialog
+- [ ] 03-03-PLAN.md — Codebase cleanup: delete dead code, fix duplicate import, update CLAUDE.md
+
 ### Success Criteria
 
 1. Create mail form includes PDF upload input
@@ -118,4 +125,4 @@ Phase 3 (Frontend & Cleanup)
 ---
 
 *Roadmap created: 2026-02-20*
-*Last updated: 2026-02-20*
+*Last updated: 2026-02-21*
