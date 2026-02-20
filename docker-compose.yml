@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - mailtracker_network
+
+  backend:
+    build:
+      context: ./backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+    volumes:
+      - pdf_storage:/srv/mailtracker/pdfs
+      - static_volume:/app/staticfiles
+    restart: unless-stopped
+    networks:
+      - mailtracker_network
+
+  nginx:
+    build:
+      context: ./nginx
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    volumes:
+      - pdf_storage:/srv/mailtracker/pdfs:ro
+      - static_volume:/srv/mailtracker/static:ro
+    restart: unless-stopped
+    networks:
+      - mailtracker_network
+
+networks:
+  mailtracker_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  pdf_storage:
+  static_volume:
