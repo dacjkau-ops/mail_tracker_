@@ -47,15 +47,6 @@ class MailRecord(models.Model):
         ('Closed', 'Closed'),
     ]
 
-    ACTION_CHOICES = [
-        ('Review', 'Review'),
-        ('Approve', 'Approve'),
-        ('Process', 'Process'),
-        ('File', 'File'),
-        ('Reply', 'Reply'),
-        ('Other', 'Other'),
-    ]
-
     # Current work status choices - what the current handler is actively doing
     CURRENT_ACTION_STATUS_CHOICES = [
         ('Under Review', 'Under Review'),
@@ -78,7 +69,11 @@ class MailRecord(models.Model):
     date_received = models.DateField(default=timezone.now)
     mail_reference_subject = models.TextField()
     from_office = models.CharField(max_length=200)
-    action_required = models.CharField(max_length=50, choices=ACTION_CHOICES)
+    action_required = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="What action is required on this mail (free text, optional, max 500 chars)"
+    )
     action_required_other = models.CharField(max_length=200, blank=True, null=True)
 
     # Assignment fields
