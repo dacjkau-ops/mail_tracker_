@@ -9,6 +9,8 @@ class User(AbstractUser):
         ('DAG', 'Deputy Accountant General'),
         ('SrAO', 'Senior Audit Officer'),
         ('AAO', 'Assistant Audit Officer'),
+        ('auditor', 'Auditor'),
+        ('clerk', 'Clerk'),
     ]
 
     # Override email to make it required and unique
@@ -31,7 +33,15 @@ class User(AbstractUser):
         related_name='staff_officers',
         null=True,
         blank=True,
-        help_text="Subsection for SrAO/AAO officers"
+        help_text="Subsection for SrAO/AAO/clerk officers"
+    )
+
+    # Auditor can be configured to see multiple subsections
+    auditor_subsections = models.ManyToManyField(
+        Subsection,
+        related_name='auditors',
+        blank=True,
+        help_text="Subsections visible to this auditor (configured by admin). Only used when role='auditor'."
     )
 
     full_name = models.CharField(max_length=200)
@@ -67,13 +77,24 @@ class User(AbstractUser):
     def is_staff_officer(self):
         return self.role in ['SrAO', 'AAO']
 
+    def is_auditor(self):
+        return self.role == 'auditor'
+
+    def is_clerk(self):
+        return self.role == 'clerk'
+
     def get_sections_list(self):
         """Get list of sections for this user based on role"""
         if self.role == 'AG':
             return Section.objects.all()
         elif self.role == 'DAG':
             return self.sections.all()
+        elif self.role == 'auditor':
+            # Return sections that contain any of the auditor's configured subsections
+            subsection_ids = self.auditor_subsections.values_list('id', flat=True)
+            return Section.objects.filter(subsections__id__in=subsection_ids).distinct()
         elif self.subsection:
+            # SrAO, AAO, clerk — subsection FK
             return Section.objects.filter(id=self.subsection.section_id)
         return Section.objects.none()
 
@@ -82,13 +103,25 @@ class User(AbstractUser):
         Returns the DAG (monitoring officer) for this user
         - If user is AG: returns self
         - If user is DAG: returns AG
-        - If user is SrAO/AAO: returns the DAG of their subsection's parent section
+        - If user is auditor: returns first active SrAO/AAO in their primary auditor subsection
+        - If user is SrAO/AAO/clerk: returns the DAG of their subsection's parent section
         """
         if self.role == 'AG':
             return self
         elif self.role == 'DAG':
             return User.get_primary_ag()
-        else:  # SrAO or AAO
+        elif self.role == 'auditor':
+            # Auditor's immediate superior is an SrAO/AAO in any of their configured subsections
+            # Return first active SrAO/AAO in their primary auditor subsection (first configured)
+            first_sub = self.auditor_subsections.first()
+            if first_sub:
+                return User.objects.filter(
+                    role__in=['SrAO', 'AAO'],
+                    subsection=first_sub,
+                    is_active=True
+                ).order_by('id').first()
+            return None
+        else:  # SrAO, AAO, clerk
             # Return the DAG managing their subsection's parent section
             if self.subsection and self.subsection.section:
                 # Check if section reports directly to AG
