@@ -112,6 +112,22 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             # This avoids false denials when mail_record.subsection is stale from earlier hops.
             return candidates.filter(subsection_id=user.subsection_id).distinct()
 
+        # Auditor: can only escalate to SrAO/AAO in their configured subsections
+        if user.role == 'auditor':
+            auditor_sub_ids = list(user.auditor_subsections.values_list('id', flat=True))
+            if not auditor_sub_ids:
+                return User.objects.none()
+            return candidates.filter(
+                role__in=['SrAO', 'AAO'],
+                subsection__in=auditor_sub_ids
+            ).distinct()
+
+        # Clerk: same subsection as themselves (mirrors SrAO/AAO pattern)
+        if user.role == 'clerk':
+            if not user.subsection_id:
+                return User.objects.none()
+            return candidates.filter(subsection_id=user.subsection_id).distinct()
+
         return User.objects.none()
 
     def get_serializer_class(self):
@@ -175,20 +191,55 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 Q(id__in=cross_section_mail_ids)
             )
 
-        # Staff officers can see records assigned to them OR they've touched
-        else:  # SrAO or AAO
+        # SrAO/AAO: all mails in their own subsection (EXPANDED from assigned-only)
+        elif user.role in ['SrAO', 'AAO']:
             touched_record_ids = AuditTrail.objects.filter(
                 performed_by=user
             ).values_list('mail_record_id', flat=True).distinct()
-            
+
             assigned_via_parallel = MailAssignment.objects.filter(
                 assigned_to=user,
                 status='Active'
             ).values_list('mail_record_id', flat=True).distinct()
 
             queryset = queryset.filter(
-                Q(current_handler=user) | Q(assigned_to=user) | Q(id__in=touched_record_ids) | Q(id__in=assigned_via_parallel)
+                Q(current_handler=user) |
+                Q(assigned_to=user) |
+                Q(subsection=user.subsection) |        # All mails in user's subsection
+                Q(id__in=touched_record_ids) |
+                Q(id__in=assigned_via_parallel)
             )
+
+        # Clerk: only mails assigned to them OR created by them
+        elif user.role == 'clerk':
+            assigned_via_parallel = MailAssignment.objects.filter(
+                assigned_to=user,
+                status='Active'
+            ).values_list('mail_record_id', flat=True).distinct()
+
+            queryset = queryset.filter(
+                Q(current_handler=user) |
+                Q(assigned_to=user) |
+                Q(created_by=user) |
+                Q(id__in=assigned_via_parallel)
+            )
+
+        # Auditor: only mails in their configured auditor_subsections
+        elif user.role == 'auditor':
+            auditor_sub_ids = list(user.auditor_subsections.values_list('id', flat=True))
+            if not auditor_sub_ids:
+                queryset = queryset.none()
+            else:
+                queryset = queryset.filter(
+                    Q(subsection__in=auditor_sub_ids) |
+                    # Include section-level mails (no subsection set) where any configured
+                    # subsection belongs to that section
+                    Q(subsection__isnull=True, section__subsections__id__in=auditor_sub_ids)
+                ).distinct()
+
+        else:
+            # Fallback: no access for unknown roles
+            queryset = queryset.none()
 
         # Apply filters
         status_filter = self.request.query_params.get('status', None)
@@ -378,6 +429,14 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 {'error': 'Selected user is not eligible for reassignment.'},
                 status=status.HTTP_403_FORBIDDEN
             )
+
+        # Auditor can only reassign to SrAO/AAO (immediate superior only)
+        if user.role == 'auditor':
+            if new_handler.role not in ['SrAO', 'AAO']:
+                return Response(
+                    {'error': 'Auditors can only reassign to SrAO or AAO officers.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
         # Store old handler
         old_handler = mail_record.current_handler
