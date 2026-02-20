@@ -29,7 +29,7 @@ from .serializers import (
 from audit.models import AuditTrail
 from users.models import User
 from users.serializers import UserSerializer
-from sections.models import Section
+from sections.models import Section, Subsection
 
 
 class MailRecordViewSet(viewsets.ModelViewSet):
@@ -259,40 +259,78 @@ class MailRecordViewSet(viewsets.ModelViewSet):
         return queryset.order_by('-created_at')
 
     def create(self, request, *args, **kwargs):
-        """Create new mail record with multi-assignment support"""
+        """Create new mail record — all roles can create, scoped to their subsection"""
         serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
 
-        # Check permissions - only AG can create
         user = request.user
-        if user.role != 'AG':
-            return Response(
-                {'error': 'Only Accountant General can create mail records.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
 
         # Get assigned user IDs (now it's a list) - validation already done in serializer
         assigned_to_ids = serializer.validated_data.pop('assigned_to')
         initial_instructions = serializer.validated_data.get('initial_instructions', '')
 
-        # Get assignees preserving user-selected order (deterministic primary assignee)
+        # Get assignees preserving user-selected order
         assignee_map = {
             u.id: u for u in User.objects.filter(id__in=assigned_to_ids, is_active=True)
         }
         assignees = [assignee_map[user_id] for user_id in assigned_to_ids if user_id in assignee_map]
 
-        # Set first assignee as primary (for backward compatibility)
+        if not assignees:
+            return Response(
+                {'error': 'No valid assignees selected.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         primary_assignee = assignees[0]
         monitoring_officer = primary_assignee.get_dag()
 
-        # Get section from serializer (may be null for cross-section)
+        # Determine section and subsection based on creator's role
         section_id = serializer.validated_data.pop('section', None)
         section = None
-        if section_id:
-            try:
-                section = Section.objects.get(id=section_id)
-            except Section.DoesNotExist:
-                pass
+
+        if user.role == 'AG':
+            # AG: section from serializer (may be inferred or null for cross-section)
+            if section_id:
+                try:
+                    section = Section.objects.get(id=section_id)
+                except Section.DoesNotExist:
+                    pass
+        elif user.role == 'DAG':
+            # DAG: section from serializer or inferred from first managed section
+            if section_id:
+                try:
+                    section = Section.objects.get(id=section_id)
+                except Section.DoesNotExist:
+                    pass
+            if not section:
+                # Use first managed section as default
+                section = user.sections.first()
+        elif user.role in ['SrAO', 'AAO', 'clerk']:
+            # These roles: scoped to their own subsection's section
+            if user.subsection:
+                section = user.subsection.section
+                # Force subsection to creator's subsection
+                serializer.validated_data['subsection'] = user.subsection
+            else:
+                return Response(
+                    {'error': 'Your account has no subsection assigned. Contact an administrator.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        elif user.role == 'auditor':
+            # Auditor: scoped to their first configured subsection
+            first_sub = user.auditor_subsections.select_related('section').first()
+            if not first_sub:
+                return Response(
+                    {'error': 'Your auditor account has no subsections configured. Contact an administrator.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            section = first_sub.section
+            serializer.validated_data['subsection'] = first_sub
+        else:
+            return Response(
+                {'error': 'Your role is not permitted to create mail records.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
         # Create the mail record
         mail_record = serializer.save(
@@ -300,7 +338,7 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             assigned_to=primary_assignee,
             current_handler=primary_assignee,
             monitoring_officer=monitoring_officer,
-            section=section,  # Can be None for cross-section assignments
+            section=section,
             status='Assigned',
             is_multi_assigned=(len(assignees) > 1),
             initial_instructions=initial_instructions,
@@ -317,7 +355,7 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 status='Active'
             )
 
-        # Create audit trail for creation
+        # Audit trail for creation
         AuditTrail.objects.create(
             mail_record=mail_record,
             action='CREATE',
@@ -326,7 +364,7 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             remarks=f'Created with initial instructions: {initial_instructions[:100]}'
         )
 
-        # Create audit trail for assignment
+        # Audit trail for assignment
         assignee_names = [a.full_name for a in assignees]
         action_type = 'MULTI_ASSIGN' if len(assignees) > 1 else 'ASSIGN'
         AuditTrail.objects.create(
