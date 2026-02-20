@@ -57,6 +57,20 @@ const mailService = {
   },
 
   /**
+   * Fetch PDF as a Blob for inline viewing or download.
+   * Uses Axios with responseType 'blob' to send the JWT Authorization header.
+   * window.open() cannot be used directly because it does not send auth headers.
+   * @param {string} id - Mail record ID
+   * @returns {Promise<Blob>}
+   */
+  async viewPdf(id) {
+    const response = await api.get(`/records/${id}/pdf/view/`, {
+      responseType: 'blob',
+    });
+    return response.data; // Blob
+  },
+
+  /**
    * Update mail remarks
    * @param {string} id - Mail ID
    * @param {string} remarks
