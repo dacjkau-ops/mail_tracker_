@@ -111,8 +111,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const canCreateMail = () => {
-    // Only AG can create mails (DAG permission removed as per requirements)
-    return user?.role === 'AG';
+    return ['AG', 'DAG', 'SrAO', 'AAO', 'auditor', 'clerk'].includes(user?.role);
   };
 
   const canViewAllMails = () => {

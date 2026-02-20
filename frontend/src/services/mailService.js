@@ -40,6 +40,23 @@ const mailService = {
   },
 
   /**
+   * Upload PDF attachment to an existing mail record.
+   * Must be called AFTER createMail() with the returned id.
+   * @param {string} id - Mail record ID
+   * @param {File} file - PDF File object
+   * @returns {Promise}
+   */
+  async uploadPdf(id, file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_stage', 'created');
+    const response = await api.post(`/records/${id}/pdf/`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  /**
    * Update mail remarks
    * @param {string} id - Mail ID
    * @param {string} remarks
