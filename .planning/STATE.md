@@ -1,8 +1,8 @@
 # State: Mail Tracker Enhancements
 
-**Current Phase:** Phase 1 - Infrastructure & PDF Backend
-**Current Plan:** 03 (next to execute)
-**Last Action:** Completed Phase 1 Plan 02 - RecordAttachment Data Model
+**Current Phase:** Phase 2 - Role System & Backend Updates
+**Current Plan:** 01 (next to execute)
+**Last Action:** Completed Phase 1 Plan 03 - PDF API Endpoints
 **Date:** 2026-02-20
 
 ## Project Reference
@@ -16,8 +16,8 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 
 | Phase | Status | Requirements | Completed |
 |-------|--------|--------------|-----------|
-| 1. Infrastructure & PDF Backend | ◑ In Progress | 29 | 2/2 plans done |
-| 2. Role System & Backend Updates | ○ Pending | 16 | 0/16 |
+| 1. Infrastructure & PDF Backend | ● Done | 29 | 3/3 plans done |
+| 2. Role System & Backend Updates | ◑ In Progress | 16 | 0/16 |
 | 3. Frontend & Workflow | ○ Pending | 17 | 0/17 |
 
 ## Active Context
@@ -37,6 +37,9 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 - **pdf_upload_path uses UUID, not original filename** — prevents path traversal from malicious filenames
 - **No AuditTrail entries for PDF operations** — PDF_UPLOAD/PDF_REPLACE/PDF_DELETE choices are schema-only for future compatibility; audit captured in RecordAttachment model fields
 - **validate_pdf_size reads MAX_PDF_SIZE_MB from settings** — configurable per deployment, defaults to 10MB
+- **get_pdf_storage passed as callable** to FileField.storage, not called at definition time — avoids import-time filesystem side effects
+- **view_pdf returns raw HttpResponse** (not DRF Response) to preserve X-Accel-Redirect header through DRF content negotiation
+- **Workflow stage restrictions in upload_pdf**: created-stage upload requires Received/Assigned; closed-stage requires Closed status
 
 ## Current Blockers
 
@@ -56,10 +59,11 @@ None
 |-------|------|----------|-------|-------|
 | 01 | 01 | ~3 min | 5/5 | 6 |
 | 01 | 02 | ~4 min | 4/4 | 5 |
+| 01 | 03 | ~6 min | 3/3 | 5 |
 
 ## Stopped At
 
-Completed 01-02-PLAN.md (RecordAttachment Data Model). Phase 1 complete. Next: Phase 2.
+Completed 01-03-PLAN.md (PDF API Endpoints). Phase 1 complete (3/3 plans). Next: Phase 2, Plan 01.
 
 ---
 *State tracking for Mail Tracker Enhancements*
