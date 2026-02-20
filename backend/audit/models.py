@@ -15,6 +15,9 @@ class AuditTrail(models.Model):
         ('ASSIGNMENT_UPDATE', 'Assignment Updated'),  # Assignee updates their remarks
         ('ASSIGNMENT_COMPLETE', 'Assignment Completed'),  # Assignee marks their part done
         ('ASSIGNMENT_REVOKE', 'Assignment Revoked'),  # Supervisor revokes assignment
+        ('PDF_UPLOAD', 'PDF Uploaded'),
+        ('PDF_REPLACE', 'PDF Replaced'),
+        ('PDF_DELETE', 'PDF Deleted'),
     ]
 
     mail_record = models.ForeignKey(
