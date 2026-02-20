@@ -25,12 +25,12 @@ import {
   Replay as ReopenIcon,
   GroupAdd as MultiAssignIcon,
   Update as UpdateActionIcon,
+  PictureAsPdf as PdfIcon,
 } from '@mui/icons-material';
 import mailService from '../services/mailService';
 import { useAuth } from '../context/AuthContext';
 import { formatDate, formatDateTime, calculateTimeInStage, isOverdue } from '../utils/dateHelpers';
 import { STATUS_COLORS, ACTION_STATUS_COLORS } from '../utils/constants';
-import RemarksEditDialog from '../components/RemarksEditDialog';
 import ReassignDialog from '../components/ReassignDialog';
 import CloseMailDialog from '../components/CloseMailDialog';
 import ReopenDialog from '../components/ReopenDialog';
@@ -48,17 +48,24 @@ const MailDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const [remarksDialogOpen, setRemarksDialogOpen] = useState(false);
   const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [reopenDialogOpen, setReopenDialogOpen] = useState(false);
   const [multiAssignDialogOpen, setMultiAssignDialogOpen] = useState(false);
   const [updateActionDialogOpen, setUpdateActionDialogOpen] = useState(false);
+  const [pdfUploadWarning, setPdfUploadWarning] = useState(false);
 
   useEffect(() => {
     loadMail();
     loadAuditTrail();
   }, [id]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('pdfError') === '1') {
+      setPdfUploadWarning(true);
+    }
+  }, []);
 
   const loadMail = async () => {
     setLoading(true);
@@ -83,14 +90,31 @@ const MailDetailPage = () => {
     }
   };
 
-  const handleRemarksUpdate = async (remarks) => {
+  const handleViewPdf = async () => {
     try {
-      await mailService.updateRemarks(id, remarks);
-      setRemarksDialogOpen(false);
-      loadMail();
-      loadAuditTrail();
+      const blob = await mailService.viewPdf(id);
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      // Revoke after a short delay to allow the new tab to load
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (err) {
-      throw new Error(err.response?.data?.error || 'Failed to update remarks');
+      console.error('Failed to load PDF:', err);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    try {
+      const blob = await mailService.viewPdf(id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = mail?.attachment_metadata?.original_filename || 'attachment.pdf';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (err) {
+      console.error('Failed to download PDF:', err);
     }
   };
 
@@ -212,6 +236,12 @@ const MailDetailPage = () => {
       >
         Back to Mail List
       </Button>
+
+      {pdfUploadWarning && (
+        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setPdfUploadWarning(false)}>
+          Mail was created successfully, but the PDF attachment could not be uploaded. You can retry uploading later if needed.
+        </Alert>
+      )}
 
       {/* Header */}
       <Paper sx={{ p: 3, mb: 3 }}>
@@ -445,6 +475,44 @@ const MailDetailPage = () => {
         </Paper>
       )}
 
+      {/* PDF Attachment */}
+      {mail?.attachment_metadata?.has_attachment && (
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            PDF Attachment
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+            <PdfIcon color="error" />
+            <Box>
+              <Typography variant="body2">
+                {mail.attachment_metadata.original_filename || 'attachment.pdf'}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {mail.attachment_metadata.file_size_human || ''}{' '}
+                {mail.attachment_metadata.uploaded_at
+                  ? `· Uploaded ${formatDateTime(mail.attachment_metadata.uploaded_at)}`
+                  : ''}
+              </Typography>
+            </Box>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={handleViewPdf}
+            >
+              View
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={handleDownloadPdf}
+            >
+              Download
+            </Button>
+          </Box>
+        </Paper>
+      )}
+
       {/* Action Buttons */}
       <Paper sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" gutterBottom>
@@ -561,13 +629,6 @@ const MailDetailPage = () => {
       </Paper>
 
       {/* Dialogs */}
-      <RemarksEditDialog
-        open={remarksDialogOpen}
-        onClose={() => setRemarksDialogOpen(false)}
-        currentRemarks={mail.remarks}
-        onSave={handleRemarksUpdate}
-      />
-
       <ReassignDialog
         open={reassignDialogOpen}
         onClose={() => setReassignDialogOpen(false)}
