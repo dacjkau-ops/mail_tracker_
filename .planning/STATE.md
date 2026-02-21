@@ -1,8 +1,8 @@
 # State: Mail Tracker Enhancements
 
 **Current Phase:** 3
-**Current Plan:** 2 complete, advancing to Plan 03
-**Last Action:** Completed Phase 3 Plan 02 — PDF attachment view/download in MailDetailPage with blob+createObjectURL pattern, ROLE_LABELS for all 6 roles, RemarksEditDialog removed
+**Current Plan:** 3 complete — Phase 3 DONE
+**Last Action:** Completed Phase 3 Plan 03 — Codebase cleanup: deleted RemarksEditDialog.jsx, removed ACTION_REQUIRED_OPTIONS, fixed duplicate settings import in models.py, updated CLAUDE.md
 **Date:** 2026-02-21
 
 ## Project Reference
@@ -10,7 +10,7 @@
 See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** Users can securely attach, store, and view PDF documents with proper access control and audit logging
-**Current focus:** Phase 3 - Frontend & Workflow
+**Current focus:** Phase 3 complete — ready for deployment
 
 ## Phase Status
 
@@ -18,7 +18,7 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 |-------|--------|--------------|-----------|
 | 1. Infrastructure & PDF Backend | ● Done | 29 | 3/3 plans done |
 | 2. Role System & Backend Updates | ● Done | 16 | 3/3 plans done |
-| 3. Frontend & Workflow | ◑ In Progress | 17 | 11/17 |
+| 3. Frontend & Workflow | ● Done | 17 | 17/17 |
 
 ## Active Context
 
@@ -60,6 +60,8 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 - **viewPdf uses Axios blob responseType** — window.open cannot send JWT auth headers, so blob + createObjectURL is mandatory
 - **revokeObjectURL after 60s for view, 5s for download** — allows new tab to load before revocation; download anchor click is synchronous
 - **ROLE_LABELS defined outside component** — prevents object recreation on every render; covers all 6 roles (AG, DAG, SrAO, AAO, auditor, clerk)
+- **Single aliased settings import** — `from django.conf import settings as django_settings` only; bare import removed; inline import inside validate_pdf_size() removed
+- **CLEANUP-04 deferred** — remarks/user_remarks fields retained; removal requires migration and frontend fallback read still references mail.remarks
 
 ## Current Blockers
 
@@ -72,6 +74,7 @@ None
 - New: PDF attachments, Docker deployment, expanded roles, free-text actions
 - Dev laptop testing before Monday server deployment
 - Docker not available in dev environment — file-level validation used; actual docker build to run on Ubuntu server
+- All 3 phases complete; codebase is clean and ready for Ubuntu server deployment
 
 ## Performance Metrics
 
@@ -85,10 +88,11 @@ None
 | 02 | 03 | ~4 min | 3/3 | 3 |
 | 03 | 01 | ~3 min | 2/2 | 3 |
 | 03 | 02 | ~5 min | 2/2 | 3 |
+| 03 | 03 | ~3 min | 2/2 | 4 |
 
 ## Stopped At
 
-Completed Phase 3 Plan 02 (2/2 tasks). Next: Phase 3, Plan 03.
+Completed Phase 3 Plan 03 (2/2 tasks). All phases complete.
 
 ---
 *State tracking for Mail Tracker Enhancements*
