@@ -7,89 +7,89 @@
 
 ### PDF Attachment System
 
-- [ ] **PDF-01**: RecordAttachment model exists with fields: record (FK), stored_name (UUID.pdf), original_name, size_bytes, uploaded_by (FK), uploaded_at
-- [ ] **PDF-02**: Upload endpoint POST /api/records/{id}/pdf/ accepts multipart/form-data with PDF file (max 10MB)
-- [ ] **PDF-03**: Upload endpoint enforces role-based permissions matching record access
-- [ ] **PDF-04**: Upload replaces existing PDF if one exists (one PDF per record)
-- [ ] **PDF-05**: Metadata endpoint GET /api/records/{id}/pdf/ returns attachment metadata and exists flag
-- [ ] **PDF-06**: View endpoint GET /api/records/{id}/pdf/view/ returns 200 with X-Accel-Redirect header to internal nginx location
-- [ ] **PDF-07**: View endpoint enforces read permissions before issuing redirect
-- [ ] **PDF-08**: PDF stored at configurable path (/srv/mailtracker/pdfs in production, local path in dev)
-- [ ] **PDF-09**: Audit log entry created on PDF upload with action PDF_UPLOAD
-- [ ] **PDF-10**: Audit log entry created on PDF replacement with action PDF_REPLACE
-- [ ] **PDF-11**: Audit log entry created on PDF delete with action PDF_DELETE
+- [x] **PDF-01**: RecordAttachment model exists with fields: record (FK), file (FileField, UUID.pdf filename), original_filename, file_size, uploaded_by (FK), uploaded_at, upload_stage, is_current
+- [x] **PDF-02**: Upload endpoint POST /api/records/{id}/pdf/ accepts multipart/form-data with PDF file (max 10MB)
+- [x] **PDF-03**: Upload endpoint enforces role-based permissions matching record access
+- [x] **PDF-04**: Upload replaces existing PDF within the same workflow stage (one PDF per stage: 'created' or 'closed'; up to two active PDFs per record)
+- [x] **PDF-05**: Metadata endpoint GET /api/records/{id}/pdf/ returns attachment metadata and exists flag
+- [x] **PDF-06**: View endpoint GET /api/records/{id}/pdf/view/ returns 200 with X-Accel-Redirect header to internal nginx location
+- [x] **PDF-07**: View endpoint enforces read permissions before issuing redirect
+- [x] **PDF-08**: PDF stored at configurable path (/srv/mailtracker/pdfs in production, local path in dev)
+- [x] **PDF-09**: ~~Audit log entry created on PDF upload with action PDF_UPLOAD~~ — **Superseded by context decision**: audit info captured in RecordAttachment model fields (uploaded_by, uploaded_at, upload_stage). AuditTrail choice PDF_UPLOAD added to schema for forward compatibility only.
+- [x] **PDF-10**: ~~Audit log entry created on PDF replacement with action PDF_REPLACE~~ — **Superseded by context decision**: same rationale as PDF-09. RecordAttachment.is_current=False on replaced attachment serves as the immutable replacement record.
+- [x] **PDF-11**: ~~Audit log entry created on PDF delete with action PDF_DELETE~~ — **Superseded by context decision**: PDFs are permanent (no hard deletion). PDF_DELETE added to schema only for future compatibility.
 
 ### Docker Deployment
 
-- [ ] **DOCKER-01**: docker-compose.yml defines postgres, backend, and nginx services
-- [ ] **DOCKER-02**: postgres service uses persistent volume at /srv/mailtracker/postgres
-- [ ] **DOCKER-03**: backend service builds from Dockerfile and runs migrations on startup
-- [ ] **DOCKER-04**: backend service runs gunicorn on port 8000
-- [ ] **DOCKER-05**: nginx service proxies /api/ to backend service
-- [ ] **DOCKER-06**: nginx service serves /static/ from shared volume
-- [ ] **DOCKER-07**: PDFs volume mounted to both backend (write) and nginx (read) at /srv/mailtracker/pdfs
-- [ ] **DOCKER-08**: Static files volume mounted to backend (write) and nginx (read)
-- [ ] **DOCKER-09**: Environment variables loaded from .env file: DJANGO_SECRET_KEY, DEBUG, ALLOWED_HOSTS, DB_NAME, DB_USER, DB_PASSWORD, DB_HOST
-- [ ] **DOCKER-10**: Services communicate via internal Docker network
+- [x] **DOCKER-01**: docker-compose.yml defines postgres, backend, and nginx services
+- [x] **DOCKER-02**: postgres service uses persistent named Docker volume (postgres_data at /var/lib/postgresql/data)
+- [x] **DOCKER-03**: backend service builds from Dockerfile and runs migrations on startup
+- [x] **DOCKER-04**: backend service runs gunicorn on port 8000
+- [x] **DOCKER-05**: nginx service proxies /api/ to backend service
+- [x] **DOCKER-06**: nginx service serves /static/ from shared volume
+- [x] **DOCKER-07**: PDFs volume mounted to both backend (write) and nginx (read) at /srv/mailtracker/pdfs
+- [x] **DOCKER-08**: Static files volume mounted to backend (write) and nginx (read)
+- [x] **DOCKER-09**: Environment variables loaded from .env file: SECRET_KEY, DEBUG, ALLOWED_HOSTS, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_HOST, DATABASE_URL, PDF_STORAGE_PATH
+- [x] **DOCKER-10**: Services communicate via internal Docker network
 
 ### Nginx Configuration
 
-- [ ] **NGINX-01**: nginx.conf configures upstream backend for gunicorn
-- [ ] **NGINX-02**: Location /api/ proxies to backend with proper headers
-- [ ] **NGINX-03**: Location /static/ serves files from shared volume
-- [ ] **NGINX-04**: Internal location /_protected_pdfs/ defined with internal directive
-- [ ] **NGINX-05**: /_protected_pdfs/ maps to /srv/mailtracker/pdfs/ filesystem path
-- [ ] **NGINX-06**: X-Accel-Redirect responses handled correctly
-- [ ] **NGINX-07**: Range requests enabled for PDF streaming
-- [ ] **NGINX-08**: Correct MIME types set for PDF files
+- [x] **NGINX-01**: nginx.conf configures upstream backend for gunicorn
+- [x] **NGINX-02**: Location /api/ proxies to backend with proper headers
+- [x] **NGINX-03**: Location /static/ serves files from shared volume
+- [x] **NGINX-04**: Internal location /_protected_pdfs/ defined with internal directive
+- [x] **NGINX-05**: /_protected_pdfs/ maps to /srv/mailtracker/pdfs/ filesystem path
+- [x] **NGINX-06**: X-Accel-Redirect responses handled correctly
+- [x] **NGINX-07**: Range requests enabled for PDF streaming
+- [x] **NGINX-08**: Correct MIME types set for PDF files
 
 ### Role System Expansion
 
-- [ ] **ROLE-01**: User model supports new roles: auditor, clerk
+- [x] **ROLE-01**: User model supports new roles: auditor, clerk
 - [ ] **ROLE-02**: AG has full access (unchanged)
 - [ ] **ROLE-03**: DAG has section-level visibility (can see all mails in their section)
 - [ ] **ROLE-04**: SrAO/AAO have subsection-level visibility (can see mails in their subsection)
 - [ ] **ROLE-05**: Clerk has subsection-level visibility (can see mails in their subsection)
 - [ ] **ROLE-06**: Auditor has read-only access with configurable visibility level
 - [ ] **ROLE-07**: All authenticated users can create mails (AG, DAG, SrAO, AAO, clerk)
-- [ ] **ROLE-08**: Role hierarchy enforced in all list/detail endpoints
+- [x] **ROLE-08**: Role hierarchy enforced in all list/detail endpoints
 
 ### Workflow Changes
 
-- [ ] **WORKFLOW-01**: Create mail page includes PDF upload field
+- [x] **WORKFLOW-01**: Create mail page includes PDF upload field
 - [ ] **WORKFLOW-02**: PDF uploaded during mail creation is attached to the record
-- [ ] **WORKFLOW-03**: action_required field changed from dropdown to free text input
-- [ ] **WORKFLOW-04**: Free text action_required has max length validation (500 chars)
-- [ ] **WORKFLOW-05**: Existing action_required choices preserved for data compatibility
-- [ ] **WORKFLOW-06**: Mail detail page shows PDF attachment if exists
-- [ ] **WORKFLOW-07**: PDF can be viewed inline or downloaded from detail page
+- [x] **WORKFLOW-03**: action_required field changed from dropdown to free text input
+- [x] **WORKFLOW-04**: Free text action_required has max length validation (500 chars)
+- [x] **WORKFLOW-05**: Existing action_required choices preserved for data compatibility
+- [x] **WORKFLOW-06**: Mail detail page shows PDF attachment if exists
+- [x] **WORKFLOW-07**: PDF can be viewed inline or downloaded from detail page
 
 ### Backend Updates
 
-- [ ] **BACKEND-01**: Permission classes updated for new hierarchy
+- [x] **BACKEND-01**: Permission classes updated for new hierarchy
 - [ ] **BACKEND-02**: List endpoints filter by user's visibility level
 - [ ] **BACKEND-03**: MailRecordSerializer includes attachment metadata
 - [ ] **BACKEND-04**: Settings support both SQLite (dev) and PostgreSQL (docker)
 - [ ] **BACKEND-05**: File storage backend configurable via environment
-- [ ] **BACKEND-06**: AuditTrail ACTION_CHOICES includes PDF operations
+- [x] **BACKEND-06**: AuditTrail ACTION_CHOICES includes PDF operations
 
 ### Frontend Updates
 
-- [ ] **FRONTEND-01**: Create mail form includes file input for PDF upload
+- [x] **FRONTEND-01**: Create mail form includes file input for PDF upload
 - [ ] **FRONTEND-02**: File input shows selected filename and validation
 - [ ] **FRONTEND-03**: Action required changed from Select to TextField
 - [ ] **FRONTEND-04**: Mail detail page displays PDF attachment section
 - [ ] **FRONTEND-05**: PDF view button opens in new tab or downloads
-- [ ] **FRONTEND-06**: Role badge updated to show new roles
+- [x] **FRONTEND-06**: Role badge updated to show new roles
 
 ### Codebase Cleanup
 
-- [ ] **CLEANUP-01**: Unused imports removed from all Python files
+- [x] **CLEANUP-01**: Unused imports removed from all Python files
 - [ ] **CLEANUP-02**: Unused components removed from frontend
 - [ ] **CLEANUP-03**: Sample data files organized or removed if not needed
 - [ ] **CLEANUP-04**: Deprecated fields marked or removed
 - [ ] **CLEANUP-05**: Build artifacts not tracked in git
-- [ ] **CLEANUP-06**: Documentation updated to reflect changes
+- [x] **CLEANUP-06**: Documentation updated to reflect changes
 
 ## v2 Requirements (Future)
 

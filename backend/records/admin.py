@@ -1,9 +1,18 @@
 from django.contrib import admin
-from .models import MailRecord
+from .models import MailRecord, RecordAttachment
+
+
+class RecordAttachmentInline(admin.TabularInline):
+    model = RecordAttachment
+    readonly_fields = ['id', 'file_size', 'uploaded_at', 'uploaded_by']
+    fields = ['id', 'original_filename', 'file', 'uploaded_by', 'uploaded_at', 'is_current']
+    extra = 0
+    max_num = 1
 
 
 @admin.register(MailRecord)
 class MailRecordAdmin(admin.ModelAdmin):
+    inlines = [RecordAttachmentInline]
     list_display = ['sl_no', 'letter_no', 'mail_reference_subject', 'current_handler', 'current_action_status', 'status', 'due_date', 'created_at']
     list_filter = ['status', 'current_action_status', 'section', 'action_required', 'created_at']
     search_fields = ['sl_no', 'letter_no', 'mail_reference_subject', 'from_office']

@@ -27,12 +27,22 @@ class IsAGOrDAG(permissions.BasePermission):
 
 class MailRecordPermission(permissions.BasePermission):
     """
-    Custom permission for MailRecord:
+    Custom permission for MailRecord supporting all six roles:
     - AG: Full access to all records
     - DAG: Can view own section records + records they've touched
            Can create/assign/reassign within their section
-    - SrAO/AAO: Can view records assigned to them
+    - SrAO/AAO: Can view all mails in their subsection + records they've touched
                 Can update/close their assigned records
+    - auditor: Can view mails in their configured auditor_subsections only
+               Can reassign only to SrAO/AAO
+    - clerk: Can view only mails assigned to them or created by them
+             Can update/close mails they are current_handler for
+
+    Note on view-level guards (these remain in views.py, not in this class):
+    - multi_assign: blocked for auditor/clerk via `if user.role not in ['AG', 'DAG']` guard
+    - reopen: blocked for auditor/clerk via `if request.user.role != 'AG'` guard
+    - close of multi-assigned mails: blocked for auditor/clerk via
+      `if mail_record.is_multi_assigned and user.role != 'AG'` guard
     """
 
     def has_permission(self, request, view):
@@ -44,9 +54,9 @@ class MailRecordPermission(permissions.BasePermission):
         if view.action in ['list', 'retrieve']:
             return True
 
-        # Only AG can create
+        # All authenticated users can create (view enforces role-based scoping)
         if view.action == 'create':
-            return request.user.role == 'AG'
+            return True
 
         # All users can potentially update/close/reassign (checked at object level)
         if view.action in ['update', 'partial_update', 'close', 'reassign', 'reopen']:
@@ -59,6 +69,7 @@ class MailRecordPermission(permissions.BasePermission):
             'complete_assignment', 'add_assignment_remark',
             'reassign_assignment', 'update_current_action',
             'reassign_candidates',
+            'upload_pdf', 'get_pdf_metadata', 'view_pdf',  # PDF endpoints
         ]:
             return True
 
@@ -99,8 +110,11 @@ class MailRecordPermission(permissions.BasePermission):
                 request._touched_record_ids_cache = touched_ids
             return obj.id in touched_ids
 
-        # Staff officers can view records assigned to them or they've touched
+        # SrAO/AAO: subsection-level visibility (expanded from assigned-only)
         if user.role in ['SrAO', 'AAO']:
+            # All mails in user's own subsection
+            if user.subsection_id and obj.subsection_id == user.subsection_id:
+                return True
             if obj.current_handler == user or obj.assigned_to == user:
                 return True
             # Check parallel assignments
@@ -118,6 +132,36 @@ class MailRecordPermission(permissions.BasePermission):
                 ).values_list('mail_record_id', flat=True))
                 request._touched_record_ids_cache = touched_ids
             return obj.id in touched_ids
+
+        # Clerk: narrow — only mails assigned to them or created by them
+        if user.role == 'clerk':
+            if obj.current_handler == user or obj.assigned_to == user:
+                return True
+            if obj.created_by_id == user.id:
+                return True
+            from records.models import MailAssignment
+            if MailAssignment.objects.filter(
+                mail_record=obj, assigned_to=user, status='Active'
+            ).exists():
+                return True
+            return False
+
+        # Auditor: only mails in their configured auditor_subsections
+        if user.role == 'auditor':
+            auditor_sub_ids = set(user.auditor_subsections.values_list('id', flat=True))
+            if not auditor_sub_ids:
+                return False
+            if obj.subsection_id and obj.subsection_id in auditor_sub_ids:
+                return True
+            # Also allow section-level mails (no subsection set) where any configured
+            # subsection belongs to the same parent section
+            if obj.section_id and obj.subsection_id is None:
+                from sections.models import Subsection
+                if Subsection.objects.filter(
+                    id__in=auditor_sub_ids, section_id=obj.section_id
+                ).exists():
+                    return True
+            return False
 
         return False
 
@@ -149,10 +193,13 @@ class MailRecordPermission(permissions.BasePermission):
         if view.action == 'close':
             return obj.current_handler == user
 
-        # Reassign permission
+        # Reassign permission — auditor can reassign only if current handler
+        # (target role restriction to SrAO/AAO is enforced in the view)
         if view.action == 'reassign':
             if self._is_dag_for_section(user, obj):
                 return True
+            if user.role == 'auditor':
+                return obj.current_handler == user
             return obj.current_handler == user
 
         if view.action == 'reassign_candidates':
@@ -174,6 +221,22 @@ class MailRecordPermission(permissions.BasePermission):
             'update_assignment', 'complete_assignment',
             'add_assignment_remark', 'reassign_assignment',
         ]:
+            return self._can_view_mail(user, obj, request)
+
+        # PDF upload permission
+        # Allowed: AG always, DAG if mail section in their sections,
+        # SrAO/AAO/auditor/clerk if current_handler
+        if view.action == 'upload_pdf':
+            if user.role == 'DAG':
+                return self._is_dag_for_section(user, obj)
+            if user.role in ['SrAO', 'AAO']:
+                return obj.current_handler == user
+            if user.role in ['auditor', 'clerk']:
+                return obj.current_handler == user
+            return False
+
+        # PDF metadata and view permission — mirrors view permission
+        if view.action in ['get_pdf_metadata', 'view_pdf']:
             return self._can_view_mail(user, obj, request)
 
         return False

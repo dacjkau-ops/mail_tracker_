@@ -17,16 +17,6 @@ export const MAIL_STATUS = {
   CLOSED: 'Closed',
 };
 
-// Action Required Options
-export const ACTION_REQUIRED_OPTIONS = [
-  'Review',
-  'Approve',
-  'Process',
-  'File',
-  'Reply',
-  'Other',
-];
-
 // Current Action Status Options (what handler is actively doing)
 export const CURRENT_ACTION_STATUS_OPTIONS = [
   'Under Review',

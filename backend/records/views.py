@@ -1,11 +1,12 @@
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.http import HttpResponse
 from django.utils import timezone
 from django.db.models import Q
 from django.db import transaction
 from config.permissions import MailRecordPermission
-from .models import MailRecord, MailAssignment, AssignmentRemark
+from .models import MailRecord, MailAssignment, AssignmentRemark, RecordAttachment
 from .serializers import (
     MailRecordListSerializer,
     MailRecordDetailSerializer,
@@ -21,12 +22,14 @@ from .serializers import (
     AssignmentCompleteSerializer,
     AddRemarkSerializer,
     AssignmentReassignSerializer,
-    AssignmentRemarkSerializer
+    AssignmentRemarkSerializer,
+    PDFUploadSerializer,
+    PDFMetadataSerializer,
 )
 from audit.models import AuditTrail
 from users.models import User
 from users.serializers import UserSerializer
-from sections.models import Section
+from sections.models import Section, Subsection
 
 
 class MailRecordViewSet(viewsets.ModelViewSet):
@@ -109,6 +112,22 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             # This avoids false denials when mail_record.subsection is stale from earlier hops.
             return candidates.filter(subsection_id=user.subsection_id).distinct()
 
+        # Auditor: can only escalate to SrAO/AAO in their configured subsections
+        if user.role == 'auditor':
+            auditor_sub_ids = list(user.auditor_subsections.values_list('id', flat=True))
+            if not auditor_sub_ids:
+                return User.objects.none()
+            return candidates.filter(
+                role__in=['SrAO', 'AAO'],
+                subsection__in=auditor_sub_ids
+            ).distinct()
+
+        # Clerk: same subsection as themselves (mirrors SrAO/AAO pattern)
+        if user.role == 'clerk':
+            if not user.subsection_id:
+                return User.objects.none()
+            return candidates.filter(subsection_id=user.subsection_id).distinct()
+
         return User.objects.none()
 
     def get_serializer_class(self):
@@ -172,20 +191,55 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 Q(id__in=cross_section_mail_ids)
             )
 
-        # Staff officers can see records assigned to them OR they've touched
-        else:  # SrAO or AAO
+        # SrAO/AAO: all mails in their own subsection (EXPANDED from assigned-only)
+        elif user.role in ['SrAO', 'AAO']:
             touched_record_ids = AuditTrail.objects.filter(
                 performed_by=user
             ).values_list('mail_record_id', flat=True).distinct()
-            
+
             assigned_via_parallel = MailAssignment.objects.filter(
                 assigned_to=user,
                 status='Active'
             ).values_list('mail_record_id', flat=True).distinct()
 
             queryset = queryset.filter(
-                Q(current_handler=user) | Q(assigned_to=user) | Q(id__in=touched_record_ids) | Q(id__in=assigned_via_parallel)
+                Q(current_handler=user) |
+                Q(assigned_to=user) |
+                Q(subsection=user.subsection) |        # All mails in user's subsection
+                Q(id__in=touched_record_ids) |
+                Q(id__in=assigned_via_parallel)
             )
+
+        # Clerk: only mails assigned to them OR created by them
+        elif user.role == 'clerk':
+            assigned_via_parallel = MailAssignment.objects.filter(
+                assigned_to=user,
+                status='Active'
+            ).values_list('mail_record_id', flat=True).distinct()
+
+            queryset = queryset.filter(
+                Q(current_handler=user) |
+                Q(assigned_to=user) |
+                Q(created_by=user) |
+                Q(id__in=assigned_via_parallel)
+            )
+
+        # Auditor: only mails in their configured auditor_subsections
+        elif user.role == 'auditor':
+            auditor_sub_ids = list(user.auditor_subsections.values_list('id', flat=True))
+            if not auditor_sub_ids:
+                queryset = queryset.none()
+            else:
+                queryset = queryset.filter(
+                    Q(subsection__in=auditor_sub_ids) |
+                    # Include section-level mails (no subsection set) where any configured
+                    # subsection belongs to that section
+                    Q(subsection__isnull=True, section__subsections__id__in=auditor_sub_ids)
+                ).distinct()
+
+        else:
+            # Fallback: no access for unknown roles
+            queryset = queryset.none()
 
         # Apply filters
         status_filter = self.request.query_params.get('status', None)
@@ -205,40 +259,78 @@ class MailRecordViewSet(viewsets.ModelViewSet):
         return queryset.order_by('-created_at')
 
     def create(self, request, *args, **kwargs):
-        """Create new mail record with multi-assignment support"""
+        """Create new mail record — all roles can create, scoped to their subsection"""
         serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
 
-        # Check permissions - only AG can create
         user = request.user
-        if user.role != 'AG':
-            return Response(
-                {'error': 'Only Accountant General can create mail records.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
 
         # Get assigned user IDs (now it's a list) - validation already done in serializer
         assigned_to_ids = serializer.validated_data.pop('assigned_to')
         initial_instructions = serializer.validated_data.get('initial_instructions', '')
 
-        # Get assignees preserving user-selected order (deterministic primary assignee)
+        # Get assignees preserving user-selected order
         assignee_map = {
             u.id: u for u in User.objects.filter(id__in=assigned_to_ids, is_active=True)
         }
         assignees = [assignee_map[user_id] for user_id in assigned_to_ids if user_id in assignee_map]
 
-        # Set first assignee as primary (for backward compatibility)
+        if not assignees:
+            return Response(
+                {'error': 'No valid assignees selected.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         primary_assignee = assignees[0]
         monitoring_officer = primary_assignee.get_dag()
 
-        # Get section from serializer (may be null for cross-section)
+        # Determine section and subsection based on creator's role
         section_id = serializer.validated_data.pop('section', None)
         section = None
-        if section_id:
-            try:
-                section = Section.objects.get(id=section_id)
-            except Section.DoesNotExist:
-                pass
+
+        if user.role == 'AG':
+            # AG: section from serializer (may be inferred or null for cross-section)
+            if section_id:
+                try:
+                    section = Section.objects.get(id=section_id)
+                except Section.DoesNotExist:
+                    pass
+        elif user.role == 'DAG':
+            # DAG: section from serializer or inferred from first managed section
+            if section_id:
+                try:
+                    section = Section.objects.get(id=section_id)
+                except Section.DoesNotExist:
+                    pass
+            if not section:
+                # Use first managed section as default
+                section = user.sections.first()
+        elif user.role in ['SrAO', 'AAO', 'clerk']:
+            # These roles: scoped to their own subsection's section
+            if user.subsection:
+                section = user.subsection.section
+                # Force subsection to creator's subsection
+                serializer.validated_data['subsection'] = user.subsection
+            else:
+                return Response(
+                    {'error': 'Your account has no subsection assigned. Contact an administrator.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        elif user.role == 'auditor':
+            # Auditor: scoped to their first configured subsection
+            first_sub = user.auditor_subsections.select_related('section').first()
+            if not first_sub:
+                return Response(
+                    {'error': 'Your auditor account has no subsections configured. Contact an administrator.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            section = first_sub.section
+            serializer.validated_data['subsection'] = first_sub
+        else:
+            return Response(
+                {'error': 'Your role is not permitted to create mail records.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
         # Create the mail record
         mail_record = serializer.save(
@@ -246,7 +338,7 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             assigned_to=primary_assignee,
             current_handler=primary_assignee,
             monitoring_officer=monitoring_officer,
-            section=section,  # Can be None for cross-section assignments
+            section=section,
             status='Assigned',
             is_multi_assigned=(len(assignees) > 1),
             initial_instructions=initial_instructions,
@@ -263,7 +355,7 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 status='Active'
             )
 
-        # Create audit trail for creation
+        # Audit trail for creation
         AuditTrail.objects.create(
             mail_record=mail_record,
             action='CREATE',
@@ -272,7 +364,7 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             remarks=f'Created with initial instructions: {initial_instructions[:100]}'
         )
 
-        # Create audit trail for assignment
+        # Audit trail for assignment
         assignee_names = [a.full_name for a in assignees]
         action_type = 'MULTI_ASSIGN' if len(assignees) > 1 else 'ASSIGN'
         AuditTrail.objects.create(
@@ -375,6 +467,14 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 {'error': 'Selected user is not eligible for reassignment.'},
                 status=status.HTTP_403_FORBIDDEN
             )
+
+        # Auditor can only reassign to SrAO/AAO (immediate superior only)
+        if user.role == 'auditor':
+            if new_handler.role not in ['SrAO', 'AAO']:
+                return Response(
+                    {'error': 'Auditors can only reassign to SrAO or AAO officers.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
         # Store old handler
         old_handler = mail_record.current_handler
@@ -922,6 +1022,156 @@ class MailRecordViewSet(viewsets.ModelViewSet):
         mail_record = self.get_object()
         assignments = self._filter_assignments_for_user(mail_record, request.user)
         return Response(MailAssignmentSerializer(assignments, many=True).data)
+
+    @action(detail=True, methods=['post'], url_path='pdf', url_name='upload-pdf')
+    def upload_pdf(self, request, pk=None):
+        """
+        POST /api/records/{id}/pdf/
+        Upload a PDF to a mail record. Accepts multipart/form-data with:
+          - file: PDF file (required, max 10MB, must be .pdf extension)
+          - upload_stage: 'created' or 'closed' (required)
+
+        Permissions:
+          - AG: always allowed
+          - DAG: allowed if mail.section is in their managed sections
+          - SrAO/AAO: allowed only if they are current_handler
+
+        Behavior:
+          - If a current PDF already exists for the same upload_stage,
+            mark it is_current=False (replacement, not deletion).
+          - Store new file using UUID filename via RecordAttachment model.
+          - Return 201 with attachment metadata on success.
+        """
+        mail_record = self.get_object()  # triggers has_object_permission
+
+        serializer = PDFUploadSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        uploaded_file = serializer.validated_data['file']
+        upload_stage = serializer.validated_data['upload_stage']
+
+        # Enforce workflow stage restriction
+        if upload_stage == 'created' and mail_record.status not in ['Received', 'Assigned']:
+            return Response(
+                {'error': "PDF can only be uploaded at the 'created' stage when the record status is 'Received' or 'Assigned'."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        if upload_stage == 'closed' and mail_record.status != 'Closed':
+            return Response(
+                {'error': "PDF can only be uploaded at the 'closed' stage when the record has been closed."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        with transaction.atomic():
+            # Mark any existing current attachment for this stage as replaced
+            existing = mail_record.attachments.filter(
+                upload_stage=upload_stage,
+                is_current=True
+            ).first()
+            if existing:
+                existing.is_current = False
+                existing.save(update_fields=['is_current'])
+
+            # Create new attachment record — file saved by FileField
+            attachment = RecordAttachment.objects.create(
+                mail_record=mail_record,
+                file=uploaded_file,
+                original_filename=uploaded_file.name,
+                file_size=uploaded_file.size,
+                uploaded_by=request.user,
+                upload_stage=upload_stage,
+                is_current=True,
+            )
+
+        return Response(attachment.get_metadata_dict(), status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get'], url_path='pdf', url_name='pdf-metadata')
+    def get_pdf_metadata(self, request, pk=None):
+        """
+        GET /api/records/{id}/pdf/
+        Returns metadata for all current PDF attachments on this record.
+        One entry per upload_stage that has a current attachment.
+
+        Response shape:
+        {
+          "exists": true,
+          "attachments": [
+            {
+              "id": "...",
+              "original_filename": "document.pdf",
+              "file_size": 102400,
+              "file_size_human": "100.0 KB",
+              "uploaded_at": "2026-02-20T10:00:00+00:00",
+              "uploaded_by": "John Smith",
+              "upload_stage": "created"
+            }
+          ]
+        }
+
+        Permissions: same as viewing the mail record.
+        """
+        mail_record = self.get_object()  # triggers has_object_permission
+
+        current_attachments = mail_record.attachments.filter(is_current=True).order_by('upload_stage')
+        attachments_data = [a.get_metadata_dict() for a in current_attachments]
+
+        return Response({
+            'exists': len(attachments_data) > 0,
+            'attachments': attachments_data,
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], url_path='pdf/view', url_name='view-pdf')
+    def view_pdf(self, request, pk=None):
+        """
+        GET /api/records/{id}/pdf/view/?stage=created
+        Returns 200 with X-Accel-Redirect header. Nginx intercepts and serves the PDF file.
+        Query param 'stage' selects which stage PDF to serve (default: 'created').
+
+        Response headers set:
+          - X-Accel-Redirect: /_protected_pdfs/{uuid}.pdf
+          - Content-Type: application/pdf
+          - Content-Disposition: inline; filename="{original_filename}"
+          - X-Accel-Buffering: no
+
+        Permissions: same as viewing the mail record (PDF-07).
+        """
+        mail_record = self.get_object()  # triggers has_object_permission
+
+        stage = request.query_params.get('stage', 'created')
+        if stage not in ('created', 'closed'):
+            return Response(
+                {'error': "Invalid stage. Must be 'created' or 'closed'."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        attachment = mail_record.attachments.filter(
+            upload_stage=stage,
+            is_current=True
+        ).first()
+
+        if not attachment:
+            return Response(
+                {'error': f"No PDF found for stage '{stage}' on this record."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        stored_filename = attachment.stored_filename
+        if not stored_filename:
+            return Response(
+                {'error': "PDF file reference is missing. Contact an administrator."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        response = HttpResponse(status=200)
+        response['X-Accel-Redirect'] = f'/_protected_pdfs/{stored_filename}'
+        response['X-Accel-Buffering'] = 'no'
+        response['Content-Type'] = 'application/pdf'
+        # Sanitize original filename for Content-Disposition (remove quotes/special chars)
+        safe_filename = attachment.original_filename.replace('"', '').replace('\\', '')
+        response['Content-Disposition'] = f'inline; filename="{safe_filename}"'
+
+        return response
 
 
 class MailAssignmentViewSet(viewsets.ModelViewSet):

@@ -149,7 +149,7 @@ STORAGES = {
 # Default primary key field type
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 
 # Custom user model
 AUTH_USER_MODEL = 'users.User'
@@ -187,6 +187,13 @@ CORS_ALLOWED_ORIGINS = os.environ.get(
 ).split(',')
 
 CORS_ALLOW_CREDENTIALS = True
+
+# PDF Storage Configuration
+PDF_STORAGE_PATH = os.environ.get('PDF_STORAGE_PATH', str(BASE_DIR / 'pdfs'))
+
+# File upload size limits (10MB max for PDF uploads)
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB
 
 # Performance observability
 SLOW_REQUEST_MS = int(os.environ.get('SLOW_REQUEST_MS', '500'))

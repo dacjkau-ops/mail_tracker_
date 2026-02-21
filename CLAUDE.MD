@@ -2,6 +2,8 @@
 
 Copy and paste this 👇
 
+Note: `PRODUCT_SPEC.md` is the canonical runtime product spec. If this file conflicts with `PRODUCT_SPEC.md`, follow `PRODUCT_SPEC.md`.
+
 ---
 
 ## 🗺️ Quick Navigation
@@ -284,7 +286,7 @@ The system will be considered successful when these functional requirements are 
 - ✅ Serial number (sl_no) auto-generates in YYYY/NNN format
 - ✅ date_received defaults to today but is editable
 - ✅ All required fields validated (letter_no, subject, from_office, action_required, section, assigned_to, due_date)
-- ✅ action_required dropdown shows: Review, Approve, Process, File, Reply, Other
+- ✅ action_required is a free-text field (max 500 chars); the old dropdown options (Review, Approve, Process, File, Reply, Other) are no longer enforced
 - ✅ assigned_to dropdown filtered correctly (AG sees all, DAG sees section users)
 - ✅ Status auto-set to "Received" on creation
 - ✅ monitoring_officer auto-assigned based on assigned_to user's DAG
@@ -737,7 +739,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localho
 **Render Free Tier:**
 - Web service sleeps after 15 minutes of inactivity
 - First request after sleep takes ~30 seconds (cold start)
-- PostgreSQL free tier expires after 90 days (backup data!)
+- PostgreSQL free tier expires after 30 days (backup/migrate data!)
 - 750 hours/month free compute
 
 **Vercel Free Tier:**
@@ -747,7 +749,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localho
 
 ### Maintenance
 
-1. **PostgreSQL Backup** (CRITICAL - expires in 90 days):
+1. **PostgreSQL Backup** (CRITICAL - free DB expires in 30 days):
    ```bash
    python manage.py dumpdata --natural-foreign --natural-primary \
      -e contenttypes -e auth.Permission --indent 2 -o backup.json

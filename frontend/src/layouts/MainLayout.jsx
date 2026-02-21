@@ -18,6 +18,15 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 
+const ROLE_LABELS = {
+  AG: 'AG',
+  DAG: 'DAG',
+  SrAO: 'Sr AO',
+  AAO: 'AAO',
+  auditor: 'Auditor',
+  clerk: 'Clerk',
+};
+
 const MainLayout = () => {
   const navigate = useNavigate();
   const { user, logout, canCreateMail } = useAuth();
@@ -67,7 +76,7 @@ const MainLayout = () => {
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Chip
-              label={user?.role || 'User'}
+              label={ROLE_LABELS[user?.role] || user?.role || 'User'}
               size="small"
               color="secondary"
             />

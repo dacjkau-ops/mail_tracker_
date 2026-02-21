@@ -40,6 +40,37 @@ const mailService = {
   },
 
   /**
+   * Upload PDF attachment to an existing mail record.
+   * Must be called AFTER createMail() with the returned id.
+   * @param {string} id - Mail record ID
+   * @param {File} file - PDF File object
+   * @returns {Promise}
+   */
+  async uploadPdf(id, file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_stage', 'created');
+    const response = await api.post(`/records/${id}/pdf/`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  /**
+   * Fetch PDF as a Blob for inline viewing or download.
+   * Uses Axios with responseType 'blob' to send the JWT Authorization header.
+   * window.open() cannot be used directly because it does not send auth headers.
+   * @param {string} id - Mail record ID
+   * @returns {Promise<Blob>}
+   */
+  async viewPdf(id) {
+    const response = await api.get(`/records/${id}/pdf/view/`, {
+      responseType: 'blob',
+    });
+    return response.data; // Blob
+  },
+
+  /**
    * Update mail remarks
    * @param {string} id - Mail ID
    * @param {string} remarks

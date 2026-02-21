@@ -2,7 +2,7 @@ from django.db import models
 
 
 class Section(models.Model):
-    name = models.CharField(max_length=200, unique=True)
+    name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True, null=True)
     directly_under_ag = models.BooleanField(
         default=False,
@@ -23,7 +23,7 @@ class Subsection(models.Model):
         on_delete=models.CASCADE,
         related_name='subsections'
     )
-    name = models.CharField(max_length=200)
+    name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

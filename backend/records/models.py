@@ -1,7 +1,40 @@
+import uuid
+import os
+
 from django.db import models
-from django.conf import settings
+from django.conf import settings as django_settings
+from django.core.exceptions import ValidationError
+from django.core.files.storage import FileSystemStorage
 from django.utils import timezone
 from sections.models import Section, Subsection
+
+
+def get_pdf_storage():
+    """Return FileSystemStorage pointed at PDF_STORAGE_PATH setting."""
+    storage_path = getattr(django_settings, 'PDF_STORAGE_PATH', None)
+    if storage_path is None:
+        from pathlib import Path
+        storage_path = Path(django_settings.BASE_DIR) / 'pdfs'
+    os.makedirs(storage_path, exist_ok=True)
+    return FileSystemStorage(location=str(storage_path))
+
+
+def pdf_upload_path(instance, filename):
+    """Store PDF as UUID.pdf, ignoring original filename to prevent path traversal."""
+    return f"{uuid.uuid4()}.pdf"
+
+
+def validate_pdf_extension(value):
+    ext = os.path.splitext(value.name)[1].lower()
+    if ext != '.pdf':
+        raise ValidationError('Only PDF files are allowed.')
+
+
+def validate_pdf_size(value):
+    max_mb = getattr(django_settings, 'MAX_PDF_SIZE_MB', 10)
+    max_size = max_mb * 1024 * 1024
+    if value.size > max_size:
+        raise ValidationError(f'File size exceeds {max_mb}MB limit.')
 
 
 class MailRecord(models.Model):
@@ -10,15 +43,6 @@ class MailRecord(models.Model):
         ('Assigned', 'Assigned'),
         ('In Progress', 'In Progress'),
         ('Closed', 'Closed'),
-    ]
-
-    ACTION_CHOICES = [
-        ('Review', 'Review'),
-        ('Approve', 'Approve'),
-        ('Process', 'Process'),
-        ('File', 'File'),
-        ('Reply', 'Reply'),
-        ('Other', 'Other'),
     ]
 
     # Current work status choices - what the current handler is actively doing
@@ -36,29 +60,33 @@ class MailRecord(models.Model):
     ]
 
     # Auto-generated serial number
-    sl_no = models.CharField(max_length=20, unique=True, editable=False)
+    sl_no = models.CharField(max_length=10, unique=True, editable=False)
 
     # Mail details
     letter_no = models.CharField(max_length=200)
     date_received = models.DateField(default=timezone.now)
     mail_reference_subject = models.TextField()
     from_office = models.CharField(max_length=200)
-    action_required = models.CharField(max_length=50, choices=ACTION_CHOICES)
-    action_required_other = models.CharField(max_length=200, blank=True, null=True)
+    action_required = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="What action is required on this mail (free text, optional, max 500 chars)"
+    )
+    action_required_other = models.CharField(max_length=100, blank=True, null=True)
 
     # Assignment fields
     assigned_to = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        django_settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name='assigned_mails'
     )
     current_handler = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        django_settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name='current_mails'
     )
     monitoring_officer = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        django_settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name='monitored_mails',
         null=True,
@@ -86,13 +114,13 @@ class MailRecord(models.Model):
     due_date = models.DateField()
 
     # Status tracking
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Received')
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='Received')
     date_of_completion = models.DateField(null=True, blank=True)
     last_status_change = models.DateTimeField(auto_now_add=True)
 
     # Current handler's work status (what they're actively doing with the mail)
     current_action_status = models.CharField(
-        max_length=50,
+        max_length=25,
         choices=CURRENT_ACTION_STATUS_CHOICES,
         null=True,
         blank=True,
@@ -119,7 +147,7 @@ class MailRecord(models.Model):
 
     # Metadata
     created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        django_settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name='created_mails'
     )
@@ -285,6 +313,43 @@ class MailRecord(models.Model):
             return self.section and user.sections.filter(id=self.section.id).exists()
         return False
 
+    @property
+    def current_attachment(self):
+        return self.attachments.filter(is_current=True).first()
+
+    @property
+    def has_attachment(self):
+        return bool(self.current_attachment)
+
+    def get_attachment_metadata(self):
+        attachment = self.current_attachment
+        if not attachment:
+            return {
+                'has_attachment': False,
+                'attachment_id': None,
+                'original_filename': None,
+                'file_size': None,
+                'file_size_human': None,
+                'uploaded_at': None,
+                'uploaded_by': None,
+            }
+        size = attachment.file_size
+        if size < 1024:
+            size_human = f"{size} B"
+        elif size < 1024 * 1024:
+            size_human = f"{size / 1024:.1f} KB"
+        else:
+            size_human = f"{size / (1024 * 1024):.1f} MB"
+        return {
+            'has_attachment': True,
+            'attachment_id': str(attachment.id),
+            'original_filename': attachment.original_filename,
+            'file_size': size,
+            'file_size_human': size_human,
+            'uploaded_at': attachment.uploaded_at.isoformat() if attachment.uploaded_at else None,
+            'uploaded_by': attachment.uploaded_by.username if attachment.uploaded_by else None,
+        }
+
     def update_consolidated_remarks(self):
         """Update consolidated remarks from all parallel assignments"""
         assignments = self.parallel_assignments.filter(
@@ -325,22 +390,22 @@ class MailAssignment(models.Model):
         related_name='parallel_assignments'
     )
     assigned_to = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        django_settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name='parallel_assigned_mails'
     )
     assigned_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        django_settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name='parallel_assignments_made'
     )
     assignment_remarks = models.TextField(blank=True, null=True)  # Instructions from supervisor
     user_remarks = models.TextField(blank=True, null=True)  # DEPRECATED: Use AssignmentRemark timeline instead
-    status = models.CharField(max_length=20, choices=ASSIGNMENT_STATUS_CHOICES, default='Active')
+    status = models.CharField(max_length=10, choices=ASSIGNMENT_STATUS_CHOICES, default='Active')
 
     # Track reassignment within the same assignment
     reassigned_to = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        django_settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name='reassigned_from_assignments',
         null=True,
@@ -393,7 +458,7 @@ class AssignmentRemark(models.Model):
     )
     content = models.TextField()
     created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        django_settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name='assignment_remarks_made'
     )
@@ -407,3 +472,83 @@ class AssignmentRemark(models.Model):
 
     def __str__(self):
         return f"Remark by {self.created_by.full_name} on {self.created_at.strftime('%Y-%m-%d %H:%M')}"
+
+
+class RecordAttachment(models.Model):
+    UPLOAD_STAGE_CHOICES = [
+        ('created', 'Created'),
+        ('closed', 'Closed'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    mail_record = models.ForeignKey(
+        MailRecord,
+        on_delete=models.CASCADE,
+        related_name='attachments'
+    )
+    file = models.FileField(
+        upload_to=pdf_upload_path,
+        storage=get_pdf_storage,  # callable — evaluated lazily, not at import time
+        max_length=255,
+        validators=[validate_pdf_extension, validate_pdf_size]
+    )
+    original_filename = models.CharField(max_length=255)
+    file_size = models.PositiveIntegerField(help_text="File size in bytes")
+    uploaded_by = models.ForeignKey(
+        django_settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='uploaded_attachments'
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    upload_stage = models.CharField(
+        max_length=7,
+        choices=UPLOAD_STAGE_CHOICES,
+        default='created',
+        help_text="Workflow stage at which this PDF was uploaded"
+    )
+    is_current = models.BooleanField(
+        default=True,
+        help_text="False when superseded by a replacement for the same stage"
+    )
+
+    class Meta:
+        ordering = ['-uploaded_at']
+        verbose_name = 'Record Attachment'
+        verbose_name_plural = 'Record Attachments'
+
+    def __str__(self):
+        return f"{self.original_filename} ({self.mail_record.sl_no}) [{self.upload_stage}]"
+
+    @property
+    def stored_filename(self):
+        """Return just the UUID filename (e.g., 'abc123.pdf') for X-Accel-Redirect."""
+        return os.path.basename(self.file.name) if self.file else None
+
+    def get_metadata_dict(self):
+        return {
+            'id': str(self.id),
+            'original_filename': self.original_filename,
+            'file_size': self.file_size,
+            'file_size_human': self._human_readable_size(self.file_size),
+            'uploaded_at': self.uploaded_at.isoformat() if self.uploaded_at else None,
+            'uploaded_by': self.uploaded_by.full_name if self.uploaded_by else None,
+            'upload_stage': self.upload_stage,
+        }
+
+    @staticmethod
+    def _human_readable_size(size_bytes):
+        if size_bytes is None:
+            return None
+        if size_bytes < 1024:
+            return f"{size_bytes} B"
+        elif size_bytes < 1024 * 1024:
+            return f"{size_bytes / 1024:.1f} KB"
+        else:
+            return f"{size_bytes / (1024 * 1024):.1f} MB"
+
+    def delete_file(self):
+        """Delete physical file from storage."""
+        if self.file:
+            if os.path.isfile(self.file.path):
+                os.remove(self.file.path)

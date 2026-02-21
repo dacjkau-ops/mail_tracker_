@@ -15,14 +15,14 @@ import {
   CircularProgress,
   Autocomplete,
   Chip,
+  LinearProgress,
 } from '@mui/material';
-import { ArrowBack, Save as SaveIcon } from '@mui/icons-material';
+import { ArrowBack, Save as SaveIcon, AttachFile as AttachFileIcon } from '@mui/icons-material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import mailService from '../services/mailService';
 import { useAuth } from '../context/AuthContext';
-import { ACTION_REQUIRED_OPTIONS } from '../utils/constants';
 
 const CreateMailPage = () => {
   const navigate = useNavigate();
@@ -32,7 +32,8 @@ const CreateMailPage = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [showOtherAction, setShowOtherAction] = useState(false);
+  const [selectedPdf, setSelectedPdf] = useState(null);
+  const [pdfError, setPdfError] = useState('');
 
   // DAG users can only create for their section
   const isDAG = user?.role === 'DAG';
@@ -44,8 +45,6 @@ const CreateMailPage = () => {
   const {
     control,
     handleSubmit,
-    watch,
-    setValue,
     formState: { errors },
   } = useForm({
     defaultValues: {
@@ -54,7 +53,6 @@ const CreateMailPage = () => {
       mail_reference_subject: '',
       from_office: '',
       action_required: '',
-      action_required_other: '',
       section: '',
       assigned_to: [],
       due_date: null,
@@ -62,15 +60,9 @@ const CreateMailPage = () => {
     },
   });
 
-  const actionRequired = watch('action_required');
-
   useEffect(() => {
     loadData();
   }, []);
-
-  useEffect(() => {
-    setShowOtherAction(actionRequired === 'Other');
-  }, [actionRequired]);
 
   const loadData = async () => {
     setLoading(true);
@@ -89,6 +81,29 @@ const CreateMailPage = () => {
     }
   };
 
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    setPdfError('');
+    if (!file) {
+      setSelectedPdf(null);
+      return;
+    }
+    if (file.type !== 'application/pdf') {
+      setPdfError('Only PDF files are accepted.');
+      setSelectedPdf(null);
+      e.target.value = '';
+      return;
+    }
+    const maxBytes = 10 * 1024 * 1024; // 10 MB
+    if (file.size > maxBytes) {
+      setPdfError('PDF must be 10 MB or smaller.');
+      setSelectedPdf(null);
+      e.target.value = '';
+      return;
+    }
+    setSelectedPdf(file);
+  };
+
   const onSubmit = async (data) => {
     setError('');
     setSaving(true);
@@ -100,10 +115,7 @@ const CreateMailPage = () => {
         date_received: data.date_received.toISOString().split('T')[0],
         mail_reference_subject: data.mail_reference_subject,
         from_office: data.from_office,
-        action_required:
-          data.action_required === 'Other'
-            ? data.action_required_other
-            : data.action_required,
+        action_required: data.action_required,
         assigned_to: Array.isArray(data.assigned_to)
           ? data.assigned_to.map(u => u.id)
           : [data.assigned_to],
@@ -113,6 +125,14 @@ const CreateMailPage = () => {
       };
 
       const createdMail = await mailService.createMail(mailData);
+      if (selectedPdf) {
+        try {
+          await mailService.uploadPdf(createdMail.id, selectedPdf);
+        } catch (pdfErr) {
+          navigate(`/mails/${createdMail.id}?pdfError=1`);
+          return;
+        }
+      }
       navigate(`/mails/${createdMail.id}`);
     } catch (err) {
       setError(
@@ -244,49 +264,18 @@ const CreateMailPage = () => {
                   control={control}
                   rules={{ required: 'Action Required is required' }}
                   render={({ field }) => (
-                    <FormControl fullWidth error={!!errors.action_required}>
-                      <InputLabel>Action Required *</InputLabel>
-                      <Select {...field} label="Action Required *">
-                        {ACTION_REQUIRED_OPTIONS.map((action) => (
-                          <MenuItem key={action} value={action}>
-                            {action}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                      {errors.action_required && (
-                        <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 2 }}>
-                          {errors.action_required.message}
-                        </Typography>
-                      )}
-                    </FormControl>
+                    <TextField
+                      {...field}
+                      fullWidth
+                      label="Action Required *"
+                      placeholder="e.g. Review, Approve, Process..."
+                      error={!!errors.action_required}
+                      helperText={errors.action_required?.message}
+                    />
                   )}
                 />
               </Box>
             </Box>
-
-            {/* Conditional: Specify Other Action */}
-            {showOtherAction && (
-              <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                <Box sx={{ flex: '1 1 300px', minWidth: '250px' }}>
-                  <Controller
-                    name="action_required_other"
-                    control={control}
-                    rules={{
-                      required: showOtherAction ? 'Please specify the action' : false,
-                    }}
-                    render={({ field }) => (
-                      <TextField
-                        {...field}
-                        fullWidth
-                        label="Specify Action *"
-                        error={!!errors.action_required_other}
-                        helperText={errors.action_required_other?.message}
-                      />
-                    )}
-                  />
-                </Box>
-              </Box>
-            )}
 
             {/* Row 4: Optional Section (helps when assigning DAG handling multiple sections) */}
             {isAG && (
@@ -433,6 +422,37 @@ const CreateMailPage = () => {
                   />
                 )}
               />
+            </Box>
+
+            {/* PDF Attachment (Optional) */}
+            <Box>
+              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                PDF Attachment (Optional)
+              </Typography>
+              <Button
+                component="label"
+                variant="outlined"
+                startIcon={<AttachFileIcon />}
+                size="small"
+              >
+                {selectedPdf ? selectedPdf.name : 'Choose PDF'}
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  hidden
+                  onChange={handleFileChange}
+                />
+              </Button>
+              {selectedPdf && (
+                <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
+                  {(selectedPdf.size / 1024 / 1024).toFixed(2)} MB selected
+                </Typography>
+              )}
+              {pdfError && (
+                <Typography variant="caption" color="error" display="block" sx={{ mt: 0.5 }}>
+                  {pdfError}
+                </Typography>
+              )}
             </Box>
 
             {/* Action Buttons */}
