@@ -60,7 +60,7 @@ Plans:
 **Phase ID:** 3
 **Depends On:** Phase 2
 
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 - [ ] 03-01-PLAN.md — Create mail form: free-text action_required + two-step PDF upload + canCreateMail expansion
@@ -87,8 +87,7 @@ Plans:
 | NGINX-01 to NGINX-08 | 1 | Nginx configuration |
 | ROLE-01 to ROLE-08 | 2 | Role system expansion | Complete    | 2026-02-20 | 2 | Backend updates |
 | WORKFLOW-04 to WORKFLOW-05 | 2 | Free-text action backend |
-| WORKFLOW-01 to WORKFLOW-03 | 3 | PDF in create mail |
-| WORKFLOW-06 to WORKFLOW-07 | 3 | PDF viewing |
+| WORKFLOW-01 to WORKFLOW-03 | 3 | PDF in create mail | Complete    | 2026-02-21 | 3 | PDF viewing |
 | FRONTEND-01 to FRONTEND-06 | 3 | Frontend updates |
 | CLEANUP-01 to CLEANUP-06 | 3 | Codebase cleanup |
 

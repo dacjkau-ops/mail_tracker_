@@ -56,13 +56,13 @@
 
 ### Workflow Changes
 
-- [ ] **WORKFLOW-01**: Create mail page includes PDF upload field
+- [x] **WORKFLOW-01**: Create mail page includes PDF upload field
 - [ ] **WORKFLOW-02**: PDF uploaded during mail creation is attached to the record
-- [ ] **WORKFLOW-03**: action_required field changed from dropdown to free text input
+- [x] **WORKFLOW-03**: action_required field changed from dropdown to free text input
 - [x] **WORKFLOW-04**: Free text action_required has max length validation (500 chars)
 - [x] **WORKFLOW-05**: Existing action_required choices preserved for data compatibility
-- [ ] **WORKFLOW-06**: Mail detail page shows PDF attachment if exists
-- [ ] **WORKFLOW-07**: PDF can be viewed inline or downloaded from detail page
+- [x] **WORKFLOW-06**: Mail detail page shows PDF attachment if exists
+- [x] **WORKFLOW-07**: PDF can be viewed inline or downloaded from detail page
 
 ### Backend Updates
 
@@ -75,21 +75,21 @@
 
 ### Frontend Updates
 
-- [ ] **FRONTEND-01**: Create mail form includes file input for PDF upload
+- [x] **FRONTEND-01**: Create mail form includes file input for PDF upload
 - [ ] **FRONTEND-02**: File input shows selected filename and validation
 - [ ] **FRONTEND-03**: Action required changed from Select to TextField
 - [ ] **FRONTEND-04**: Mail detail page displays PDF attachment section
 - [ ] **FRONTEND-05**: PDF view button opens in new tab or downloads
-- [ ] **FRONTEND-06**: Role badge updated to show new roles
+- [x] **FRONTEND-06**: Role badge updated to show new roles
 
 ### Codebase Cleanup
 
-- [ ] **CLEANUP-01**: Unused imports removed from all Python files
+- [x] **CLEANUP-01**: Unused imports removed from all Python files
 - [ ] **CLEANUP-02**: Unused components removed from frontend
 - [ ] **CLEANUP-03**: Sample data files organized or removed if not needed
 - [ ] **CLEANUP-04**: Deprecated fields marked or removed
 - [ ] **CLEANUP-05**: Build artifacts not tracked in git
-- [ ] **CLEANUP-06**: Documentation updated to reflect changes
+- [x] **CLEANUP-06**: Documentation updated to reflect changes
 
 ## v2 Requirements (Future)
 
