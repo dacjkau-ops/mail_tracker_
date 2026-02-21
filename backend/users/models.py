@@ -44,7 +44,7 @@ class User(AbstractUser):
         help_text="Subsections visible to this auditor (configured by admin). Only used when role='auditor'."
     )
 
-    full_name = models.CharField(max_length=200)
+    full_name = models.CharField(max_length=100)
     is_primary_ag = models.BooleanField(
         default=False,
         help_text="Use this AG as default monitoring fallback when multiple AG users exist."

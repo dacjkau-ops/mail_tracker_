@@ -60,7 +60,7 @@ class MailRecord(models.Model):
     ]
 
     # Auto-generated serial number
-    sl_no = models.CharField(max_length=20, unique=True, editable=False)
+    sl_no = models.CharField(max_length=10, unique=True, editable=False)
 
     # Mail details
     letter_no = models.CharField(max_length=200)
@@ -72,7 +72,7 @@ class MailRecord(models.Model):
         blank=True,
         help_text="What action is required on this mail (free text, optional, max 500 chars)"
     )
-    action_required_other = models.CharField(max_length=200, blank=True, null=True)
+    action_required_other = models.CharField(max_length=100, blank=True, null=True)
 
     # Assignment fields
     assigned_to = models.ForeignKey(
@@ -114,13 +114,13 @@ class MailRecord(models.Model):
     due_date = models.DateField()
 
     # Status tracking
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Received')
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='Received')
     date_of_completion = models.DateField(null=True, blank=True)
     last_status_change = models.DateTimeField(auto_now_add=True)
 
     # Current handler's work status (what they're actively doing with the mail)
     current_action_status = models.CharField(
-        max_length=50,
+        max_length=25,
         choices=CURRENT_ACTION_STATUS_CHOICES,
         null=True,
         blank=True,
@@ -401,7 +401,7 @@ class MailAssignment(models.Model):
     )
     assignment_remarks = models.TextField(blank=True, null=True)  # Instructions from supervisor
     user_remarks = models.TextField(blank=True, null=True)  # DEPRECATED: Use AssignmentRemark timeline instead
-    status = models.CharField(max_length=20, choices=ASSIGNMENT_STATUS_CHOICES, default='Active')
+    status = models.CharField(max_length=10, choices=ASSIGNMENT_STATUS_CHOICES, default='Active')
 
     # Track reassignment within the same assignment
     reassigned_to = models.ForeignKey(
@@ -502,7 +502,7 @@ class RecordAttachment(models.Model):
     )
     uploaded_at = models.DateTimeField(auto_now_add=True)
     upload_stage = models.CharField(
-        max_length=10,
+        max_length=7,
         choices=UPLOAD_STAGE_CHOICES,
         default='created',
         help_text="Workflow stage at which this PDF was uploaded"
