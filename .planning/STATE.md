@@ -1,16 +1,23 @@
-# State: Mail Tracker Enhancements
+# State: Mail Tracker v1.1 UI/UX Refresh
 
-**Current Phase:** 3
-**Current Plan:** Not started
-**Last Action:** Completed Phase 3 Plan 03 — Codebase cleanup: deleted RemarksEditDialog.jsx, removed ACTION_REQUIRED_OPTIONS, fixed duplicate settings import in models.py, updated CLAUDE.md
+**Current Phase:** Not started
+**Current Plan:** —
+**Last Action:** Started milestone v1.1 — UI/UX redesign of Mail Detail view
 **Date:** 2026-02-21
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-20)
+See: .planning/PROJECT.md (updated 2026-02-21)
 
 **Core value:** Users can securely attach, store, and view PDF documents with proper access control and audit logging
-**Current focus:** Phase 3 complete — ready for deployment
+**Current focus:** v1.1 UI/UX Refresh — redesigning Mail Detail view for clarity
+
+## Current Position
+
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-21 — Milestone v1.1 started
 
 ## Phase Status
 
@@ -19,6 +26,7 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 | 1. Infrastructure & PDF Backend | ● Done | 29 | 3/3 plans done |
 | 2. Role System & Backend Updates | ● Done | 16 | 3/3 plans done |
 | 3. Frontend & Workflow | ● Done | 17 | 17/17 |
+| 4. UI/UX Refresh | ○ Pending | — | 0/0 |
 
 ## Active Context
 
@@ -70,11 +78,9 @@ None
 ## Notes
 
 - Project initialized from existing Mail Tracker codebase
-- Existing system: Django + React, JWT auth, role-based permissions
-- New: PDF attachments, Docker deployment, expanded roles, free-text actions
-- Dev laptop testing before Monday server deployment
-- Docker not available in dev environment — file-level validation used; actual docker build to run on Ubuntu server
-- All 3 phases complete; codebase is clean and ready for Ubuntu server deployment
+- v1.0 shipped: PDF attachments, Docker deployment, expanded roles, free-text actions
+- v1.1 focus: UI/UX improvements to Mail Detail view
+- All prior phases complete; starting fresh milestone for frontend enhancements
 
 ## Performance Metrics
 
@@ -92,7 +98,7 @@ None
 
 ## Stopped At
 
-Completed Phase 3 Plan 03 (2/2 tasks). All phases complete.
+Started milestone v1.1 — defining requirements for UI/UX refresh
 
 ---
-*State tracking for Mail Tracker Enhancements*
+*State tracking for Mail Tracker v1.1 UI/UX Refresh*
