@@ -2,7 +2,6 @@ import uuid
 import os
 
 from django.db import models
-from django.conf import settings
 from django.conf import settings as django_settings
 from django.core.exceptions import ValidationError
 from django.core.files.storage import FileSystemStorage
@@ -32,7 +31,6 @@ def validate_pdf_extension(value):
 
 
 def validate_pdf_size(value):
-    from django.conf import settings as django_settings
     max_mb = getattr(django_settings, 'MAX_PDF_SIZE_MB', 10)
     max_size = max_mb * 1024 * 1024
     if value.size > max_size:
@@ -78,17 +76,17 @@ class MailRecord(models.Model):
 
     # Assignment fields
     assigned_to = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        django_settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name='assigned_mails'
     )
     current_handler = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        django_settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name='current_mails'
     )
     monitoring_officer = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        django_settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name='monitored_mails',
         null=True,
@@ -149,7 +147,7 @@ class MailRecord(models.Model):
 
     # Metadata
     created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        django_settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name='created_mails'
     )
@@ -392,12 +390,12 @@ class MailAssignment(models.Model):
         related_name='parallel_assignments'
     )
     assigned_to = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        django_settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name='parallel_assigned_mails'
     )
     assigned_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        django_settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name='parallel_assignments_made'
     )
@@ -407,7 +405,7 @@ class MailAssignment(models.Model):
 
     # Track reassignment within the same assignment
     reassigned_to = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        django_settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name='reassigned_from_assignments',
         null=True,
@@ -460,7 +458,7 @@ class AssignmentRemark(models.Model):
     )
     content = models.TextField()
     created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        django_settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name='assignment_remarks_made'
     )
@@ -497,7 +495,7 @@ class RecordAttachment(models.Model):
     original_filename = models.CharField(max_length=255)
     file_size = models.PositiveIntegerField(help_text="File size in bytes")
     uploaded_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
+        django_settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         related_name='uploaded_attachments'
