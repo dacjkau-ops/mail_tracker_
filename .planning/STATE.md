@@ -1,8 +1,8 @@
 # State: Mail Tracker Enhancements
 
 **Current Phase:** 3
-**Current Plan:** 1 complete, advancing to Plan 02
-**Last Action:** Completed Phase 3 Plan 01 — CreateMailPage free-text action_required + PDF upload, canCreateMail expanded to all 6 roles
+**Current Plan:** 2 complete, advancing to Plan 03
+**Last Action:** Completed Phase 3 Plan 02 — PDF attachment view/download in MailDetailPage with blob+createObjectURL pattern, ROLE_LABELS for all 6 roles, RemarksEditDialog removed
 **Date:** 2026-02-21
 
 ## Project Reference
@@ -18,7 +18,7 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 |-------|--------|--------------|-----------|
 | 1. Infrastructure & PDF Backend | ● Done | 29 | 3/3 plans done |
 | 2. Role System & Backend Updates | ● Done | 16 | 3/3 plans done |
-| 3. Frontend & Workflow | ◑ In Progress | 17 | 6/17 |
+| 3. Frontend & Workflow | ◑ In Progress | 17 | 11/17 |
 
 ## Active Context
 
@@ -57,6 +57,9 @@ See: .planning/PROJECT.md (updated 2026-02-20)
 - **canCreateMail() uses array includes()** — expanding from AG-only to all 6 roles; flat array, easy to extend
 - **PDF upload failure redirects to ?pdfError=1** — mail record is already created; blocking navigation would orphan the record from user's perspective
 - **Two-step form submit pattern** — createMail() then uploadPdf() with graceful degradation; client-side PDF validation (MIME + size) before any network call
+- **viewPdf uses Axios blob responseType** — window.open cannot send JWT auth headers, so blob + createObjectURL is mandatory
+- **revokeObjectURL after 60s for view, 5s for download** — allows new tab to load before revocation; download anchor click is synchronous
+- **ROLE_LABELS defined outside component** — prevents object recreation on every render; covers all 6 roles (AG, DAG, SrAO, AAO, auditor, clerk)
 
 ## Current Blockers
 
@@ -81,10 +84,11 @@ None
 | 02 | 02 | ~3 min | 2/2 | 2 |
 | 02 | 03 | ~4 min | 3/3 | 3 |
 | 03 | 01 | ~3 min | 2/2 | 3 |
+| 03 | 02 | ~5 min | 2/2 | 3 |
 
 ## Stopped At
 
-Completed Phase 3 Plan 01 (2/2 tasks). Next: Phase 3, Plan 02.
+Completed Phase 3 Plan 02 (2/2 tasks). Next: Phase 3, Plan 03.
 
 ---
 *State tracking for Mail Tracker Enhancements*
