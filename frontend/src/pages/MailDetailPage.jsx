@@ -12,25 +12,32 @@ import {
   Alert,
   Card,
   CardContent,
-  List,
-  ListItem,
-  ListItemText,
+  TextField,
+  IconButton,
 } from '@mui/material';
 import {
   ArrowBack,
   Edit as EditIcon,
+  Save as SaveIcon,
+  Cancel as CancelIcon,
   SwapHoriz as ReassignIcon,
   CheckCircle as CloseIcon,
-  TaskAlt as TaskAltIcon,
   Replay as ReopenIcon,
   GroupAdd as MultiAssignIcon,
-  Update as UpdateActionIcon,
   PictureAsPdf as PdfIcon,
   WarningAmber as WarningIcon,
 } from '@mui/icons-material';
+import {
+  Timeline,
+  TimelineItem,
+  TimelineSeparator,
+  TimelineConnector,
+  TimelineContent,
+  TimelineDot,
+} from '@mui/lab';
 import mailService from '../services/mailService';
 import { useAuth } from '../context/AuthContext';
-import { formatDate, formatDateTime, calculateTimeInStage, isOverdue } from '../utils/dateHelpers';
+import { formatDate, formatDateTime, calculateTimeInStage, isOverdue, getRelativeTime } from '../utils/dateHelpers';
 import { STATUS_COLORS, ACTION_STATUS_COLORS, DETAIL_STATUS_CHIP } from '../utils/constants';
 import ReassignDialog from '../components/ReassignDialog';
 import CloseMailDialog from '../components/CloseMailDialog';
@@ -55,6 +62,11 @@ const MailDetailPage = () => {
   const [multiAssignDialogOpen, setMultiAssignDialogOpen] = useState(false);
   const [updateActionDialogOpen, setUpdateActionDialogOpen] = useState(false);
   const [pdfUploadWarning, setPdfUploadWarning] = useState(false);
+
+  // Inline remarks editing state
+  const [remarksEditing, setRemarksEditing] = useState(false);
+  const [remarksValue, setRemarksValue] = useState('');
+  const [remarksSaving, setRemarksSaving] = useState(false);
 
   useEffect(() => {
     loadMail();
@@ -96,7 +108,6 @@ const MailDetailPage = () => {
       const blob = await mailService.viewPdf(id);
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank');
-      // Revoke after a short delay to allow the new tab to load
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (err) {
       console.error('Failed to load PDF:', err);
@@ -163,6 +174,23 @@ const MailDetailPage = () => {
     }
   };
 
+  const handleSaveRemarks = async () => {
+    setRemarksSaving(true);
+    try {
+      await mailService.updateCurrentAction(id, {
+        current_action_status: mail.current_action_status || 'Under Review',
+        current_action_remarks: remarksValue.trim(),
+      });
+      setRemarksEditing(false);
+      loadMail();
+      loadAuditTrail();
+    } catch (err) {
+      console.error('Failed to save remarks:', err);
+    } finally {
+      setRemarksSaving(false);
+    }
+  };
+
   const canEditRemarks = () => {
     const handlerId = mail?.current_handler_details?.id || mail?.current_handler;
     return user?.id === handlerId;
@@ -172,7 +200,6 @@ const MailDetailPage = () => {
     if (!mail) return false;
     if (user?.role === 'AG') return true;
     const sectionId = mail?.section_details?.id || mail?.section;
-    // DAG can reassign if mail's section is in their managed sections
     if (user?.role === 'DAG' && sectionId && user?.sections?.includes(sectionId)) return true;
     const handlerId = mail?.current_handler_details?.id || mail?.current_handler;
     if (user?.id === handlerId) return true;
@@ -181,11 +208,9 @@ const MailDetailPage = () => {
 
   const canCloseMail = () => {
     if (!mail || mail.status === 'Closed') return false;
-    // Multi-assigned mails: only AG can close
     if (mail.is_multi_assigned) {
       return user?.role === 'AG';
     }
-    // Single-assigned mails: AG or current handler can close
     if (user?.role === 'AG') return true;
     const handlerId = mail?.current_handler_details?.id || mail?.current_handler;
     if (user?.id === handlerId) return true;
@@ -200,7 +225,6 @@ const MailDetailPage = () => {
     if (!mail || mail.status === 'Closed') return false;
     if (user?.role === 'AG') return true;
     const sectionId = mail?.section_details?.id || mail?.section;
-    // DAG can multi-assign if mail's section is in their managed sections
     if (user?.role === 'DAG' && sectionId && user?.sections?.includes(sectionId)) return true;
     return false;
   };
@@ -225,6 +249,10 @@ const MailDetailPage = () => {
   }
 
   const overdue = isOverdue(mail.due_date, mail.status);
+
+  const sortedAuditTrail = [...auditTrail].sort(
+    (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+  );
 
   return (
     <Box>
@@ -284,292 +312,289 @@ const MailDetailPage = () => {
         )}
       </Paper>
 
-      {/* Mail Information */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Mail Information
-        </Typography>
-        <Divider sx={{ mb: 2 }} />
+      {/* Two-column layout */}
+      <Grid container spacing={3} alignItems="flex-start">
 
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
-            <Typography variant="body2" color="text.secondary">
-              Letter No
-            </Typography>
-            <Typography variant="body1" gutterBottom>
-              {mail.letter_no}
-            </Typography>
-          </Grid>
+        {/* LEFT COLUMN — 65% */}
+        <Grid item xs={12} md={8}>
 
-          <Grid item xs={12} md={6}>
-            <Typography variant="body2" color="text.secondary">
-              Date Received
-            </Typography>
-            <Typography variant="body1" gutterBottom>
-              {formatDate(mail.date_received)}
-            </Typography>
-          </Grid>
-
-          <Grid item xs={12}>
-            <Typography variant="body2" color="text.secondary">
-              Subject
-            </Typography>
-            <Typography variant="body1" gutterBottom>
-              {mail.mail_reference_subject}
-            </Typography>
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <Typography variant="body2" color="text.secondary">
-              From Office
-            </Typography>
-            <Typography variant="body1" gutterBottom>
-              {mail.from_office}
-            </Typography>
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <Typography variant="body2" color="text.secondary">
-              Action Required
-            </Typography>
-            <Typography variant="body1" gutterBottom>
-              {mail.action_required}
-            </Typography>
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <Typography variant="body2" color="text.secondary">
-              Section
-            </Typography>
-            <Typography variant="body1" gutterBottom>
-              {mail.section_details?.name || (mail.is_multi_assigned ? 'Cross-Section' : 'N/A')}
-            </Typography>
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <Typography variant="body2" color="text.secondary">
-              Due Date
-            </Typography>
-            <Typography variant="body1" gutterBottom color={overdue ? 'error' : 'inherit'}>
-              {formatDate(mail.due_date)}
-            </Typography>
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <Typography variant="body2" color="text.secondary">
-              Assigned To (Original)
-            </Typography>
-            {mail.is_multi_assigned && mail.assignees_display?.length > 0 ? (
-              <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
-                {mail.assignees_display.map((name, idx) => (
-                  <Chip key={`${name}-${idx}`} label={name} size="small" />
-                ))}
-              </Box>
-            ) : (
-              <Typography variant="body1" gutterBottom>
-                {mail.assigned_to_details?.full_name || 'N/A'}
+          {/* Origin Card */}
+          <Card sx={{ mb: 2, borderRadius: 2 }} elevation={1}>
+            <CardContent>
+              <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
+                Origin
               </Typography>
-            )}
-          </Grid>
+              <Divider sx={{ my: 1 }} />
+              {mail.from_office && (
+                <Box mb={1.5}>
+                  <Typography variant="caption" color="text.secondary">From Office</Typography>
+                  <Typography variant="body1">{mail.from_office}</Typography>
+                </Box>
+              )}
+              {mail.date_received && (
+                <Box mb={1.5}>
+                  <Typography variant="caption" color="text.secondary">Date Received</Typography>
+                  <Typography variant="body1">{formatDate(mail.date_received)}</Typography>
+                </Box>
+              )}
+              {mail.letter_no && (
+                <Box mb={1.5}>
+                  <Typography variant="caption" color="text.secondary">Letter No</Typography>
+                  <Typography variant="body1">{mail.letter_no}</Typography>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
 
-          <Grid item xs={12} md={6}>
-            <Typography variant="body2" color="text.secondary">
-              Current Handler
-            </Typography>
-            {mail.is_multi_assigned && mail.current_handlers_display?.length > 0 ? (
-              <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
-                {mail.current_handlers_display.map((name, idx) => (
-                  <Chip key={`${name}-${idx}`} label={name} color="primary" size="small" variant="outlined" />
-                ))}
+          {/* Instructions Card — only render if action_required is non-empty */}
+          {mail.action_required && (
+            <Card sx={{ mb: 2, borderRadius: 2 }} elevation={1}>
+              <CardContent>
+                <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
+                  Instructions
+                </Typography>
+                <Divider sx={{ my: 1 }} />
+                <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {mail.action_required}
+                </Typography>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Handler Remarks Card — ALWAYS rendered */}
+          <Card
+            sx={{
+              mb: 2,
+              borderRadius: 2,
+              border: '2px solid',
+              borderColor: 'primary.light',
+            }}
+            elevation={2}
+          >
+            <CardContent>
+              <Box display="flex" justifyContent="space-between" alignItems="center">
+                <Typography variant="overline" color="primary" sx={{ letterSpacing: 1, fontWeight: 700 }}>
+                  Handler Remarks
+                </Typography>
+                {canEditRemarks() && mail.status !== 'Closed' && !remarksEditing && (
+                  <IconButton
+                    size="small"
+                    onClick={() => {
+                      setRemarksValue(mail.current_action_remarks || '');
+                      setRemarksEditing(true);
+                    }}
+                    title="Edit remarks"
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                )}
               </Box>
-            ) : (
-              <Typography variant="body1" gutterBottom>
-                {mail.current_handler_details?.full_name || 'N/A'}
-              </Typography>
-            )}
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <Typography variant="body2" color="text.secondary">
-              Monitoring Officer
-            </Typography>
-            <Typography variant="body1" gutterBottom>
-              {mail.monitoring_officer_details?.full_name || 'N/A'}
-            </Typography>
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <Typography variant="body2" color="text.secondary">
-              Time in Current Stage
-            </Typography>
-            <Typography variant="body1" gutterBottom>
-              {calculateTimeInStage(mail.last_status_change, mail.date_of_completion)}
-            </Typography>
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <Typography variant="body2" color="text.secondary">
-              Current Action Status
-            </Typography>
-            <Box display="flex" alignItems="center" gap={1} mt={0.5}>
-              {mail.current_action_status ? (
-                <Chip
-                  label={mail.current_action_status}
-                  color={ACTION_STATUS_COLORS[mail.current_action_status] || 'default'}
-                  size={mail.current_action_status === 'Completed' ? 'medium' : 'small'}
-                  sx={mail.current_action_status === 'Completed' ? { fontWeight: 700 } : undefined}
-                />
+              <Divider sx={{ my: 1 }} />
+              {remarksEditing ? (
+                <Box>
+                  <TextField
+                    fullWidth
+                    multiline
+                    minRows={3}
+                    value={remarksValue}
+                    onChange={(e) => setRemarksValue(e.target.value)}
+                    placeholder="What are you doing with this mail? What's the current status?"
+                    variant="outlined"
+                    size="small"
+                    autoFocus
+                  />
+                  <Box display="flex" gap={1} mt={1} justifyContent="flex-end">
+                    <Button
+                      size="small"
+                      startIcon={<CancelIcon />}
+                      onClick={() => setRemarksEditing(false)}
+                      disabled={remarksSaving}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      startIcon={<SaveIcon />}
+                      onClick={handleSaveRemarks}
+                      disabled={remarksSaving}
+                    >
+                      {remarksSaving ? 'Saving...' : 'Save'}
+                    </Button>
+                  </Box>
+                </Box>
               ) : (
-                <Typography variant="body2" color="text.secondary">
-                  Not set
+                <Typography
+                  variant="body1"
+                  sx={{
+                    whiteSpace: 'pre-wrap',
+                    color: mail.current_action_remarks ? 'text.primary' : 'text.secondary',
+                    fontStyle: mail.current_action_remarks ? 'normal' : 'italic',
+                  }}
+                >
+                  {mail.current_action_remarks || 'No remarks yet'}
                 </Typography>
               )}
-              {mail.current_action_updated_at && (
-                <Typography variant="caption" color="text.secondary">
-                  (Updated: {formatDateTime(mail.current_action_updated_at)})
-                </Typography>
-              )}
-            </Box>
-            {mail.current_action_remarks && (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontStyle: 'italic' }}>
-                {mail.current_action_remarks}
-              </Typography>
-            )}
-          </Grid>
+            </CardContent>
+          </Card>
 
-          {mail.date_of_completion && (
-            <Grid item xs={12} md={6}>
-              <Typography variant="body2" color="text.secondary">
-                Date of Completion
-              </Typography>
-              <Typography variant="body1" gutterBottom>
-                {formatDate(mail.date_of_completion)}
-              </Typography>
-            </Grid>
+          {/* PDF Attachment — only if present */}
+          {mail?.attachment_metadata?.has_attachment && (
+            <Card sx={{ mb: 2, borderRadius: 2 }} elevation={1}>
+              <CardContent>
+                <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
+                  Attachment
+                </Typography>
+                <Divider sx={{ my: 1 }} />
+                <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+                  <PdfIcon color="error" />
+                  <Box flex={1}>
+                    <Typography variant="body2">
+                      {mail.attachment_metadata.original_filename || 'attachment.pdf'}
+                    </Typography>
+                    {(mail.attachment_metadata.file_size_human || mail.attachment_metadata.uploaded_at) && (
+                      <Typography variant="caption" color="text.secondary">
+                        {mail.attachment_metadata.file_size_human || ''}
+                        {mail.attachment_metadata.uploaded_at
+                          ? ` · Uploaded ${formatDateTime(mail.attachment_metadata.uploaded_at)}`
+                          : ''}
+                      </Typography>
+                    )}
+                  </Box>
+                  <Button variant="outlined" size="small" onClick={handleViewPdf}>View</Button>
+                  <Button variant="outlined" size="small" onClick={handleDownloadPdf}>Download</Button>
+                </Box>
+              </CardContent>
+            </Card>
           )}
+
         </Grid>
-      </Paper>
 
-      {/* Initial Instructions Section */}
-      {mail.initial_instructions && (
-        <Paper sx={{ p: 3, mb: 3 }}>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="h6">Initial Instructions</Typography>
-          </Box>
-          <Divider sx={{ mb: 2 }} />
-          <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-            {mail.initial_instructions}
-          </Typography>
-        </Paper>
-      )}
+        {/* RIGHT COLUMN — 35% */}
+        <Grid item xs={12} md={4}>
 
-      {/* PDF Attachment */}
-      {mail?.attachment_metadata?.has_attachment && (
-        <Paper sx={{ p: 3, mb: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            PDF Attachment
-          </Typography>
-          <Divider sx={{ mb: 2 }} />
-          <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
-            <PdfIcon color="error" />
-            <Box>
-              <Typography variant="body2">
-                {mail.attachment_metadata.original_filename || 'attachment.pdf'}
+          {/* Action Buttons — shown only when user has permission */}
+          {(canReassignMail() || canCloseMail() || canReopenMail() || canMultiAssign()) && (
+            <Card sx={{ mb: 2, borderRadius: 2 }} elevation={1}>
+              <CardContent>
+                <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
+                  Actions
+                </Typography>
+                <Divider sx={{ my: 1 }} />
+                <Box display="flex" flexDirection="column" gap={1}>
+                  {canReassignMail() && (
+                    <Button
+                      variant="outlined"
+                      startIcon={<ReassignIcon />}
+                      onClick={() => setReassignDialogOpen(true)}
+                      fullWidth
+                    >
+                      Reassign
+                    </Button>
+                  )}
+                  {canCloseMail() && (
+                    <Button
+                      variant="contained"
+                      color="success"
+                      startIcon={<CloseIcon />}
+                      onClick={() => setCloseDialogOpen(true)}
+                      fullWidth
+                    >
+                      Close Mail
+                    </Button>
+                  )}
+                  {canReopenMail() && (
+                    <Button
+                      variant="outlined"
+                      color="warning"
+                      startIcon={<ReopenIcon />}
+                      onClick={() => setReopenDialogOpen(true)}
+                      fullWidth
+                    >
+                      Reopen
+                    </Button>
+                  )}
+                  {canMultiAssign() && (
+                    <Button
+                      variant="outlined"
+                      color="secondary"
+                      startIcon={<MultiAssignIcon />}
+                      onClick={() => setMultiAssignDialogOpen(true)}
+                      fullWidth
+                    >
+                      Assign to Multiple
+                    </Button>
+                  )}
+                </Box>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Current Handler Card */}
+          <Card sx={{ mb: 2, borderRadius: 2 }} elevation={1}>
+            <CardContent>
+              <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
+                Current Handler
               </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {mail.attachment_metadata.file_size_human || ''}{' '}
-                {mail.attachment_metadata.uploaded_at
-                  ? `· Uploaded ${formatDateTime(mail.attachment_metadata.uploaded_at)}`
-                  : ''}
+              <Divider sx={{ my: 1 }} />
+              {mail.is_multi_assigned && mail.current_handlers_display?.length > 0 ? (
+                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                  {mail.current_handlers_display.map((name, idx) => (
+                    <Chip key={`${name}-${idx}`} label={name} color="primary" size="small" variant="outlined" />
+                  ))}
+                </Box>
+              ) : (
+                mail.current_handler_details?.full_name && (
+                  <Typography variant="body1" fontWeight={600}>
+                    {mail.current_handler_details.full_name}
+                  </Typography>
+                )
+              )}
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                In stage for {calculateTimeInStage(mail.last_status_change, mail.date_of_completion)}
               </Typography>
-            </Box>
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={handleViewPdf}
-            >
-              View
-            </Button>
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={handleDownloadPdf}
-            >
-              Download
-            </Button>
-          </Box>
-        </Paper>
-      )}
+            </CardContent>
+          </Card>
 
-      {/* Action Buttons */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Actions
-        </Typography>
-        <Divider sx={{ mb: 2 }} />
-        <Box display="flex" gap={2} flexWrap="wrap">
-          {canEditRemarks() && mail.status !== 'Closed' && (
-            <Button
-              variant="contained"
-              startIcon={<UpdateActionIcon />}
-              onClick={() => setUpdateActionDialogOpen(true)}
-            >
-              Update Current Action
-            </Button>
+          {/* Due Date Card */}
+          {mail.due_date && (
+            <Card sx={{ mb: 2, borderRadius: 2 }} elevation={1}>
+              <CardContent>
+                <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
+                  Due Date
+                </Typography>
+                <Divider sx={{ my: 1 }} />
+                <Typography
+                  variant="h6"
+                  fontWeight={700}
+                  color={overdue ? 'error' : 'text.primary'}
+                >
+                  {formatDate(mail.due_date)}
+                </Typography>
+                {overdue && (
+                  <Typography variant="caption" color="error">
+                    Overdue
+                  </Typography>
+                )}
+              </CardContent>
+            </Card>
           )}
-          {canReassignMail() && (
-            <Button
-              variant="outlined"
-              startIcon={<ReassignIcon />}
-              onClick={() => setReassignDialogOpen(true)}
-            >
-              Reassign
-            </Button>
-          )}
-          {canCloseMail() && (
-            <Button
-              variant="outlined"
-              color="success"
-              startIcon={<CloseIcon />}
-              onClick={() => setCloseDialogOpen(true)}
-            >
-              Close Mail
-            </Button>
-          )}
-          {canReopenMail() && (
-            <Button
-              variant="outlined"
-              color="warning"
-              startIcon={<ReopenIcon />}
-              onClick={() => setReopenDialogOpen(true)}
-            >
-              Reopen
-            </Button>
-          )}
-          {canMultiAssign() && (
-            <Button
-              variant="outlined"
-              color="secondary"
-              startIcon={<MultiAssignIcon />}
-              onClick={() => setMultiAssignDialogOpen(true)}
-            >
-              Assign to Multiple
-            </Button>
-          )}
-        </Box>
-      </Paper>
 
-      {/* Parallel Assignments Panel - Primary view for multi-assigned mails */}
+        </Grid>
+
+      </Grid>
+
+      {/* Assignments Panel */}
       <AssignmentsPanel
         mailId={id}
         onUpdate={() => { loadMail(); loadAuditTrail(); }}
         mailData={mail}
       />
 
-      {/* Audit Trail - For single-assigned mails or as supplementary info */}
-      <Paper sx={{ p: 3 }}>
+      {/* Audit Trail — MUI Timeline */}
+      <Paper sx={{ p: 3, mt: 3 }}>
         <Typography variant="h6" gutterBottom>
-          {mail.is_multi_assigned ? 'Global Activity Log' : 'Audit Trail / History Log'}
+          {mail.is_multi_assigned ? 'Global Activity Log' : 'Audit Trail'}
         </Typography>
         {mail.is_multi_assigned && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -577,43 +602,71 @@ const MailDetailPage = () => {
           </Typography>
         )}
         <Divider sx={{ mb: 2 }} />
-        <List>
-          {auditTrail.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">
-              No audit trail available
-            </Typography>
-          ) : (
-            auditTrail
+
+        {sortedAuditTrail.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            No audit trail available
+          </Typography>
+        ) : (
+          <Timeline
+            sx={{
+              p: 0,
+              [`& .MuiTimelineItem-root::before`]: { flex: 0, padding: 0 },
+            }}
+          >
+            {sortedAuditTrail
               .filter(entry => {
-                // For multi-assigned mails, show only high-level events in global log
                 if (mail.is_multi_assigned) {
                   return ['CREATE', 'MULTI_ASSIGN', 'CLOSE', 'REOPEN'].includes(entry.action);
                 }
-                return true; // Show all for single-assignment
+                return true;
               })
-              .map((entry, index, filteredArr) => (
-                <ListItem key={index} divider={index < filteredArr.length - 1}>
-                  <ListItemText
-                    primary={
-                      <Box>
-                        <Typography variant="body2" component="span" fontWeight="medium">
-                          [{formatDateTime(entry.timestamp)}]
-                        </Typography>
-                        <Typography variant="body2" component="span" sx={{ ml: 1 }}>
-                          {entry.action_display || entry.action} by {entry.performed_by_details?.full_name || 'Unknown'}
-                        </Typography>
-                      </Box>
-                    }
-                    secondary={entry.remarks && (
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                        Remarks: {entry.remarks}
+              .map((entry, index, arr) => (
+                <TimelineItem key={index}>
+                  <TimelineSeparator>
+                    {{
+                      CREATE: <TimelineDot color="primary" />,
+                      ASSIGN: <TimelineDot color="info" />,
+                      REASSIGN: <TimelineDot color="warning" />,
+                      UPDATE: <TimelineDot color="secondary" />,
+                      CLOSE: <TimelineDot color="success" />,
+                      REOPEN: <TimelineDot color="warning" />,
+                      MULTI_ASSIGN: <TimelineDot color="info" />,
+                    }[entry.action] || <TimelineDot />}
+                    {index < arr.length - 1 && <TimelineConnector />}
+                  </TimelineSeparator>
+                  <TimelineContent sx={{ pb: 3 }}>
+                    <Typography variant="subtitle2" fontWeight={700}>
+                      {getRelativeTime(entry.timestamp)}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                      {formatDateTime(entry.timestamp)}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      <strong>{entry.action_display || entry.action}</strong>
+                      {' '}by {entry.performed_by_details?.full_name || 'Unknown'}
+                    </Typography>
+                    {entry.remarks && (
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          mt: 0.5,
+                          p: 1,
+                          bgcolor: 'grey.50',
+                          borderRadius: 1,
+                          borderLeft: '3px solid',
+                          borderColor: 'grey.300',
+                          fontStyle: 'italic',
+                        }}
+                      >
+                        {entry.remarks}
                       </Typography>
                     )}
-                  />
-                </ListItem>
-              ))
-          )}
-        </List>
+                  </TimelineContent>
+                </TimelineItem>
+              ))}
+          </Timeline>
+        )}
       </Paper>
 
       {/* Dialogs */}
