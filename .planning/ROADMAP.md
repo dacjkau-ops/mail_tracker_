@@ -91,7 +91,11 @@ Plans:
   3. Submitting correct credentials with a valid new password redirects to /login with a success message
   4. Submitting wrong current password, mismatched passwords, or a password shorter than 8 characters each produce a specific error message
   5. The change-password endpoint works without a JWT token (accessible to logged-out users)
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Backend: POST /api/auth/change-password/ endpoint (AllowAny, validates credentials + password rules)
+- [ ] 04-02-PLAN.md — Frontend: ChangePasswordPage + link on LoginPage + route in App.jsx + human verification checkpoint
 
 #### Phase 5: Mail Detail UI/UX Refresh
 **Goal**: The Mail Detail view presents information with a clear hierarchy and context-aware layout
@@ -114,7 +118,7 @@ Plans:
 | 1. Infrastructure & PDF Backend | v1.0 | 3/3 | Complete | 2026-02-20 |
 | 2. Role System & Backend Updates | v1.0 | 3/3 | Complete | 2026-02-21 |
 | 3. Frontend & Workflow | v1.0 | 3/3 | Complete | 2026-02-21 |
-| 4. Password Change | v1.1 | 0/? | Not started | - |
+| 4. Password Change | v1.1 | 0/2 | Not started | - |
 | 5. Mail Detail UI/UX Refresh | v1.1 | 0/? | Not started | - |
 
 ---
