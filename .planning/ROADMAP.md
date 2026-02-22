@@ -118,7 +118,7 @@ Plans:
 | 1. Infrastructure & PDF Backend | v1.0 | 3/3 | Complete | 2026-02-20 |
 | 2. Role System & Backend Updates | v1.0 | 3/3 | Complete | 2026-02-21 |
 | 3. Frontend & Workflow | v1.0 | 3/3 | Complete | 2026-02-21 |
-| 4. Password Change | v1.1 | 0/2 | Not started | - |
+| 4. Password Change | v1.1 | Complete    | 2026-02-22 | - |
 | 5. Mail Detail UI/UX Refresh | v1.1 | 0/? | Not started | - |
 
 ---
