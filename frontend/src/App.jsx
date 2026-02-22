@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline, Box, CircularProgress } from '@mui/material';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
 import MailListPage from './pages/MailListPage';
 import MailDetailPage from './pages/MailDetailPage';
 import CreateMailPage from './pages/CreateMailPage';
@@ -75,6 +76,8 @@ function AppRoutes() {
           </PublicRoute>
         }
       />
+
+      <Route path="/change-password" element={<ChangePasswordPage />} />
 
       <Route
         path="/"

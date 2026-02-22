@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link as RouterLink, useLocation } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -10,11 +10,14 @@ import {
   Alert,
   Container,
   CircularProgress,
+  Link,
 } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const successMessage = location.state?.successMessage || '';
   const { login } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -68,6 +71,12 @@ const LoginPage = () => {
               Sign in to access the mail tracking system
             </Typography>
 
+            {successMessage && (
+              <Alert severity="success" sx={{ mb: 3 }}>
+                {successMessage}
+              </Alert>
+            )}
+
             {error && (
               <Alert severity="error" sx={{ mb: 3 }}>
                 {error}
@@ -110,6 +119,12 @@ const LoginPage = () => {
                 {loading ? <CircularProgress size={24} /> : 'Sign In'}
               </Button>
             </form>
+
+            <Box sx={{ mt: 3, textAlign: 'center' }}>
+              <Link component={RouterLink} to="/change-password" variant="body2">
+                Change Password
+              </Link>
+            </Box>
           </CardContent>
         </Card>
       </Box>
