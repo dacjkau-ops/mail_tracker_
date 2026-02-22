@@ -156,7 +156,7 @@ const CreateMailPage = () => {
   }
 
   return (
-    <Box>
+    <Box sx={{ width: '100%' }}>
       <Button
         startIcon={<ArrowBack />}
         onClick={() => navigate('/mails')}
@@ -165,7 +165,7 @@ const CreateMailPage = () => {
         Back to Mail List
       </Button>
 
-      <Paper sx={{ p: 3 }}>
+      <Paper sx={{ p: 3, width: '100%' }}>
         <Typography variant="h5" component="h1" gutterBottom sx={{ mb: 3 }}>
           Create New Mail Entry
         </Typography>
@@ -280,7 +280,7 @@ const CreateMailPage = () => {
             {/* Row 4: Optional Section (helps when assigning DAG handling multiple sections) */}
             {isAG && (
               <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                <Box sx={{ flex: '1 1 300px', minWidth: '250px', maxWidth: '400px' }}>
+                <Box sx={{ flex: '1 1 300px', minWidth: '250px' }}>
                   <Controller
                     name="section"
                     control={control}
@@ -380,7 +380,7 @@ const CreateMailPage = () => {
 
             {/* Row 6: Due Date */}
             <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-              <Box sx={{ flex: '1 1 300px', minWidth: '250px', maxWidth: '400px' }}>
+              <Box sx={{ flex: '1 1 300px', minWidth: '250px' }}>
                 <LocalizationProvider dateAdapter={AdapterDateFns}>
                   <Controller
                     name="due_date"

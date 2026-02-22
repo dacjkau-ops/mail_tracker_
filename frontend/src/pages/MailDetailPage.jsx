@@ -424,10 +424,10 @@ const MailDetailPage = () => {
       </Paper>
 
       {/* ── MAIN TWO-COLUMN CONTENT ──────────────────────────────────────── */}
-      <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 3 }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', mb: 3 }}>
 
         {/* LEFT COLUMN */}
-        <Box sx={{ flex: 1, minWidth: 0, pr: 3 }}>
+        <Box sx={{ width: '100%', minWidth: 0 }}>
 
           {/* Initial Instruction */}
           {mail.action_required && (
@@ -581,10 +581,10 @@ const MailDetailPage = () => {
         {/* RIGHT COLUMN — dashed left border acts as the divider */}
         <Box
           sx={{
-            width: { xs: '100%', sm: 240 },
-            flexShrink: 0,
-            pl: 3,
-            borderLeft: '2px dashed',
+            width: '100%',
+            mt: 1,
+            pt: 2,
+            borderTop: '2px dashed',
             borderColor: 'grey.300',
           }}
         >
@@ -615,7 +615,7 @@ const MailDetailPage = () => {
           )}
 
           {/* Action buttons — in right column for handler view */}
-          {isHandler && hasActions && <ActionButtons fullWidth />}
+          {isHandler && hasActions && <ActionButtons fullWidth={false} />}
 
           {/* Reopen only (for closed mails, non-handler) */}
           {!isHandler && canReopenMail() && (
