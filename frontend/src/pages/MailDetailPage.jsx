@@ -26,11 +26,12 @@ import {
   GroupAdd as MultiAssignIcon,
   Update as UpdateActionIcon,
   PictureAsPdf as PdfIcon,
+  WarningAmber as WarningIcon,
 } from '@mui/icons-material';
 import mailService from '../services/mailService';
 import { useAuth } from '../context/AuthContext';
 import { formatDate, formatDateTime, calculateTimeInStage, isOverdue } from '../utils/dateHelpers';
-import { STATUS_COLORS, ACTION_STATUS_COLORS } from '../utils/constants';
+import { STATUS_COLORS, ACTION_STATUS_COLORS, DETAIL_STATUS_CHIP } from '../utils/constants';
 import ReassignDialog from '../components/ReassignDialog';
 import CloseMailDialog from '../components/CloseMailDialog';
 import ReopenDialog from '../components/ReopenDialog';
@@ -224,8 +225,6 @@ const MailDetailPage = () => {
   }
 
   const overdue = isOverdue(mail.due_date, mail.status);
-  const finalActionTaken = (mail.current_action_remarks || mail.remarks || '').trim();
-  const isCompletedMail = mail.status === 'Closed';
 
   return (
     <Box>
@@ -245,56 +244,45 @@ const MailDetailPage = () => {
 
       {/* Header */}
       <Paper sx={{ p: 3, mb: 3 }}>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Box>
-            <Typography variant="h4" component="h1">
+        {/* Title row: Subject (h5) + Status chip */}
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
+          <Box flex={1}>
+            <Typography variant="h5" component="h1" fontWeight={700} sx={{ lineHeight: 1.3 }}>
+              {mail.mail_reference_subject}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
               {mail.sl_no}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Created by {mail.created_by_details?.full_name || 'Unknown'} on {formatDateTime(mail.created_at)}
-            </Typography>
           </Box>
-          <Box display="flex" gap={1} alignItems="center">
-            <Chip label={mail.status} color={STATUS_COLORS[mail.status]} />
-            {overdue && <Chip label="OVERDUE" color="error" />}
-          </Box>
+          <Chip
+            label={DETAIL_STATUS_CHIP[mail.status]?.label || mail.status}
+            color={DETAIL_STATUS_CHIP[mail.status]?.color || 'default'}
+            sx={{ flexShrink: 0, fontWeight: 600 }}
+          />
         </Box>
-      </Paper>
 
-      {/* Completion Highlight */}
-      {isCompletedMail && (
-        <Paper
-          sx={{
-            p: 3,
-            mb: 3,
-            border: '2px solid',
-            borderColor: 'success.main',
-            bgcolor: 'success.lighter',
-          }}
-        >
-          <Box display="flex" alignItems="center" gap={1} mb={1}>
-            <TaskAltIcon color="success" />
-            <Typography variant="overline" color="success.dark" sx={{ fontWeight: 800, letterSpacing: 1 }}>
-              Final Action Taken
-            </Typography>
-          </Box>
-          <Typography
-            variant="h5"
+        {/* Overdue banner: only shown when overdue and not Closed */}
+        {overdue && (
+          <Box
+            display="flex"
+            alignItems="center"
+            gap={1}
             sx={{
-              color: 'success.dark',
-              fontWeight: 800,
-              lineHeight: 1.3,
-              mb: 1,
+              mt: 2,
+              p: 1.5,
+              borderRadius: 1,
+              bgcolor: 'error.lighter',
+              border: '1px solid',
+              borderColor: 'error.light',
             }}
           >
-            {finalActionTaken || 'Task Completed'}
-          </Typography>
-          <Typography variant="body2" color="success.dark">
-            Completed on {mail.date_of_completion ? formatDate(mail.date_of_completion) : 'N/A'} by{' '}
-            {mail.current_handler_details?.full_name || 'Current Handler'}
-          </Typography>
-        </Paper>
-      )}
+            <WarningIcon color="error" fontSize="small" />
+            <Typography variant="body2" color="error.dark" fontWeight={600}>
+              Overdue by {Math.floor((new Date() - new Date(mail.due_date)) / (1000 * 60 * 60 * 24))} days
+            </Typography>
+          </Box>
+        )}
+      </Paper>
 
       {/* Mail Information */}
       <Paper sx={{ p: 3, mb: 3 }}>
