@@ -19,7 +19,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from users.views import UserViewSet, CustomTokenObtainPairView
+from users.views import UserViewSet, CustomTokenObtainPairView, ChangePasswordView
 from sections.views import SectionViewSet, SubsectionViewSet
 from records.views import MailRecordViewSet, MailAssignmentViewSet
 from audit.views import AuditTrailViewSet
@@ -40,6 +40,7 @@ urlpatterns = [
     # JWT authentication endpoints
     path('api/auth/login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/auth/change-password/', ChangePasswordView.as_view(), name='change_password'),
     # API endpoints
     path('api/', include(router.urls)),
 ]
