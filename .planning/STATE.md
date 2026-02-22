@@ -1,8 +1,8 @@
 # State: Mail Tracker v1.1 UI/UX Refresh + Password Change
 
-**Current Phase:** 4
-**Current Plan:** Not started
-**Last Action:** Executed 04-02 — frontend change-password page
+**Current Phase:** 5
+**Current Plan:** 01 complete
+**Last Action:** Executed 05-01 — Mail Detail header redesign
 **Date:** 2026-02-22
 
 ## Project Reference
@@ -10,16 +10,16 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Users can securely attach, store, and view PDF documents with proper access control and audit logging
-**Current focus:** v1.1 — Phase 4: Password Change (complete), next: Phase 5 Mail Detail UI/UX Refresh
+**Current focus:** v1.1 — Phase 5: Mail Detail UI/UX Refresh (plan 01 of ? complete)
 
 ## Current Position
 
-Phase: 4 of 5 (Password Change)
-Plan: 02 complete — frontend change-password page done
-Status: Phase 4 complete — ready for Phase 5
-Last activity: 2026-02-22 — 04-02 complete (ChangePasswordPage, authService.changePassword, LoginPage link, App.jsx route)
+Phase: 5 of 5 (Mail Detail UI/UX Refresh)
+Plan: 01 complete — MailDetailPage header redesign done
+Status: Phase 5 in progress — plan 01 done, plan 02+ pending
+Last activity: 2026-02-22 — 05-01 complete (DETAIL_STATUS_CHIP constant, MailDetailPage header redesign, @mui/lab installed)
 
-Progress: [███████░░░] 70% (4/5 phases complete, phase 5 not started)
+Progress: [████████░░] 80% (4/5 phases complete, phase 5 plan 01 done)
 
 ## Phase Status
 
@@ -29,7 +29,7 @@ Progress: [███████░░░] 70% (4/5 phases complete, phase 5 not
 | 2. Role System & Backend Updates | Done | 16 | 3/3 plans done |
 | 3. Frontend & Workflow | Done | 17 | 3/3 plans done |
 | 4. Password Change | Done | 7 | 2/2 plans done |
-| 5. Mail Detail UI/UX Refresh | Not started | 13 | 0/? plans |
+| 5. Mail Detail UI/UX Refresh | In Progress | 13 | 1/? plans |
 
 ## Active Context
 
@@ -50,6 +50,10 @@ Progress: [███████░░░] 70% (4/5 phases complete, phase 5 not
 - **Card-based detail view** — better information hierarchy than table layout
 - **Two-column layout (65/35)** — separates mail context (left) from tracking/accountability (right)
 - **Vertical MUI Timeline** — easier to follow audit story than table rows
+- **Subject as h5 primary title** — subject is more meaningful at-a-glance than serial number (sl_no becomes subtitle)
+- **Pending chip label for Received+Assigned** — non-technical users don't need to distinguish unassigned vs assigned-but-not-started
+- **Completion Highlight block removed** — completion date belongs in audit trail only, not a separate banner
+- **Overdue banner inside header Paper** — contextually adjacent to status chip for immediate visual association
 
 ## Current Blockers
 
@@ -61,6 +65,7 @@ None
 - v1.1 roadmap defined 2026-02-22: Phase 4 (password change) + Phase 5 (Mail Detail redesign)
 - 04-01 complete: POST /api/auth/change-password/ wired, verified with curl, all 5 error/success cases confirmed
 - 04-02 complete: ChangePasswordPage.jsx, changePassword() in authService, link on LoginPage, /change-password public route
+- 05-01 complete: @mui/lab installed, DETAIL_STATUS_CHIP constant added to constants.js, MailDetailPage header replaced with subject-first redesign + overdue banner
 
 ## Performance Metrics
 
@@ -77,10 +82,11 @@ None
 | 03 | 03 | ~3 min | 2/2 | 4 |
 | 04 | 01 | ~2 min | 2/2 | 2 |
 | 04 | 02 | ~4 min | 3/3 | 4 |
+| 05 | 01 | ~4 min | 3/3 | 3 |
 
 ## Stopped At
 
-Completed 04-02-PLAN.md — frontend change-password page shipped, Phase 4 Password Change complete
+Completed 05-01-PLAN.md — MailDetailPage header redesign shipped (subject title, sl_no subtitle, grouped status chip, overdue banner)
 
 ---
 *State tracking for Mail Tracker v1.1 UI/UX Refresh*
