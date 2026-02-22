@@ -27,14 +27,19 @@ import mailService from '../services/mailService';
 import { MAIL_STATUS, STATUS_COLORS, ACTION_STATUS_COLORS } from '../utils/constants';
 import { formatDate, calculateTimeInStage, isOverdue } from '../utils/dateHelpers';
 import { exportMailListToPDF } from '../utils/pdfExport';
+import { useAuth } from '../context/AuthContext';
 
 const MailListPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [mails, setMails] = useState([]);
+  const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filters, setFilters] = useState({
     status: '',
+    section: '',
+    subsection: '',
     search: '',
   });
   // Separate state for search input to enable debouncing
@@ -63,6 +68,21 @@ const MailListPage = () => {
     loadMails();
   }, [filters]);
 
+  // Load section hierarchy for AG/DAG filter dropdowns
+  useEffect(() => {
+    const loadSections = async () => {
+      if (!user || (user.role !== 'AG' && user.role !== 'DAG')) return;
+      try {
+        const sectionsData = await mailService.getSections();
+        setSections(sectionsData);
+      } catch (err) {
+        console.error('Error loading sections:', err);
+      }
+    };
+
+    loadSections();
+  }, [user]);
+
   const loadMails = async () => {
     setLoading(true);
     setError('');
@@ -84,6 +104,15 @@ const MailListPage = () => {
   };
 
   const handleFilterChange = (field, value) => {
+    if (field === 'section') {
+      setFilters({
+        ...filters,
+        section: value,
+        subsection: '',
+      });
+      return;
+    }
+
     setFilters({
       ...filters,
       [field]: value,
@@ -95,10 +124,57 @@ const MailListPage = () => {
     navigate(`/mails/${mailId}`);
   }, [navigate]);
 
+  const sectionOptions = useMemo(() => {
+    if (!user) return [];
+
+    if (user.role === 'AG') return sections;
+
+    if (user.role === 'DAG') {
+      const dagSectionIds = new Set((user.sections || []).map((id) => Number(id)));
+      return sections.filter((section) => dagSectionIds.has(section.id));
+    }
+
+    return [];
+  }, [sections, user]);
+
+  const subsectionOptions = useMemo(() => {
+    if (!user || (user.role !== 'AG' && user.role !== 'DAG')) return [];
+
+    let baseSections = sectionOptions;
+
+    if (user.role === 'AG' && filters.section) {
+      baseSections = sectionOptions.filter((section) => section.id === Number(filters.section));
+    }
+
+    return baseSections.flatMap((section) =>
+      (section.subsections || []).map((subsection) => ({
+        ...subsection,
+        section_name: section.name,
+      }))
+    );
+  }, [sectionOptions, filters.section, user]);
+
+  // UI-only role-based filtering for subsection and role-driven section controls
+  const visibleMails = useMemo(() => {
+    let filtered = [...mails];
+
+    if (filters.section) {
+      const sectionId = Number(filters.section);
+      filtered = filtered.filter((mail) => Number(mail.section) === sectionId);
+    }
+
+    if (filters.subsection) {
+      const subsectionId = Number(filters.subsection);
+      filtered = filtered.filter((mail) => Number(mail.subsection) === subsectionId);
+    }
+
+    return filtered;
+  }, [mails, filters.section, filters.subsection]);
+
   // PERFORMANCE FIX: Memoize sorted mails to prevent re-sorting on every render
-  // Only re-sort when mails, orderBy, or order changes
+  // Only re-sort when visible mails, orderBy, or order changes
   const sortedMails = useMemo(() => {
-    return [...mails].sort((a, b) => {
+    return [...visibleMails].sort((a, b) => {
       let aValue = a[orderBy];
       let bValue = b[orderBy];
 
@@ -117,7 +193,7 @@ const MailListPage = () => {
       }
       return aValue < bValue ? 1 : -1;
     });
-  }, [mails, orderBy, order]);
+  }, [visibleMails, orderBy, order]);
 
   if (loading) {
     return (
@@ -149,13 +225,13 @@ const MailListPage = () => {
       )}
 
       <Paper sx={{ p: 2, mb: 3 }}>
-        <Box display="flex" gap={2}>
+        <Box display="flex" gap={2} flexWrap="wrap">
           <TextField
             label="Search"
             placeholder="Search by sl_no, letter_no, or subject"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            sx={{ flexGrow: 1 }}
+            sx={{ flexGrow: 1, minWidth: 260 }}
             size="small"
           />
 
@@ -174,6 +250,42 @@ const MailListPage = () => {
               ))}
             </Select>
           </FormControl>
+
+          {user?.role === 'AG' && (
+            <FormControl sx={{ minWidth: 220 }} size="small">
+              <InputLabel>Section</InputLabel>
+              <Select
+                value={filters.section}
+                label="Section"
+                onChange={(e) => handleFilterChange('section', e.target.value)}
+              >
+                <MenuItem value="">All Sections</MenuItem>
+                {sectionOptions.map((section) => (
+                  <MenuItem key={section.id} value={section.id}>
+                    {section.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+
+          {(user?.role === 'AG' || user?.role === 'DAG') && (
+            <FormControl sx={{ minWidth: 260 }} size="small">
+              <InputLabel>Subsection</InputLabel>
+              <Select
+                value={filters.subsection}
+                label="Subsection"
+                onChange={(e) => handleFilterChange('subsection', e.target.value)}
+              >
+                <MenuItem value="">All Subsections</MenuItem>
+                {subsectionOptions.map((subsection) => (
+                  <MenuItem key={subsection.id} value={subsection.id}>
+                    {`${subsection.section_name} - ${subsection.name}`}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
         </Box>
       </Paper>
 
