@@ -95,6 +95,24 @@ const authService = {
 
     return access;
   },
+
+  /**
+   * Change user password (no JWT required — authenticates via username + current password)
+   * @param {string} username
+   * @param {string} currentPassword
+   * @param {string} newPassword
+   * @param {string} confirmPassword
+   * @returns {Promise<{message: string}>}
+   */
+  async changePassword(username, currentPassword, newPassword, confirmPassword) {
+    const response = await api.post('/auth/change-password/', {
+      username,
+      current_password: currentPassword,
+      new_password: newPassword,
+      confirm_password: confirmPassword,
+    });
+    return response.data;
+  },
 };
 
 export default authService;
