@@ -151,23 +151,24 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PDF-01 to PDF-11 | Phase 1 | Pending |
-| DOCKER-01 to DOCKER-10 | Phase 1 | Pending |
-| NGINX-01 to NGINX-08 | Phase 1 | Pending |
+| PDF-01 to PDF-11 | Phase 1 | Complete |
+| DOCKER-01 to DOCKER-10 | Phase 1 | Complete |
+| NGINX-01 to NGINX-08 | Phase 1 | Complete |
 | ROLE-01 to ROLE-08 | Phase 2 | Complete |
-| WORKFLOW-01 to WORKFLOW-07 | Phase 2 | Complete |
+| WORKFLOW-04 to WORKFLOW-05 | Phase 2 | Complete |
 | BACKEND-01 to BACKEND-06 | Phase 2 | Complete |
+| WORKFLOW-01 to WORKFLOW-03, 06-07 | Phase 3 | Complete |
 | FRONTEND-01 to FRONTEND-06 | Phase 3 | Complete |
 | CLEANUP-01 to CLEANUP-06 | Phase 3 | Complete |
 | PASSWD-01 to PASSWD-07 | Phase 4 | Pending |
 | UIUX-01 to UIUX-13 | Phase 5 | Pending |
 
 **Coverage:**
-- v1 requirements (v1.0): 52 total — all complete ✓
-- v1.1 requirements: 20 total
-- Mapped to phases: 20
+- v1.0 requirements: 52 total — all complete (phases 1-3) ✓
+- v1.1 requirements: 20 total — pending (phases 4-5)
+- Mapped to phases: 72/72
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-02-20*
-*Last updated: 2026-02-22 after v1.1 milestone scope definition*
+*Last updated: 2026-02-22 — traceability updated for v1.1 phases 4-5*
