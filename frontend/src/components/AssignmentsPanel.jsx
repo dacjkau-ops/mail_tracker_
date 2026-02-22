@@ -319,7 +319,7 @@ const IsolatedAssignmentView = ({ assignment, mailId, onUpdate, currentUser }) =
  * Shows all assignees in columns with their remarks timeline
  */
 const SupervisorAssignmentsTable = ({ assignments, onUpdate, currentUser }) => {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const [revokeDialogOpen, setRevokeDialogOpen] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [revokeRemarks, setRevokeRemarks] = useState('');

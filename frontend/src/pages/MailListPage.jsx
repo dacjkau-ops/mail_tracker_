@@ -177,11 +177,11 @@ const MailListPage = () => {
         </Box>
       </Paper>
 
-      <TableContainer component={Paper}>
-        <Table>
+      <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+        <Table sx={{ tableLayout: 'fixed', minWidth: 900 }}>
           <TableHead>
             <TableRow>
-              <TableCell>
+              <TableCell sx={{ width: '6%' }}>
                 <TableSortLabel
                   active={orderBy === 'sl_no'}
                   direction={orderBy === 'sl_no' ? order : 'asc'}
@@ -190,10 +190,10 @@ const MailListPage = () => {
                   SL No
                 </TableSortLabel>
               </TableCell>
-              <TableCell>Letter No</TableCell>
-              <TableCell>Subject</TableCell>
-              <TableCell>From Office</TableCell>
-              <TableCell>
+              <TableCell sx={{ width: '11%' }}>Letter No</TableCell>
+              <TableCell sx={{ width: '13%' }}>Subject</TableCell>
+              <TableCell sx={{ width: '8%' }}>From Office</TableCell>
+              <TableCell sx={{ width: '10%' }}>
                 <TableSortLabel
                   active={orderBy === 'assigned_to'}
                   direction={orderBy === 'assigned_to' ? order : 'asc'}
@@ -202,9 +202,9 @@ const MailListPage = () => {
                   Assigned To
                 </TableSortLabel>
               </TableCell>
-              <TableCell>Current Handler</TableCell>
-              <TableCell>Current Action</TableCell>
-              <TableCell>
+              <TableCell sx={{ width: '10%' }}>Current Handler</TableCell>
+              <TableCell sx={{ width: '12%' }}>Current Action</TableCell>
+              <TableCell sx={{ width: '7%' }}>
                 <TableSortLabel
                   active={orderBy === 'due_date'}
                   direction={orderBy === 'due_date' ? order : 'asc'}
@@ -213,9 +213,9 @@ const MailListPage = () => {
                   Due Date
                 </TableSortLabel>
               </TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Time in Stage</TableCell>
-              <TableCell>Completion Date</TableCell>
+              <TableCell sx={{ width: '7%' }}>Status</TableCell>
+              <TableCell sx={{ width: '9%' }}>Time in Stage</TableCell>
+              <TableCell sx={{ width: '7%' }}>Completion Date</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -244,14 +244,14 @@ const MailListPage = () => {
                       },
                     }}
                   >
-                    <TableCell>{mail.sl_no}</TableCell>
-                    <TableCell>{mail.letter_no}</TableCell>
-                    <TableCell>
+                    <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mail.sl_no}</TableCell>
+                    <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mail.letter_no}</TableCell>
+                    <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {mail.mail_reference_subject?.length > 50
                         ? `${mail.mail_reference_subject.substring(0, 50)}...`
                         : mail.mail_reference_subject}
                     </TableCell>
-                    <TableCell>{mail.from_office}</TableCell>
+                    <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mail.from_office}</TableCell>
                     <TableCell>
                       {mail.is_multi_assigned && mail.assignees_display?.length > 0 ? (
                         <Box>
@@ -265,7 +265,9 @@ const MailListPage = () => {
                           </Tooltip>
                         </Box>
                       ) : (
-                        mail.assigned_to_name || mail.assigned_to?.full_name || 'N/A'
+                        <Typography variant="body2" noWrap>
+                          {mail.assigned_to_name || mail.assigned_to?.full_name || 'N/A'}
+                        </Typography>
                       )}
                     </TableCell>
                     <TableCell>
@@ -281,7 +283,9 @@ const MailListPage = () => {
                           </Tooltip>
                         </Box>
                       ) : (
-                        mail.current_handler_name || mail.current_handler?.full_name || 'N/A'
+                        <Typography variant="body2" noWrap>
+                          {mail.current_handler_name || mail.current_handler?.full_name || 'N/A'}
+                        </Typography>
                       )}
                     </TableCell>
                     <TableCell>
