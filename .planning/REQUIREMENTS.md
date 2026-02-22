@@ -91,6 +91,32 @@
 - [ ] **CLEANUP-05**: Build artifacts not tracked in git
 - [x] **CLEANUP-06**: Documentation updated to reflect changes
 
+### Password Change (v1.1)
+
+- [ ] **PASSWD-01**: Login page includes a "Change Password" link navigating to `/change-password`
+- [ ] **PASSWD-02**: `/change-password` page renders a form with: Username, Current Password, New Password, Confirm New Password
+- [ ] **PASSWD-03**: Backend `POST /api/auth/change-password/` authenticates via username + current password (no JWT required)
+- [ ] **PASSWD-04**: Backend validates new password matches confirm password before updating
+- [ ] **PASSWD-05**: Backend enforces minimum password length of 8 characters
+- [ ] **PASSWD-06**: On success, user is redirected to `/login` with a success message
+- [ ] **PASSWD-07**: On failure, user sees specific error messages (wrong current password, mismatch, too short)
+
+### UI/UX Refresh — Mail Detail (v1.1)
+
+- [ ] **UIUX-01**: Mail Detail header shows Subject as primary title (h5 typography)
+- [ ] **UIUX-02**: Serial Number (sl_no) displayed as secondary subtitle below the title
+- [ ] **UIUX-03**: Status Chip with color coding shown next to title (Received=gray, Assigned=blue, In Progress=orange, Closed=green)
+- [ ] **UIUX-04**: Mail Detail uses two-column layout (65% left / 35% right)
+- [ ] **UIUX-05**: Left column contains Origin Card (from_office, date_received, letter_no, section)
+- [ ] **UIUX-06**: Left column contains Instructions Card (action_required)
+- [ ] **UIUX-07**: Left column contains Handler Remarks Card (current remarks)
+- [ ] **UIUX-08**: Right column contains Current Handler Card with handler name and time-in-stage displayed
+- [ ] **UIUX-09**: Due date shown in right column with red highlight when overdue and status is not Closed
+- [ ] **UIUX-10**: Action buttons (Reassign, Close, Reopen, Edit Remarks) grouped in right column top area
+- [ ] **UIUX-11**: Audit trail displayed as vertical MUI Timeline (replaces existing table)
+- [ ] **UIUX-12**: Timeline entries show: timestamp, action type, performed by, remarks
+- [ ] **UIUX-13**: Fields with null/empty values are hidden conditionally (not shown as blank or N/A)
+
 ## v2 Requirements (Future)
 
 ### Additional Features
@@ -128,17 +154,20 @@
 | PDF-01 to PDF-11 | Phase 1 | Pending |
 | DOCKER-01 to DOCKER-10 | Phase 1 | Pending |
 | NGINX-01 to NGINX-08 | Phase 1 | Pending |
-| ROLE-01 to ROLE-08 | Phase 2 | Pending |
-| WORKFLOW-01 to WORKFLOW-07 | Phase 2 | Pending |
-| BACKEND-01 to BACKEND-06 | Phase 2 | Pending |
-| FRONTEND-01 to FRONTEND-06 | Phase 3 | Pending |
-| CLEANUP-01 to CLEANUP-06 | Phase 3 | Pending |
+| ROLE-01 to ROLE-08 | Phase 2 | Complete |
+| WORKFLOW-01 to WORKFLOW-07 | Phase 2 | Complete |
+| BACKEND-01 to BACKEND-06 | Phase 2 | Complete |
+| FRONTEND-01 to FRONTEND-06 | Phase 3 | Complete |
+| CLEANUP-01 to CLEANUP-06 | Phase 3 | Complete |
+| PASSWD-01 to PASSWD-07 | Phase 4 | Pending |
+| UIUX-01 to UIUX-13 | Phase 5 | Pending |
 
 **Coverage:**
-- v1 requirements: 52 total
-- Mapped to phases: 52
+- v1 requirements (v1.0): 52 total — all complete ✓
+- v1.1 requirements: 20 total
+- Mapped to phases: 20
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-02-20*
-*Last updated: 2026-02-20 after initial definition*
+*Last updated: 2026-02-22 after v1.1 milestone scope definition*
