@@ -49,6 +49,15 @@ export const STATUS_COLORS = {
   [MAIL_STATUS.CLOSED]: 'success',
 };
 
+// Status Chip mapping for Mail Detail page header
+// Groups Received+Assigned → "Pending", In Progress → "In Progress", Closed → "Closed"
+export const DETAIL_STATUS_CHIP = {
+  [MAIL_STATUS.RECEIVED]: { label: 'Pending', color: 'default' },
+  [MAIL_STATUS.ASSIGNED]: { label: 'Pending', color: 'default' },
+  [MAIL_STATUS.IN_PROGRESS]: { label: 'In Progress', color: 'warning' },
+  [MAIL_STATUS.CLOSED]: { label: 'Closed', color: 'success' },
+};
+
 // Current Action Status Colors
 export const ACTION_STATUS_COLORS = {
   'Under Review': 'info',
