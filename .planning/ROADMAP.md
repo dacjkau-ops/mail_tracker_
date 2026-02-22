@@ -107,7 +107,11 @@ Plans:
   3. Overdue mails show the due date highlighted in red when status is not Closed
   4. Audit trail is displayed as a vertical MUI Timeline showing timestamp, action type, actor, and remarks per entry
   5. Fields with null or empty values are not rendered (no blank labels or "N/A" placeholders visible to the user)
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Install @mui/lab + add DETAIL_STATUS_CHIP constant + redesign page header (subject title, sl_no subtitle, status chip, overdue banner)
+- [ ] 05-02-PLAN.md — Two-column card layout + inline remarks editing + MUI Timeline audit trail + human verification checkpoint
 
 ---
 
