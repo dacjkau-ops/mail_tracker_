@@ -2,28 +2,25 @@
 
 ## What This Is
 
-Enhancement of an existing Django + React Mail Tracking application. The system tracks received mails/actions, assigns them to officers, monitors progress through different stages, and maintains a complete audit trail. v1.0 added PDF attachments, Docker deployment, and expanded roles. v1.1 adds self-service password change for all users and a full UI/UX redesign of the Mail Detail view.
+Enhancement of an existing Django + React Mail Tracking application. The system tracks received mails/actions, assigns them to officers, monitors progress through different stages, and maintains a complete audit trail. v1.0 added PDF attachments, Docker deployment, and expanded roles. v1.1 added self-service password change and a full redesign of the Mail Detail view for clearer information hierarchy.
 
-## Current Milestone: v1.1 UI/UX Refresh + Password Change
+## Current State (after v1.1)
 
-**Goal:** Add self-service password change for all users and redesign the Mail Detail view for better clarity, context, and usability
+**Shipped milestones:**
+- **v1.0** (2026-02-21) — Docker + PostgreSQL, PDF upload/view via X-Accel-Redirect, auditor/clerk roles, universal mail creation, bottom-up visibility, free-text action field, Nginx proxy
+- **v1.1** (2026-02-22) — Self-service password change (no JWT required), Mail Detail two-column redesign, MUI Timeline audit trail, inline remarks editing, status chip grouping (Pending/In Progress/Closed)
 
-**Target features:**
-- Self-service password change accessible from the login page (/change-password route)
-- Header redesign with Subject as primary heading and Serial Number as secondary
-- Two-column layout separating core information from tracking/accountability
-- Card-based presentation for Origin, Instructions, and Handler Remarks
-- Prominent time tracking and due date display with overdue highlighting
-- Vertical Timeline for audit trail instead of table
-- Conditional field display (hide N/A values)
+**Codebase:** 3,158 Python LOC (backend) + 4,244 React/JS LOC (frontend)
+
+**Tech stack:** Django 5.x + DRF + SimpleJWT | React 18 + MUI v5 + @mui/lab | PostgreSQL in Docker | Nginx (X-Accel-Redirect) | Docker Compose
 
 ## Core Value
 
-Users can securely attach, store, and view PDF documents for mail records with proper access control and audit logging, while maintaining the existing hierarchy-based visibility and workflow automation.
+An on-premise office workflow tracker where every mail/action is visible to the right people, assigned to someone accountable, and tracked through its lifecycle — with a complete audit trail showing who did what and when.
 
 ## Requirements
 
-### Validated (Existing - Working)
+### Validated
 
 - ✓ User authentication with JWT (AG, DAG, SrAO, AAO, auditor, clerk roles) — v1.0
 - ✓ Mail record CRUD with auto-generated serial numbers — v1.0
@@ -43,31 +40,27 @@ Users can securely attach, store, and view PDF documents for mail records with p
 - ✓ Free-text action field (replacing dropdown) — v1.0
 - ✓ PDF upload integration in mail creation — v1.0
 - ✓ Codebase cleanup and optimization — v1.0
+- ✓ Self-service password change (no JWT required, credential-based auth) — v1.1
+- ✓ Mail Detail header redesign (Subject h5 title, sl_no subtitle, Pending/In Progress/Closed chip) — v1.1
+- ✓ Two-column Mail Detail layout (65% info / 35% tracking) — v1.1
+- ✓ Card-based information grouping (Origin, Instructions, Handler Remarks) — v1.1
+- ✓ Inline remarks editing (click-to-edit TextField in Handler Remarks card) — v1.1
+- ✓ Due date overdue highlighting (red text + warning banner) — v1.1
+- ✓ MUI Timeline audit trail (newest-first, color-coded, relative+absolute timestamps) — v1.1
+- ✓ Conditional field display (null/empty fields hidden, no N/A placeholders) — v1.1
 
-### Active (Current Scope - To Build)
+### Active (Next Milestone)
 
-- [ ] "Change Password" link on login page navigating to /change-password
-- [ ] Change password form: Username, Current Password, New Password, Confirm New Password
-- [ ] Backend endpoint POST /api/auth/change-password/ (no JWT required, validates current password)
-- [ ] Success redirects to login; clear validation error messages
-- [ ] Redesigned Mail Detail header with Subject/Serial as title
-- [ ] Status Chip with color coding next to title
-- [ ] Two-column layout (65%/35%) for detail view
-- [ ] MUI Cards for Origin, Instruction, and Handler Remarks
-- [ ] Current Handler card with time tracking display
-- [ ] Due Date with overdue highlighting
-- [ ] Vertical Timeline for audit trail history
-- [ ] Action buttons grouped in top-right corner
-- [ ] Hide N/A fields conditionally
+*(No active requirements — planning next milestone)*
 
 ### Out of Scope
 
-- Multiple attachments per mail — only one PDF per record (keep it simple)
+- Multiple attachments per mail — one PDF per record (simplicity)
 - PDF editing or annotation — view-only
 - OCR or text extraction from PDFs — not needed
-- Cloud storage (S3, etc.) — local file system only
-- Email notifications — already out of scope
-- Real-time updates via WebSockets — polling is sufficient
+- Cloud storage (S3, etc.) — on-premise filesystem only
+- Email notifications — intentionally excluded
+- Real-time updates via WebSockets — not needed
 - Mobile app — web-only
 - Advanced search within PDFs — not needed
 
@@ -75,54 +68,32 @@ Users can securely attach, store, and view PDF documents for mail records with p
 
 ### Current System State
 
-**Backend:**
-- Django 5.x with Django REST Framework
-- SQLite database (to be migrated to PostgreSQL in Docker)
-- JWT authentication (SimpleJWT)
-- Existing roles: AG, DAG, SrAO, AAO
-- No file upload capability currently exists
-- Audit trail implemented via AuditTrail model
+**Backend (Django):**
+- Django 5.x + DRF + SimpleJWT
+- PostgreSQL in Docker (production), SQLite (dev fallback)
+- Roles: AG, DAG, SrAO, AAO, auditor, clerk
+- Password change endpoint: POST /api/auth/change-password/ (AllowAny, credential-auth)
+- PDF storage: /srv/mailtracker/pdfs (UUID filenames, metadata in DB)
+- Audit trail: AuditTrail model with all action types
 
-**Frontend:**
-- React 18 with Material-UI v5
-- Axios for API calls
-- No file upload components exist
-- Current action_required is a dropdown with fixed choices
-
-**Current Permission Model:**
-- AG: Full access, can create for any section
-- DAG: Can create only for own section
-- SrAO/AAO: Cannot create mails
-- Visibility based on assignment + "touched" records
-
-### New Requirements Context
-
-**PDF Storage:**
-- Production path: `/srv/mailtracker/pdfs`
-- UUID-based filenames to prevent collisions
-- Database stores only metadata (filename, original name, size)
-- Nginx serves files directly via X-Accel-Redirect
+**Frontend (React):**
+- React 18 + MUI v5 + @mui/lab (Timeline components)
+- Mail Detail: two-column card layout, MUI Timeline audit trail, inline remarks editing
+- ChangePasswordPage at /change-password (public route, no JWT required)
+- Constants: DETAIL_STATUS_CHIP (Pending/In Progress/Closed grouping)
 
 **Deployment:**
-- On-premise Docker deployment
-- PostgreSQL for production database
-- Nginx as reverse proxy and static/PDF server
-- Persistent volumes for data and PDFs
-
-**Role Changes:**
-- Add "auditor" (read-only, cross-section visibility)
-- Add "clerk" (can create, limited visibility)
-- Everyone can create mails (AG, DAG, SrAO, AAO, clerk)
-- Bottom-up visibility: See own level and below
+- Docker Compose: postgres + backend + nginx services
+- Nginx: proxies /api/, serves /static/, internal /_protected_pdfs/ via X-Accel-Redirect
+- Persistent volumes: postgres_data, pdfs, staticfiles
 
 ## Constraints
 
-- **Storage:** PDFs stored on filesystem, not database — performance
-- **Security:** X-Accel-Redirect required, Django must not stream PDFs — security
-- **Permissions:** Must maintain existing audit trail and permission enforcement
-- **Migration:** Must not break existing SQLite data during transition
+- **Storage:** PDFs on filesystem, not database — performance
+- **Security:** X-Accel-Redirect required, Django authorizes but doesn't stream PDFs
 - **Hosting:** On-premise only (laptop/server), no cloud dependencies
-- **Compatibility:** Existing frontend must work during transition
+- **Database:** PostgreSQL in Docker for production (SQLite for dev)
+- **Scale:** Designed for single-office use, not multi-tenant
 
 ## Key Decisions
 
@@ -134,11 +105,15 @@ Users can securely attach, store, and view PDF documents for mail records with p
 | Everyone creates mails | Workflow requirement from office | ✓ Good |
 | Bottom-up visibility | Section heads need oversight of subordinates | ✓ Good |
 | Free-text action field | Flexibility in describing actions | ✓ Good |
-| Card-based detail view | Better information hierarchy than table | — Pending |
-| Two-column layout | Separate context from tracking | — Pending |
-| Vertical timeline | Easier to follow audit story than table | — Pending |
-| Change password as separate page | Cleaner UX than modal; standard pattern users know | — Pending |
-| Change password without JWT | Users may not be logged in; current password acts as auth | — Pending |
+| Card-based detail view | Better information hierarchy than table | ✓ Good |
+| Two-column layout (65/35) | Separates mail context from tracking/accountability | ✓ Good |
+| Vertical MUI Timeline | Easier to follow audit story than table rows | ✓ Good |
+| Change password as separate page | Cleaner UX than modal; standard pattern users know | ✓ Good |
+| AllowAny on change-password endpoint | Users may be logged out or have expired tokens | ✓ Good |
+| Inline remarks editing | Natural in-context editing; no modal friction | ✓ Good |
+| Status chip grouping (Received+Assigned→Pending) | Reader perspective: both mean "not actively worked on" | ✓ Good |
+| Handler Remarks always visible | Most important field in the detail view; never hidden | ✓ Good |
+| Two-layer overdue warning | Red due date text + banner ensures visibility | ✓ Good |
 
 ---
-*Last updated: 2026-02-22 after scoping v1.1 milestone (added password change feature)*
+*Last updated: 2026-02-22 after v1.1 milestone — Password Change + UI/UX Refresh complete*
