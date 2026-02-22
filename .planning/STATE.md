@@ -1,23 +1,23 @@
-# State: Mail Tracker v1.1 UI/UX Refresh
+# State: Mail Tracker v1.1 UI/UX Refresh + Password Change
 
 **Current Phase:** Not started
 **Current Plan:** —
-**Last Action:** Started milestone v1.1 — UI/UX redesign of Mail Detail view
-**Date:** 2026-02-21
+**Last Action:** Scoped milestone v1.1 — password change + Mail Detail redesign
+**Date:** 2026-02-22
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-21)
+See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Users can securely attach, store, and view PDF documents with proper access control and audit logging
-**Current focus:** v1.1 UI/UX Refresh — redesigning Mail Detail view for clarity
+**Current focus:** v1.1 — password change for all users + Mail Detail view redesign
 
 ## Current Position
 
 Phase: Not started (defining requirements)
 Plan: —
 Status: Defining requirements
-Last activity: 2026-02-21 — Milestone v1.1 started
+Last activity: 2026-02-22 — Milestone v1.1 scoped (password change + UI/UX refresh)
 
 ## Phase Status
 
@@ -26,7 +26,8 @@ Last activity: 2026-02-21 — Milestone v1.1 started
 | 1. Infrastructure & PDF Backend | ● Done | 29 | 3/3 plans done |
 | 2. Role System & Backend Updates | ● Done | 16 | 3/3 plans done |
 | 3. Frontend & Workflow | ● Done | 17 | 17/17 |
-| 4. UI/UX Refresh | ○ Pending | — | 0/0 |
+| 4. Password Change | ○ Pending | — | 0/0 |
+| 5. UI/UX Refresh | ○ Pending | — | 0/0 |
 
 ## Active Context
 
@@ -98,7 +99,7 @@ None
 
 ## Stopped At
 
-Started milestone v1.1 — defining requirements for UI/UX refresh
+Scoped milestone v1.1 — ready to define requirements and create roadmap
 
 ---
 *State tracking for Mail Tracker v1.1 UI/UX Refresh*

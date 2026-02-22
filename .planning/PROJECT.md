@@ -2,13 +2,14 @@
 
 ## What This Is
 
-Enhancement of an existing Django + React Mail Tracking application. The system tracks received mails/actions, assigns them to officers, monitors progress through different stages, and maintains a complete audit trail. v1.0 added PDF attachments, Docker deployment, and expanded roles. v1.1 focuses on UI/UX improvements for the mail detail view.
+Enhancement of an existing Django + React Mail Tracking application. The system tracks received mails/actions, assigns them to officers, monitors progress through different stages, and maintains a complete audit trail. v1.0 added PDF attachments, Docker deployment, and expanded roles. v1.1 adds self-service password change for all users and a full UI/UX redesign of the Mail Detail view.
 
-## Current Milestone: v1.1 UI/UX Refresh
+## Current Milestone: v1.1 UI/UX Refresh + Password Change
 
-**Goal:** Redesign the Mail Detail view for better clarity, context, and usability
+**Goal:** Add self-service password change for all users and redesign the Mail Detail view for better clarity, context, and usability
 
 **Target features:**
+- Self-service password change accessible from the login page (/change-password route)
 - Header redesign with Subject as primary heading and Serial Number as secondary
 - Two-column layout separating core information from tracking/accountability
 - Card-based presentation for Origin, Instructions, and Handler Remarks
@@ -45,6 +46,10 @@ Users can securely attach, store, and view PDF documents for mail records with p
 
 ### Active (Current Scope - To Build)
 
+- [ ] "Change Password" link on login page navigating to /change-password
+- [ ] Change password form: Username, Current Password, New Password, Confirm New Password
+- [ ] Backend endpoint POST /api/auth/change-password/ (no JWT required, validates current password)
+- [ ] Success redirects to login; clear validation error messages
 - [ ] Redesigned Mail Detail header with Subject/Serial as title
 - [ ] Status Chip with color coding next to title
 - [ ] Two-column layout (65%/35%) for detail view
@@ -132,6 +137,8 @@ Users can securely attach, store, and view PDF documents for mail records with p
 | Card-based detail view | Better information hierarchy than table | — Pending |
 | Two-column layout | Separate context from tracking | — Pending |
 | Vertical timeline | Easier to follow audit story than table | — Pending |
+| Change password as separate page | Cleaner UX than modal; standard pattern users know | — Pending |
+| Change password without JWT | Users may not be logged in; current password acts as auth | — Pending |
 
 ---
-*Last updated: 2026-02-21 after starting v1.1 milestone*
+*Last updated: 2026-02-22 after scoping v1.1 milestone (added password change feature)*
