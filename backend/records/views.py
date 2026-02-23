@@ -395,7 +395,6 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        old_remarks = instance.remarks
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
 
@@ -411,9 +410,8 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             mail_record=instance,
             action='UPDATE',
             performed_by=request.user,
-            old_value={'remarks': old_remarks},
-            new_value={'remarks': instance.remarks, 'status': instance.status},
-            remarks='Updated remarks'
+            new_value={'status': instance.status},
+            remarks='Updated mail record'
         )
 
         response_serializer = MailRecordDetailSerializer(instance, context={'request': request})
@@ -580,7 +578,6 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             mail_record.status = 'Closed'
             mail_record.date_of_completion = now.date()
             mail_record.last_status_change = now
-            mail_record.remarks = remarks
             mail_record.current_action_status = 'Completed'
             mail_record.current_action_remarks = remarks
             mail_record.current_action_updated_at = now
@@ -825,13 +822,16 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 {'error': 'Remarks cannot be empty.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
-        assignment.user_remarks = user_remarks
-        assignment.save()
-        
+
+        AssignmentRemark.objects.create(
+            assignment=assignment,
+            content=user_remarks,
+            created_by=request.user
+        )
+
         # Update consolidated remarks
         mail_record.update_consolidated_remarks()
-        
+
         # Log in audit trail
         AuditTrail.objects.create(
             mail_record=mail_record,
@@ -865,8 +865,8 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Check if assignee has added any remarks (from timeline or legacy field)
-        has_remarks = assignment.remarks_timeline.exists() or assignment.user_remarks
+        # Check if assignee has added any remarks
+        has_remarks = assignment.remarks_timeline.exists()
         if not has_remarks:
             return Response(
                 {'error': 'Please add remarks before marking as complete.'},
@@ -926,10 +926,6 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             content=content,
             created_by=request.user
         )
-
-        # Also update user_remarks for backward compatibility
-        assignment.user_remarks = content
-        assignment.save()
 
         # Update consolidated remarks on mail record
         mail_record.update_consolidated_remarks()
@@ -1225,8 +1221,11 @@ class MailAssignmentViewSet(viewsets.ModelViewSet):
         serializer = AssignmentUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        assignment.user_remarks = serializer.validated_data['remarks']
-        assignment.save()
+        AssignmentRemark.objects.create(
+            assignment=assignment,
+            content=serializer.validated_data['remarks'],
+            created_by=request.user
+        )
 
         # Update consolidated remarks on mail record
         assignment.mail_record.update_consolidated_remarks()
@@ -1236,7 +1235,7 @@ class MailAssignmentViewSet(viewsets.ModelViewSet):
             mail_record=assignment.mail_record,
             action='ASSIGNMENT_UPDATE',
             performed_by=request.user,
-            new_value={'remarks': assignment.user_remarks},
+            new_value={'remarks': serializer.validated_data['remarks']},
             remarks=f"{request.user.full_name} updated remarks"
         )
 
@@ -1262,7 +1261,12 @@ class MailAssignmentViewSet(viewsets.ModelViewSet):
         serializer = AssignmentCompleteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        assignment.user_remarks = serializer.validated_data['remarks']
+        AssignmentRemark.objects.create(
+            assignment=assignment,
+            content=serializer.validated_data['remarks'],
+            created_by=request.user
+        )
+
         assignment.status = 'Completed'
         assignment.completed_at = timezone.now()
         assignment.save()
@@ -1275,7 +1279,7 @@ class MailAssignmentViewSet(viewsets.ModelViewSet):
             mail_record=assignment.mail_record,
             action='ASSIGNMENT_COMPLETE',
             performed_by=request.user,
-            remarks=f"{request.user.full_name} completed: {assignment.user_remarks}"
+            remarks=f"{request.user.full_name} completed: {serializer.validated_data['remarks']}"
         )
 
         return Response(MailAssignmentSerializer(assignment).data)
