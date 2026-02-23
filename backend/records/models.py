@@ -73,8 +73,6 @@ class MailRecord(models.Model):
         blank=True,
         help_text="What action is required on this mail (free text, optional, max 500 chars)"
     )
-    action_required_other = models.CharField(max_length=100, blank=True, null=True)
-
     # Assignment fields
     assigned_to = models.ForeignKey(
         django_settings.AUTH_USER_MODEL,
@@ -140,7 +138,6 @@ class MailRecord(models.Model):
 
     # Additional info
     initial_instructions = models.TextField(blank=True, null=True, help_text="Initial instructions from creator, visible to all assignees")
-    remarks = models.TextField(blank=True, null=True, help_text="DEPRECATED: Use initial_instructions or assignment-level remarks")
 
     # Multi-assignment support (for assigning to multiple persons)
     is_multi_assigned = models.BooleanField(default=False)
@@ -328,19 +325,12 @@ class MailRecord(models.Model):
                 'uploaded_at': None,
                 'uploaded_by': None,
             }
-        size = attachment.file_size
-        if size < 1024:
-            size_human = f"{size} B"
-        elif size < 1024 * 1024:
-            size_human = f"{size / 1024:.1f} KB"
-        else:
-            size_human = f"{size / (1024 * 1024):.1f} MB"
         return {
             'has_attachment': True,
             'attachment_id': str(attachment.id),
             'original_filename': attachment.original_filename,
-            'file_size': size,
-            'file_size_human': size_human,
+            'file_size': attachment.file_size,
+            'file_size_human': RecordAttachment._human_readable_size(attachment.file_size),
             'uploaded_at': attachment.uploaded_at.isoformat() if attachment.uploaded_at else None,
             'uploaded_by': attachment.uploaded_by.username if attachment.uploaded_by else None,
         }
@@ -349,21 +339,22 @@ class MailRecord(models.Model):
         """Update consolidated remarks from all parallel assignments"""
         assignments = self.parallel_assignments.filter(
             status__in=['Active', 'Completed']
-        ).exclude(user_remarks__isnull=True).exclude(user_remarks='')
-
-        if not assignments.exists():
-            self.consolidated_remarks = None
-            self.save(update_fields=['consolidated_remarks'])
-            return
+        ).prefetch_related('remarks_timeline')
 
         remarks_parts = []
         for a in assignments.order_by('created_at'):
+            latest_remark = a.remarks_timeline.order_by('-created_at').first()
+            if not latest_remark:
+                continue
             status_label = "[DONE]" if a.status == 'Completed' else "[IN PROGRESS]"
             remarks_parts.append(
-                f"{status_label} {a.assigned_to.full_name}: {a.user_remarks}"
+                f"{status_label} {a.assigned_to.full_name}: {latest_remark.content}"
             )
 
-        self.consolidated_remarks = "\n---\n".join(remarks_parts)
+        if not remarks_parts:
+            self.consolidated_remarks = None
+        else:
+            self.consolidated_remarks = "\n---\n".join(remarks_parts)
         self.save(update_fields=['consolidated_remarks'])
 
 
@@ -395,7 +386,6 @@ class MailAssignment(models.Model):
         related_name='parallel_assignments_made'
     )
     assignment_remarks = models.TextField(blank=True, null=True)  # Instructions from supervisor
-    user_remarks = models.TextField(blank=True, null=True)  # DEPRECATED: Use AssignmentRemark timeline instead
     status = models.CharField(max_length=10, choices=ASSIGNMENT_STATUS_CHOICES, default='Active')
 
     # Track reassignment within the same assignment

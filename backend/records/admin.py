@@ -21,7 +21,7 @@ class MailRecordAdmin(admin.ModelAdmin):
 
     fieldsets = (
         ('Mail Information', {
-            'fields': ('sl_no', 'letter_no', 'date_received', 'mail_reference_subject', 'from_office', 'action_required', 'action_required_other')
+            'fields': ('sl_no', 'letter_no', 'date_received', 'mail_reference_subject', 'from_office', 'action_required')
         }),
         ('Assignment', {
             'fields': ('section', 'assigned_to', 'current_handler', 'monitoring_officer')
@@ -34,6 +34,6 @@ class MailRecordAdmin(admin.ModelAdmin):
             'description': 'What the current handler is actively doing with this mail'
         }),
         ('Additional Info', {
-            'fields': ('remarks', 'created_by', 'created_at', 'updated_at')
+            'fields': ('initial_instructions', 'created_by', 'created_at', 'updated_at')
         }),
     )

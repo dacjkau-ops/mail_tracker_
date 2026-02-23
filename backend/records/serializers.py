@@ -246,7 +246,7 @@ class MailRecordCreateSerializer(serializers.ModelSerializer):
         model = MailRecord
         fields = [
             'letter_no', 'date_received', 'mail_reference_subject', 'from_office',
-            'action_required', 'action_required_other', 'section', 'subsection', 'assigned_to',
+            'action_required', 'section', 'subsection', 'assigned_to',
             'due_date', 'initial_instructions'
         ]
 
@@ -366,7 +366,7 @@ class MailRecordUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MailRecord
-        fields = ['remarks']
+        fields = []
 
 
 class MailRecordReassignSerializer(serializers.Serializer):
@@ -408,7 +408,7 @@ class MailAssignmentSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'mail_record', 'assigned_to', 'assigned_to_details',
             'assigned_by', 'assigned_by_details', 'assignment_remarks',
-            'user_remarks', 'status', 'created_at', 'updated_at', 'completed_at',
+            'status', 'created_at', 'updated_at', 'completed_at',
             'reassigned_to', 'reassigned_to_details', 'reassigned_at',
             'remarks_timeline', 'has_responded'
         ]
@@ -425,7 +425,7 @@ class MailAssignmentSerializer(serializers.ModelSerializer):
         # Reassignment counts as a response
         if obj.reassigned_to is not None:
             return True
-        return obj.remarks_timeline.exists() or bool(obj.user_remarks)
+        return obj.remarks_timeline.exists()
 
 
 class MultiAssignSerializer(serializers.Serializer):
@@ -517,7 +517,7 @@ class MailAssignmentFullSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'mail_record', 'assigned_to', 'assigned_to_details',
             'assigned_by', 'assigned_by_details', 'assignment_remarks',
-            'user_remarks', 'status', 'created_at', 'updated_at', 'completed_at',
+            'status', 'created_at', 'updated_at', 'completed_at',
             'reassigned_to', 'reassigned_to_details', 'reassigned_at',
             'remarks_timeline', 'has_responded'
         ]
@@ -529,7 +529,7 @@ class MailAssignmentFullSerializer(serializers.ModelSerializer):
 
     def get_has_responded(self, obj):
         """Check if assignee has added any remarks"""
-        return obj.remarks_timeline.exists() or bool(obj.user_remarks)
+        return obj.remarks_timeline.exists()
 
 
 class PDFUploadSerializer(serializers.Serializer):
