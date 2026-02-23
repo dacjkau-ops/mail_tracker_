@@ -1,8 +1,8 @@
 # State: Mail Tracker v1.2 Refactor & Create Mail UX
 
-**Current Phase:** Phase 6 — Backend Cleanup & Refactoring
-**Current Plan:** Plan 06-02 (query optimization)
-**Last Action:** Completed Plan 06-01 (deprecated field removal)
+**Current Phase:** Phase 7 — Create Mail UX (next)
+**Current Plan:** TBD
+**Last Action:** Completed Phase 6 (both plans: field removal + query optimization)
 **Date:** 2026-02-24
 
 ## Project Reference
@@ -14,13 +14,13 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 
 ## Current Position
 
-Phase: 6 — Backend Cleanup & Refactoring (in progress)
-Plan: 06-02 (next)
-Status: Plan 06-01 complete, executing 06-02
-Last activity: 2026-02-24 — Plan 06-01 completed (3 tasks, 3 commits)
+Phase: 6 — Backend Cleanup & Refactoring (COMPLETE)
+Plan: All plans done (06-01, 06-02)
+Status: Phase 6 complete, ready for Phase 7
+Last activity: 2026-02-24 — Phase 6 completed (5 tasks, 5 commits)
 
 ```
-v1.2 Progress: [..........] 0% (0/3 phases)
+v1.2 Progress: [###.......] 33% (1/3 phases)
 ```
 
 ## Active Context
@@ -34,7 +34,7 @@ v1.2 Progress: [..........] 0% (0/3 phases)
 
 | Phase | Goal | Status |
 |-------|------|--------|
-| 6 | Backend cleanup + query optimization | Plan 01 done, Plan 02 next |
+| 6 | Backend cleanup + query optimization | COMPLETE |
 | 7 | Create Mail perf + section UX | Not started |
 | 8 | PDF icon on list + pagination | Not started |
 
@@ -48,6 +48,8 @@ v1.2 Progress: [..........] 0% (0/3 phases)
 *(v1.2 Phase 6)*
 - **MailRecordUpdateSerializer.Meta.fields = []** — no directly-updatable fields remain on MailRecord
 - **AssignmentRemark timeline is sole remarks source** — no dual-write to user_remarks
+- **Per-request caching pattern** — setattr(request, '_cache_key', value) for query dedup
+- **bulk_create for batch inserts** — MailAssignment + AuditTrail in mail creation
 
 ## Current Blockers
 
