@@ -37,11 +37,17 @@ class MailRecordViewSet(viewsets.ModelViewSet):
 
     STATUS_SCOPE_ALL = {'', 'all'}
 
-    def _assigned_mail_ids_for_user(self, user):
-        return MailAssignment.objects.filter(
+    def _assigned_mail_ids_for_user(self, user, request=None):
+        cache_attr = '_assigned_mail_ids_cache'
+        if request and hasattr(request, cache_attr):
+            return getattr(request, cache_attr)
+        result = list(MailAssignment.objects.filter(
             Q(assigned_to=user) | Q(reassigned_to=user),
             status='Active'
-        ).values_list('mail_record_id', flat=True).distinct()
+        ).values_list('mail_record_id', flat=True).distinct())
+        if request:
+            setattr(request, cache_attr, result)
+        return result
 
     def _apply_status_scope_filter(self, queryset, user, status_filter):
         if status_filter in self.STATUS_SCOPE_ALL:
@@ -54,7 +60,7 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             return queryset.filter(status='Closed')
 
         if status_filter == 'assigned':
-            assigned_ids = self._assigned_mail_ids_for_user(user)
+            assigned_ids = self._assigned_mail_ids_for_user(user, getattr(self, 'request', None))
             return queryset.filter(
                 Q(current_handler=user) |
                 Q(assigned_to=user) |
@@ -192,7 +198,7 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 performed_by=user
             ).values_list('mail_record_id', flat=True).distinct()
 
-            assigned_via_parallel = self._assigned_mail_ids_for_user(user)
+            assigned_via_parallel = self._assigned_mail_ids_for_user(user, self.request)
 
             dag_section_ids = user.sections.values_list('id', flat=True)
 
@@ -216,7 +222,7 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 performed_by=user
             ).values_list('mail_record_id', flat=True).distinct()
 
-            assigned_via_parallel = self._assigned_mail_ids_for_user(user)
+            assigned_via_parallel = self._assigned_mail_ids_for_user(user, self.request)
 
             queryset = base_queryset.filter(
                 Q(current_handler=user) |
@@ -227,7 +233,7 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 Q(created_by=user)
             )
         elif user.role == 'clerk':
-            assigned_via_parallel = self._assigned_mail_ids_for_user(user)
+            assigned_via_parallel = self._assigned_mail_ids_for_user(user, self.request)
 
             queryset = base_queryset.filter(
                 Q(current_handler=user) |
@@ -350,35 +356,39 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             last_status_change=timezone.now()
         )
 
-        # Create assignment records for each assignee
-        for assignee in assignees:
-            MailAssignment.objects.create(
+        # Create assignment records for each assignee (bulk)
+        assignment_objects = [
+            MailAssignment(
                 mail_record=mail_record,
                 assigned_to=assignee,
                 assigned_by=user,
                 assignment_remarks=initial_instructions,
                 status='Active'
             )
+            for assignee in assignees
+        ]
+        MailAssignment.objects.bulk_create(assignment_objects)
 
-        # Audit trail for creation
-        AuditTrail.objects.create(
-            mail_record=mail_record,
-            action='CREATE',
-            performed_by=user,
-            new_value={'sl_no': mail_record.sl_no, 'status': 'Assigned'},
-            remarks=f'Created with initial instructions: {initial_instructions[:100]}'
-        )
-
-        # Audit trail for assignment
+        # Audit trail for creation and assignment (bulk)
         assignee_names = [a.full_name for a in assignees]
         action_type = 'MULTI_ASSIGN' if len(assignees) > 1 else 'ASSIGN'
-        AuditTrail.objects.create(
-            mail_record=mail_record,
-            action=action_type,
-            performed_by=user,
-            new_value={'assigned_to': assignee_names},
-            remarks=f"Assigned to {len(assignees)} officer(s): {', '.join(assignee_names)}"
-        )
+        audit_entries = [
+            AuditTrail(
+                mail_record=mail_record,
+                action='CREATE',
+                performed_by=user,
+                new_value={'sl_no': mail_record.sl_no, 'status': 'Assigned'},
+                remarks=f'Created with initial instructions: {initial_instructions[:100]}'
+            ),
+            AuditTrail(
+                mail_record=mail_record,
+                action=action_type,
+                performed_by=user,
+                new_value={'assigned_to': assignee_names},
+                remarks=f"Assigned to {len(assignees)} officer(s): {', '.join(assignee_names)}"
+            ),
+        ]
+        AuditTrail.objects.bulk_create(audit_entries)
 
         response_serializer = MailRecordDetailSerializer(mail_record, context={'request': request})
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
@@ -766,8 +776,9 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                         status=status.HTTP_403_FORBIDDEN
                     )
 
-        # Create assignments
+        # Create assignments (get_or_create needed for existence check)
         created_assignments = []
+        audit_entries = []
         for u in users:
             assignment, created = MailAssignment.objects.get_or_create(
                 mail_record=mail_record,
@@ -780,14 +791,16 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             )
             if created:
                 created_assignments.append(assignment)
-                # Audit trail for each assignment
-                AuditTrail.objects.create(
+                audit_entries.append(AuditTrail(
                     mail_record=mail_record,
                     action='MULTI_ASSIGN',
                     performed_by=user,
                     new_value={'assigned_to': u.full_name},
                     remarks=f"Assigned to {u.full_name}: {remarks}"
-                )
+                ))
+
+        if audit_entries:
+            AuditTrail.objects.bulk_create(audit_entries)
 
         # Update mail record flags
         mail_record.is_multi_assigned = True
