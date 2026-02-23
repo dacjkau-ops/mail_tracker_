@@ -1,4 +1,4 @@
-import { formatDistanceToNow, formatDistance, format, isPast } from 'date-fns';
+import { formatDistance, format, isPast } from 'date-fns';
 
 /**
  * Calculate time in current stage
@@ -45,14 +45,4 @@ export const formatDate = (dateString, formatString = 'dd-MM-yyyy') => {
 export const formatDateTime = (dateString) => {
   if (!dateString) return 'N/A';
   return format(new Date(dateString), 'dd-MM-yyyy HH:mm');
-};
-
-/**
- * Get relative time (e.g., "2 days ago")
- * @param {string} dateString - ISO date string
- * @returns {string}
- */
-export const getRelativeTime = (dateString) => {
-  if (!dateString) return 'N/A';
-  return formatDistanceToNow(new Date(dateString), { addSuffix: true });
 };
