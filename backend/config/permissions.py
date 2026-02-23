@@ -1,4 +1,5 @@
 from rest_framework import permissions
+from django.db.models import Q
 
 
 class IsAG(permissions.BasePermission):
@@ -77,15 +78,25 @@ class MailRecordPermission(permissions.BasePermission):
 
     def _can_view_mail(self, user, obj, request):
         """Helper: check if user can view this mail record"""
+        from records.models import MailAssignment
+
+        def has_active_parallel_assignment():
+            return MailAssignment.objects.filter(
+                mail_record=obj,
+                status='Active'
+            ).filter(
+                Q(assigned_to=user) | Q(reassigned_to=user)
+            ).exists()
+
+        if obj.created_by_id == user.id:
+            return True
+
         if user.role == 'DAG':
             # Check if mail's section is in DAG's managed sections
             if obj.section and user.sections.filter(id=obj.section.id).exists():
                 return True
             # Check if DAG has an active parallel assignment
-            from records.models import MailAssignment
-            if MailAssignment.objects.filter(
-                mail_record=obj, assigned_to=user, status='Active'
-            ).exists():
+            if has_active_parallel_assignment():
                 return True
             # Check if any of DAG's section officers have assignments on this mail
             from users.models import User
@@ -118,10 +129,7 @@ class MailRecordPermission(permissions.BasePermission):
             if obj.current_handler == user or obj.assigned_to == user:
                 return True
             # Check parallel assignments
-            from records.models import MailAssignment
-            if MailAssignment.objects.filter(
-                mail_record=obj, assigned_to=user, status='Active'
-            ).exists():
+            if has_active_parallel_assignment():
                 return True
             # PERFORMANCE FIX: Check touched records with caching
             touched_ids = getattr(request, '_touched_record_ids_cache', None)
@@ -139,10 +147,7 @@ class MailRecordPermission(permissions.BasePermission):
                 return True
             if obj.created_by_id == user.id:
                 return True
-            from records.models import MailAssignment
-            if MailAssignment.objects.filter(
-                mail_record=obj, assigned_to=user, status='Active'
-            ).exists():
+            if has_active_parallel_assignment():
                 return True
             return False
 
@@ -168,6 +173,15 @@ class MailRecordPermission(permissions.BasePermission):
     def _is_dag_for_section(self, user, obj):
         """Helper: check if DAG manages the mail's section"""
         return user.role == 'DAG' and obj.section and user.sections.filter(id=obj.section.id).exists()
+
+    def _has_active_assignment(self, user, obj):
+        from records.models import MailAssignment
+        return MailAssignment.objects.filter(
+            mail_record=obj,
+            status='Active'
+        ).filter(
+            Q(assigned_to=user) | Q(reassigned_to=user)
+        ).exists()
 
     def has_object_permission(self, request, view, obj):
         """Check if user can perform action on specific mail record"""
@@ -209,7 +223,7 @@ class MailRecordPermission(permissions.BasePermission):
 
         # Multi-assign permission (AG or DAG for their sections)
         if view.action == 'multi_assign':
-            return self._is_dag_for_section(user, obj)
+            return self._is_dag_for_section(user, obj) or self._has_active_assignment(user, obj)
 
         # Reopen permission (only AG - already handled above)
         if view.action == 'reopen':

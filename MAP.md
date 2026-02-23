@@ -2,6 +2,28 @@
 
 **Purpose**: Quick reference guide to navigate the codebase efficiently and reduce token usage.
 
+## Runtime Delta (2026-02-24)
+
+Use this section as the latest behavior reference when older sections below differ.
+
+- Mail statuses: `Created`, `Assigned`, `In Progress`, `Closed`.
+- Mail list status scopes support:
+  - `all`
+  - `assigned`
+  - `created_by_me`
+  - `closed`
+- All operational roles can create mail: `AG`, `DAG`, `SrAO`, `AAO`, `auditor`, `clerk` (role-scoped validation still applies).
+- `created_by` is included in visibility rules for non-AG roles.
+- Active assignment visibility includes both `assigned_to` and `reassigned_to`.
+- Reassignment chain behavior:
+  - `reassign_assignment` updates the same `MailAssignment` row (`reassigned_to`), not a new row.
+  - Timeline is append-only in `AssignmentRemark`.
+  - Current assignee can add remarks and complete assignment after reassignment.
+- DAG `multi_assign` works for:
+  - records in DAG-managed sections
+  - records where the DAG already has an active assignment (cross-section AG chain flows)
+- Multi-assigned detail UI shows a single consolidated assignment-history table, with reassignment history appended in-row.
+
 ---
 
 ## 📁 Project Structure (ASCII Tree)

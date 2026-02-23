@@ -24,7 +24,7 @@ import {
 } from '@mui/material';
 import { PictureAsPdf as PdfIcon } from '@mui/icons-material';
 import mailService from '../services/mailService';
-import { MAIL_STATUS, STATUS_COLORS, ACTION_STATUS_COLORS } from '../utils/constants';
+import { STATUS_COLORS, ACTION_STATUS_COLORS } from '../utils/constants';
 import { formatDate, calculateTimeInStage, isOverdue } from '../utils/dateHelpers';
 import { exportMailListToPDF } from '../utils/pdfExport';
 import { useAuth } from '../context/AuthContext';
@@ -37,7 +37,7 @@ const MailListPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filters, setFilters] = useState({
-    status: '',
+    status: 'all',
     section: '',
     subsection: '',
     search: '',
@@ -242,12 +242,10 @@ const MailListPage = () => {
               label="Status"
               onChange={(e) => handleFilterChange('status', e.target.value)}
             >
-              <MenuItem value="">All</MenuItem>
-              {Object.values(MAIL_STATUS).map((status) => (
-                <MenuItem key={status} value={status}>
-                  {status}
-                </MenuItem>
-              ))}
+              <MenuItem value="all">All</MenuItem>
+              <MenuItem value="assigned">Assigned to me</MenuItem>
+              <MenuItem value="created_by_me">Created by me</MenuItem>
+              <MenuItem value="closed">Closed</MenuItem>
             </Select>
           </FormControl>
 

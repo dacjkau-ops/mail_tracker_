@@ -35,12 +35,34 @@ const CreateMailPage = () => {
   const [selectedPdf, setSelectedPdf] = useState(null);
   const [pdfError, setPdfError] = useState('');
 
-  // DAG users can only create for their section
-  const isDAG = user?.role === 'DAG';
-  const userSection = user?.section;
-
-  // AG can assign cross-section, so they see all users
   const isAG = user?.role === 'AG';
+
+  const getAssignableUsers = () => {
+    if (!user) return [];
+    if (isAG) return users;
+
+    if (user.role === 'DAG') {
+      const managedSectionIds = new Set((user.sections || []).map((id) => Number(id)));
+      return users.filter((u) => {
+        const userSectionId = u.subsection_detail?.section?.id;
+        if (u.role === 'DAG') {
+          return (u.sections || []).some((sectionId) => managedSectionIds.has(Number(sectionId)));
+        }
+        return userSectionId && managedSectionIds.has(Number(userSectionId));
+      });
+    }
+
+    if (user.role === 'auditor') {
+      const allowedSubIds = new Set((user.auditor_subsections || []).map((id) => Number(id)));
+      return users.filter((u) => u.subsection && allowedSubIds.has(Number(u.subsection)));
+    }
+
+    if (user.subsection) {
+      return users.filter((u) => Number(u.subsection) === Number(user.subsection));
+    }
+
+    return users;
+  };
 
   const {
     control,
@@ -316,18 +338,13 @@ const CreateMailPage = () => {
                     validate: value => value.length > 0 || 'Please select at least one officer'
                   }}
                   render={({ field: { onChange, value, ...field } }) => {
-                    // AG can assign to ANY user (cross-section allowed)
-                    // DAG can only assign to users in their section
-                    const filteredUsers = isAG
-                      ? users
-                      : users.filter(u => u.section === userSection);
+                    const filteredUsers = getAssignableUsers();
 
                     // Group users by section for better UX
                     const groupedOptions = isAG
                       ? filteredUsers.sort((a, b) => {
-                          // Sort by section name, then by full name
-                          const sectionA = sections.find(s => s.id === a.section)?.name || '';
-                          const sectionB = sections.find(s => s.id === b.section)?.name || '';
+                          const sectionA = a.subsection_detail?.section?.name || '';
+                          const sectionB = b.subsection_detail?.section?.name || '';
                           if (sectionA !== sectionB) return sectionA.localeCompare(sectionB);
                           return a.full_name.localeCompare(b.full_name);
                         })
@@ -339,8 +356,13 @@ const CreateMailPage = () => {
                         multiple
                         options={groupedOptions}
                         groupBy={isAG ? (option) => {
-                          const section = sections.find(s => s.id === option.section);
-                          return section?.name || 'No Section';
+                          if (option.subsection_detail?.section?.name) {
+                            return option.subsection_detail.section.name;
+                          }
+                          if (option.role === 'DAG') {
+                            return 'DAG (Multi-section)';
+                          }
+                          return 'No Section';
                         } : undefined}
                         getOptionLabel={(option) => `${option.full_name} (${option.role})`}
                         value={value || []}
@@ -354,13 +376,13 @@ const CreateMailPage = () => {
                               errors.assigned_to?.message ||
                               (isAG
                                 ? 'AG can assign to officers from any section (cross-section allowed)'
-                                : 'Select one or more officers from your section')
+                                : 'Select one or more officers in your allowed scope (you can assign to yourself).')
                             }
                           />
                         )}
                         renderTags={(value, getTagProps) =>
                           value.map((option, index) => {
-                            const sectionName = sections.find(s => s.id === option.section)?.name;
+                            const sectionName = option.subsection_detail?.section?.name;
                             return (
                               <Chip
                                 label={`${option.full_name}${sectionName ? ` - ${sectionName}` : ''}`}
@@ -405,7 +427,7 @@ const CreateMailPage = () => {
               </Box>
             </Box>
 
-            {/* Row 7: Initial Instructions (full width) */}
+            {/* Row 7: About Info (full width) */}
             <Box>
               <Controller
                 name="initial_instructions"
@@ -416,7 +438,7 @@ const CreateMailPage = () => {
                     fullWidth
                     multiline
                     rows={3}
-                    label="Initial Instructions (Optional)"
+                    label="About Info (Optional)"
                     placeholder="Add instructions that will be visible to all assigned officers"
                     helperText="These instructions will be shared with all assigned officers"
                   />

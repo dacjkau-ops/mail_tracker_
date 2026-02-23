@@ -38,14 +38,6 @@ def validate_pdf_size(value):
 
 
 class MailRecord(models.Model):
-    STATUS_CHOICES = [
-        ('Received', 'Received'),
-        ('Assigned', 'Assigned'),
-        ('In Progress', 'In Progress'),
-        ('Closed', 'Closed'),
-    ]
-
-    # Current work status choices - what the current handler is actively doing
     CURRENT_ACTION_STATUS_CHOICES = [
         ('Under Review', 'Under Review'),
         ('Drafting Reply', 'Drafting Reply'),
@@ -58,6 +50,15 @@ class MailRecord(models.Model):
         ('Consulting', 'Consulting'),
         ('Verification', 'Verification'),
     ]
+
+    STATUS_CHOICES = [
+        ('Created', 'Created'),
+        ('Assigned', 'Assigned'),
+        ('In Progress', 'In Progress'),
+        ('Closed', 'Closed'),
+    ]
+
+    
 
     # Auto-generated serial number
     sl_no = models.CharField(max_length=10, unique=True, editable=False)
@@ -114,7 +115,7 @@ class MailRecord(models.Model):
     due_date = models.DateField()
 
     # Status tracking
-    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='Received')
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='Created')
     date_of_completion = models.DateField(null=True, blank=True)
     last_status_change = models.DateTimeField(auto_now_add=True)
 
@@ -235,6 +236,8 @@ class MailRecord(models.Model):
         """Check if user can view this mail record"""
         if user.is_ag():
             return True
+        if self.created_by_id == user.id:
+            return True
 
         if user.is_dag():
             # DAG can view mails from any of their managed sections
@@ -265,16 +268,8 @@ class MailRecord(models.Model):
         ).exists()
 
     def can_edit(self, user):
-        """Check if user can edit this mail record"""
-        if user.is_ag():
-            return True
-
-        if user.is_dag():
-            # DAG can edit if mail belongs to any of their managed sections
-            return self.section and user.sections.filter(id=self.section.id).exists()
-
-        # Staff officers can only edit remarks
-        return False
+        """Current behavior: only AG or current handler can update mutable fields."""
+        return user.is_ag() or self.current_handler_id == user.id
 
     def can_reassign(self, user):
         """Check if user can reassign this mail"""

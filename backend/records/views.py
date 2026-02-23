@@ -35,6 +35,34 @@ from sections.models import Section, Subsection
 class MailRecordViewSet(viewsets.ModelViewSet):
     permission_classes = [MailRecordPermission]
 
+    STATUS_SCOPE_ALL = {'', 'all'}
+
+    def _assigned_mail_ids_for_user(self, user):
+        return MailAssignment.objects.filter(
+            Q(assigned_to=user) | Q(reassigned_to=user),
+            status='Active'
+        ).values_list('mail_record_id', flat=True).distinct()
+
+    def _apply_status_scope_filter(self, queryset, user, status_filter):
+        if status_filter in self.STATUS_SCOPE_ALL:
+            return queryset
+
+        if status_filter == 'created_by_me':
+            return queryset.filter(created_by=user)
+
+        if status_filter == 'closed':
+            return queryset.filter(status='Closed')
+
+        if status_filter == 'assigned':
+            assigned_ids = self._assigned_mail_ids_for_user(user)
+            return queryset.filter(
+                Q(current_handler=user) |
+                Q(assigned_to=user) |
+                Q(id__in=assigned_ids)
+            ).exclude(status='Closed')
+
+        return queryset.filter(status=status_filter)
+
     def _filter_assignments_for_user(self, mail_record, user):
         assignments = list(mail_record.parallel_assignments.all())
         assignments.sort(key=lambda a: (a.created_at, a.id))
@@ -145,36 +173,29 @@ class MailRecordViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = MailRecord.objects.select_related(
+        base_queryset = MailRecord.objects.select_related(
             'assigned_to', 'current_handler', 'monitoring_officer',
             'section', 'subsection', 'subsection__section', 'created_by'
         )
         if self.action == 'list':
-            queryset = queryset.prefetch_related(
+            base_queryset = base_queryset.prefetch_related(
                 'parallel_assignments__assigned_to',
                 'parallel_assignments__reassigned_to'
             )
 
-        # AG can see all records
-        if user.role == 'AG':
-            pass  # No filtering needed
+        queryset = base_queryset
 
-        # DAG can see own section records + records they've touched + cross-section where their officers are assigned
+        if user.role == 'AG':
+            queryset = base_queryset
         elif user.role == 'DAG':
             touched_record_ids = AuditTrail.objects.filter(
                 performed_by=user
             ).values_list('mail_record_id', flat=True).distinct()
 
-            assigned_via_parallel = MailAssignment.objects.filter(
-                assigned_to=user,
-                status='Active'
-            ).values_list('mail_record_id', flat=True).distinct()
+            assigned_via_parallel = self._assigned_mail_ids_for_user(user)
 
-            # Get all sections managed by this DAG
             dag_section_ids = user.sections.values_list('id', flat=True)
 
-            # NEW: Get records where DAG's section officers have assignments (cross-section visibility)
-            # Get all officers in any of the DAG's managed sections
             section_officer_ids = User.objects.filter(
                 subsection__section_id__in=dag_section_ids, is_active=True
             ).values_list('id', flat=True)
@@ -183,68 +204,52 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 status__in=['Active', 'Completed']
             ).values_list('mail_record_id', flat=True).distinct()
 
-            # Combine: section records OR touched records OR parallel assignments OR cross-section where officers assigned
-            queryset = queryset.filter(
+            queryset = base_queryset.filter(
                 Q(section_id__in=dag_section_ids) |
                 Q(id__in=touched_record_ids) |
                 Q(id__in=assigned_via_parallel) |
-                Q(id__in=cross_section_mail_ids)
+                Q(id__in=cross_section_mail_ids) |
+                Q(created_by=user)
             )
-
-        # SrAO/AAO: all mails in their own subsection (EXPANDED from assigned-only)
         elif user.role in ['SrAO', 'AAO']:
             touched_record_ids = AuditTrail.objects.filter(
                 performed_by=user
             ).values_list('mail_record_id', flat=True).distinct()
 
-            assigned_via_parallel = MailAssignment.objects.filter(
-                assigned_to=user,
-                status='Active'
-            ).values_list('mail_record_id', flat=True).distinct()
+            assigned_via_parallel = self._assigned_mail_ids_for_user(user)
 
-            queryset = queryset.filter(
+            queryset = base_queryset.filter(
                 Q(current_handler=user) |
                 Q(assigned_to=user) |
-                Q(subsection=user.subsection) |        # All mails in user's subsection
+                Q(subsection=user.subsection) |
                 Q(id__in=touched_record_ids) |
-                Q(id__in=assigned_via_parallel)
+                Q(id__in=assigned_via_parallel) |
+                Q(created_by=user)
             )
-
-        # Clerk: only mails assigned to them OR created by them
         elif user.role == 'clerk':
-            assigned_via_parallel = MailAssignment.objects.filter(
-                assigned_to=user,
-                status='Active'
-            ).values_list('mail_record_id', flat=True).distinct()
+            assigned_via_parallel = self._assigned_mail_ids_for_user(user)
 
-            queryset = queryset.filter(
+            queryset = base_queryset.filter(
                 Q(current_handler=user) |
                 Q(assigned_to=user) |
                 Q(created_by=user) |
                 Q(id__in=assigned_via_parallel)
             )
-
-        # Auditor: only mails in their configured auditor_subsections
         elif user.role == 'auditor':
             auditor_sub_ids = list(user.auditor_subsections.values_list('id', flat=True))
             if not auditor_sub_ids:
-                queryset = queryset.none()
+                queryset = base_queryset.filter(created_by=user)
             else:
-                queryset = queryset.filter(
+                queryset = base_queryset.filter(
                     Q(subsection__in=auditor_sub_ids) |
-                    # Include section-level mails (no subsection set) where any configured
-                    # subsection belongs to that section
-                    Q(subsection__isnull=True, section__subsections__id__in=auditor_sub_ids)
+                    Q(subsection__isnull=True, section__subsections__id__in=auditor_sub_ids) |
+                    Q(created_by=user)
                 ).distinct()
-
         else:
-            # Fallback: no access for unknown roles
-            queryset = queryset.none()
+            queryset = base_queryset.none()
 
-        # Apply filters
-        status_filter = self.request.query_params.get('status', None)
-        if status_filter:
-            queryset = queryset.filter(status=status_filter)
+        status_filter = self.request.query_params.get('status', '')
+        queryset = self._apply_status_scope_filter(queryset, user, status_filter)
 
         section_filter = self.request.query_params.get('section', None)
         if section_filter:
@@ -846,9 +851,14 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             assignment = MailAssignment.objects.get(
                 id=assignment_id,
                 mail_record=mail_record,
-                assigned_to=request.user,
                 status='Active'
             )
+            current_assignee = assignment.reassigned_to or assignment.assigned_to
+            if current_assignee != request.user:
+                return Response(
+                    {'error': 'Only the current assignee can complete this assignment.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
         except MailAssignment.DoesNotExist:
             return Response(
                 {'error': 'Assignment not found or already completed.'},
@@ -1052,9 +1062,9 @@ class MailRecordViewSet(viewsets.ModelViewSet):
         upload_stage = serializer.validated_data['upload_stage']
 
         # Enforce workflow stage restriction
-        if upload_stage == 'created' and mail_record.status not in ['Received', 'Assigned']:
+        if upload_stage == 'created' and mail_record.status not in ['Created', 'Assigned']:
             return Response(
-                {'error': "PDF can only be uploaded at the 'created' stage when the record status is 'Received' or 'Assigned'."},
+                {'error': "PDF can only be uploaded at the 'created' stage when the record status is 'Created' or 'Assigned'."},
                 status=status.HTTP_403_FORBIDDEN
             )
         if upload_stage == 'closed' and mail_record.status != 'Closed':

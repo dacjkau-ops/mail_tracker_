@@ -119,6 +119,8 @@ class MailRecordListSerializer(serializers.ModelSerializer):
         if assignments:
             names = []
             for assignment in assignments:
+                if assignment.status != 'Active':
+                    continue
                 current_assignee = assignment.reassigned_to or assignment.assigned_to
                 names.append(current_assignee.full_name)
             return names
@@ -215,7 +217,11 @@ class MailRecordDetailSerializer(serializers.ModelSerializer):
         user = getattr(request, 'user', None) if request else None
         assignments = _get_visible_assignments(obj, user)
         if assignments:
-            return [(a.reassigned_to or a.assigned_to).full_name for a in assignments]
+            return [
+                (a.reassigned_to or a.assigned_to).full_name
+                for a in assignments
+                if a.status == 'Active'
+            ]
         if obj.current_handler_id:
             return [obj.current_handler.full_name]
         return []

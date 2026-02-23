@@ -11,7 +11,7 @@ export const ROLES = {
 
 // Mail Status
 export const MAIL_STATUS = {
-  RECEIVED: 'Received',
+  CREATED: 'Created',
   ASSIGNED: 'Assigned',
   IN_PROGRESS: 'In Progress',
   CLOSED: 'Closed',
@@ -43,7 +43,7 @@ export const AUDIT_ACTIONS = {
 
 // Status Colors for MUI Chips
 export const STATUS_COLORS = {
-  [MAIL_STATUS.RECEIVED]: 'info',
+  [MAIL_STATUS.CREATED]: 'info',
   [MAIL_STATUS.ASSIGNED]: 'warning',
   [MAIL_STATUS.IN_PROGRESS]: 'primary',
   [MAIL_STATUS.CLOSED]: 'success',
@@ -52,7 +52,7 @@ export const STATUS_COLORS = {
 // Status Chip mapping for Mail Detail page header
 // Groups Received+Assigned → "Pending", In Progress → "In Progress", Closed → "Closed"
 export const DETAIL_STATUS_CHIP = {
-  [MAIL_STATUS.RECEIVED]: { label: 'Pending', color: 'default' },
+  [MAIL_STATUS.CREATED]: { label: 'Pending', color: 'default' },
   [MAIL_STATUS.ASSIGNED]: { label: 'Pending', color: 'default' },
   [MAIL_STATUS.IN_PROGRESS]: { label: 'In Progress', color: 'warning' },
   [MAIL_STATUS.CLOSED]: { label: 'Closed', color: 'success' },

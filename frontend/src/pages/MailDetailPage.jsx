@@ -40,15 +40,17 @@ import ReopenDialog from '../components/ReopenDialog';
 import MultiAssignDialog from '../components/MultiAssignDialog';
 import UpdateCurrentActionDialog from '../components/UpdateCurrentActionDialog';
 
-// Teal colour used throughout the page (matches wireframe)
-const TEAL = '#0b7285';
-const TEAL_DARK = '#095f73';
-const GREEN_BORDER = 'success.main';
-const ROW_LIGHT = '#eafaf1';
-const HEAD_LIGHT = '#d5f5e3';
-
-const ORDINALS = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh'];
-const getOrdinal = (idx) => ORDINALS[idx] ?? `${idx + 1}th`;
+// Palette aligned with reference mock (test_2.jpg)
+const GREEN_BORDER = '#6ea55d';
+const HEADER_BLUE = 'linear-gradient(180deg, #8faec8 0%, #6f8ea9 100%)';
+const HEADER_BLUE_DARK = 'linear-gradient(180deg, #7f9fbb 0%, #6282a0 100%)';
+const BUTTON_PEACH = 'linear-gradient(180deg, #f2b8a2 0%, #e39d84 100%)';
+const BUTTON_PEACH_HOVER = 'linear-gradient(180deg, #e8a98f 0%, #d7896f 100%)';
+const BUTTON_TEXT = '#2a2a2a';
+const STATUS_GREEN = '#9ab496';
+const STATUS_GREEN_BORDER = '#6b8f6b';
+const ROW_LIGHT = '#d7e5d8';
+const HEAD_LIGHT = '#edf0f2';
 
 const MailDetailPage = () => {
   const { id } = useParams();
@@ -222,6 +224,13 @@ const MailDetailPage = () => {
     if (user?.role === 'AG') return true;
     const sectionId = mail?.section_details?.id || mail?.section;
     if (user?.role === 'DAG' && sectionId && user?.sections?.includes(sectionId)) return true;
+    if (user?.role === 'DAG' && Array.isArray(mail?.assignments)) {
+      const hasActiveAssignment = mail.assignments.some((a) => {
+        const currentId = a.reassigned_to || a.assigned_to;
+        return a.status === 'Active' && currentId === user.id;
+      });
+      if (hasActiveAssignment) return true;
+    }
     return false;
   };
 
@@ -259,6 +268,118 @@ const MailDetailPage = () => {
 
   // Assignments list (included in mail API response)
   const mailAssignments = mail.assignments || [];
+  const topLevelAssignments = mailAssignments.filter(
+    (a) => Number(a.assigned_by) === Number(mail.created_by)
+  );
+  const childAssignments = mailAssignments.filter(
+    (a) => Number(a.assigned_by) !== Number(mail.created_by)
+  );
+  const buildAssignmentBranchRows = (assignment) => {
+    const rows = [];
+    const timeline = [...(assignment.remarks_timeline || [])].sort(
+      (a, b) => new Date(a.created_at) - new Date(b.created_at)
+    );
+    const remarkByOfficer = {};
+    const reassignRegex = /^Reassigned to\s+(.+?):\s*(.*)$/i;
+    let currentOfficer = assignment.assigned_to_details?.full_name || '-';
+
+    timeline.forEach((remark) => {
+      const content = remark.content || '';
+      const parsed = content.match(reassignRegex);
+      const createdBy = remark.created_by_details?.full_name;
+
+      if (!parsed) {
+        if (createdBy) {
+          remarkByOfficer[createdBy] = content;
+        } else {
+          remarkByOfficer[currentOfficer] = content;
+        }
+        return;
+      }
+
+      const nextOfficer = parsed[1]?.trim() || '-';
+      const reason = parsed[2]?.trim();
+      rows.push({
+        officerId: null,
+        officer: currentOfficer,
+        remarks: remarkByOfficer[currentOfficer] || reason || '-',
+        reassignedToId: null,
+        reassignedTo: nextOfficer,
+        on: remark.created_at,
+      });
+      currentOfficer = nextOfficer;
+    });
+
+    const isUntouchedActiveAssignment =
+      assignment.status === 'Active' &&
+      timeline.length === 0;
+
+    rows.push({
+      officerId: assignment.reassigned_to || assignment.assigned_to || null,
+      officer: currentOfficer,
+      remarks: isUntouchedActiveAssignment
+        ? 'Still Working'
+        : (remarkByOfficer[currentOfficer] || '-'),
+      reassignedToId: null,
+      reassignedTo: isUntouchedActiveAssignment ? '' : '-',
+      on: isUntouchedActiveAssignment
+        ? ''
+        : (assignment.completed_at || assignment.updated_at || assignment.created_at),
+    });
+
+    return rows;
+  };
+  const renderBranchTable = (assignment, isChild = false) => {
+    const branchRows = buildAssignmentBranchRows(assignment);
+    return (
+      <Paper
+        key={`${isChild ? 'child' : 'root'}-${assignment.id}`}
+        elevation={0}
+        sx={{
+          border: '1px solid',
+          borderColor: GREEN_BORDER,
+          borderRadius: 2,
+          mb: 2,
+          ml: isChild ? 4 : 0,
+          overflow: 'hidden',
+        }}
+      >
+        <Box sx={{ p: 1.5, bgcolor: ROW_LIGHT, borderBottom: '1px solid', borderColor: GREEN_BORDER }}>
+          <Typography variant="body1" fontWeight={700}>
+            Assigned to {assignment.assigned_to_details?.full_name || '-'} by {assignment.assigned_by_details?.full_name || createdByName}
+          </Typography>
+        </Box>
+        <Table size="small">
+          <TableHead>
+            <TableRow sx={{ bgcolor: HEAD_LIGHT }}>
+              <TableCell sx={{ fontWeight: 700, width: '30%' }}>Officer</TableCell>
+              <TableCell sx={{ fontWeight: 700, width: '35%' }}>Remarks</TableCell>
+              <TableCell sx={{ fontWeight: 700, width: '20%' }}>Reassigned to</TableCell>
+              <TableCell sx={{ fontWeight: 700, width: '15%' }}>On</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {branchRows.map((row, rowIdx) => (
+              <TableRow key={`${assignment.id}-row-${rowIdx}`} sx={{ bgcolor: rowIdx % 2 === 0 ? 'inherit' : ROW_LIGHT }}>
+                <TableCell>
+                  <Typography variant="body2" fontWeight={600}>{row.officer}</Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{row.remarks}</Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2">{row.reassignedTo}</Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" noWrap>{row.on ? formatDateTime(row.on) : '-'}</Typography>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Paper>
+    );
+  };
 
   // Action buttons — shown in right column for handler, beside section header for watcher
   const hasActions = canReassignMail() || canCloseMail() || canMultiAssign() || canReopenMail();
@@ -271,7 +392,12 @@ const MailDetailPage = () => {
           startIcon={<CloseIcon />}
           onClick={() => setCloseDialogOpen(true)}
           fullWidth={fullWidth}
-          sx={{ bgcolor: TEAL, '&:hover': { bgcolor: TEAL_DARK } }}
+          sx={{
+            background: BUTTON_PEACH,
+            color: BUTTON_TEXT,
+            border: '1px solid #cf8c74',
+            '&:hover': { background: BUTTON_PEACH_HOVER },
+          }}
         >
           Task Completed
         </Button>
@@ -282,7 +408,12 @@ const MailDetailPage = () => {
           startIcon={<ReassignIcon />}
           onClick={() => setReassignDialogOpen(true)}
           fullWidth={fullWidth}
-          sx={{ bgcolor: TEAL, '&:hover': { bgcolor: TEAL_DARK } }}
+          sx={{
+            background: BUTTON_PEACH,
+            color: BUTTON_TEXT,
+            border: '1px solid #cf8c74',
+            '&:hover': { background: BUTTON_PEACH_HOVER },
+          }}
         >
           Reassign
         </Button>
@@ -293,7 +424,11 @@ const MailDetailPage = () => {
           startIcon={<MultiAssignIcon />}
           onClick={() => setMultiAssignDialogOpen(true)}
           fullWidth={fullWidth}
-          sx={{ borderColor: TEAL, color: TEAL }}
+          sx={{
+            borderColor: GREEN_BORDER,
+            color: '#2f4a31',
+            '&:hover': { borderColor: '#5a8c4d', bgcolor: '#f2f7f0' },
+          }}
         >
           Assign to Multiple
         </Button>
@@ -388,7 +523,13 @@ const MailDetailPage = () => {
           <Chip
             label={DETAIL_STATUS_CHIP[mail.status]?.label || mail.status}
             color={DETAIL_STATUS_CHIP[mail.status]?.color || 'default'}
-            sx={{ fontWeight: 700, flexShrink: 0 }}
+            sx={{
+              fontWeight: 700,
+              flexShrink: 0,
+              bgcolor: STATUS_GREEN,
+              color: '#243526',
+              border: `1px solid ${STATUS_GREEN_BORDER}`,
+            }}
           />
         </Box>
 
@@ -408,7 +549,9 @@ const MailDetailPage = () => {
             Currently with{' '}
             <Box component="span" fontWeight={700} color="text.primary">
               {mail.is_multi_assigned
-                ? mail.current_handlers_display?.join(', ') || 'Multiple'
+                ? (mail.current_handlers_display?.length
+                    ? mail.current_handlers_display.join(', ')
+                    : '-')
                 : mail.current_handler_details?.full_name || '—'}
             </Box>
             {' '}from {calculateTimeInStage(mail.last_status_change, mail.date_of_completion)}
@@ -429,12 +572,13 @@ const MailDetailPage = () => {
         {/* LEFT COLUMN */}
         <Box sx={{ width: '100%', minWidth: 0 }}>
 
-          {/* Initial Instruction */}
-          {mail.action_required && (
+          {/* About Info */}
+          {mail.initial_instructions && (
             <Box
               sx={{
-                bgcolor: TEAL,
-                color: 'white',
+                background: HEADER_BLUE,
+                color: '#17222c',
+                border: '1px solid #5f7e99',
                 borderRadius: 1.5,
                 p: 2.5,
                 mb: 2,
@@ -444,10 +588,10 @@ const MailDetailPage = () => {
                 variant="overline"
                 sx={{ opacity: 0.75, display: 'block', mb: 0.5, letterSpacing: 1 }}
               >
-                Initial Instruction
+                About Info
               </Typography>
               <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-                {mail.action_required}
+                {mail.initial_instructions}
               </Typography>
             </Box>
           )}
@@ -456,7 +600,7 @@ const MailDetailPage = () => {
           {isHandler && (
             <Box
               sx={{
-                bgcolor: TEAL_DARK,
+                background: HEADER_BLUE_DARK,
                 color: 'white',
                 borderRadius: 1.5,
                 p: 2.5,
@@ -659,125 +803,74 @@ const MailDetailPage = () => {
 
         <Divider sx={{ borderStyle: 'dashed', mb: 2 }} />
 
-        {/* Assignment tables (multi-assigned mails) */}
-        {mailAssignments.length > 0 ? (
-          mailAssignments.map((assignment, idx) => (
-            <Paper
-              key={assignment.id ?? idx}
-              elevation={0}
-              sx={{
-                border: '1px solid',
-                borderColor: GREEN_BORDER,
-                borderRadius: 2,
-                mb: 2,
-                overflow: 'hidden',
-              }}
-            >
-              <Table size="small">
-                <TableHead>
-                  <TableRow sx={{ bgcolor: HEAD_LIGHT }}>
-                    <TableCell sx={{ fontWeight: 700, width: '22%' }}>
-                      {getOrdinal(idx)} Assignee
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Remarks</TableCell>
-                    <TableCell sx={{ fontWeight: 700, width: '22%' }}>Reassigned to</TableCell>
-                    <TableCell sx={{ fontWeight: 700, width: '18%' }}>When</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  <TableRow sx={{ bgcolor: ROW_LIGHT }}>
+        {/* Assignment table (multi-assigned mails only) */}
+        {mail.is_multi_assigned && mailAssignments.length > 0 && (
+          <Box sx={{ mb: 2 }}>
+            {(topLevelAssignments.length > 0 ? topLevelAssignments : mailAssignments).map((assignment) => {
+              const rootActorIds = new Set([assignment.assigned_to, assignment.reassigned_to].filter(Boolean).map(Number));
+              const nestedChildren = childAssignments.filter((child) => rootActorIds.has(Number(child.assigned_by)));
+              return (
+                <Box key={`branch-${assignment.id}`}>
+                  {renderBranchTable(assignment, false)}
+                  {nestedChildren.map((child) => renderBranchTable(child, true))}
+                </Box>
+              );
+            })}
+          </Box>
+        )}
+
+        <Paper
+          elevation={0}
+          sx={{
+            border: '1px solid',
+            borderColor: GREEN_BORDER,
+            borderRadius: 2,
+            overflow: 'hidden',
+          }}
+        >
+          {sortedAuditTrail.length === 0 ? (
+            <Box sx={{ p: 3 }}>
+              <Typography variant="body2" color="text.secondary">No history available</Typography>
+            </Box>
+          ) : (
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: HEAD_LIGHT }}>
+                  <TableCell sx={{ fontWeight: 700, width: '18%' }}>By</TableCell>
+                  <TableCell sx={{ fontWeight: 700, width: '15%' }}>Action</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Remarks</TableCell>
+                  <TableCell sx={{ fontWeight: 700, width: '18%' }}>When</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {sortedAuditTrail.map((entry, idx) => (
+                  <TableRow key={idx} sx={{ bgcolor: idx % 2 === 0 ? ROW_LIGHT : 'inherit' }}>
                     <TableCell>
-                      <Typography variant="body2" fontWeight={600}>
-                        {assignment.assigned_to_details?.full_name || '—'}
+                      <Typography variant="body2">
+                        {entry.performed_by_details?.full_name || '-'}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {assignment.assigned_to_details?.role}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      {assignment.remarks_timeline?.length > 0 ? (
-                        assignment.remarks_timeline.map((r, i) => (
-                          <Box key={i} sx={{ mb: i < assignment.remarks_timeline.length - 1 ? 0.75 : 0 }}>
-                            <Typography variant="body2">{r.content}</Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {formatDateTime(r.created_at)}
-                            </Typography>
-                          </Box>
-                        ))
-                      ) : (
-                        <Typography variant="body2" color="text.secondary" fontStyle="italic">
-                          No remarks yet
-                        </Typography>
-                      )}
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2">
-                        {assignment.reassigned_to_details?.full_name || '—'}
+                        {entry.action_display || entry.action}
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2">{formatDate(assignment.created_at)}</Typography>
+                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                        {entry.remarks || '-'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" noWrap>
+                        {formatDateTime(entry.timestamp)}
+                      </Typography>
                     </TableCell>
                   </TableRow>
-                </TableBody>
-              </Table>
-            </Paper>
-          ))
-        ) : (
-          /* Non-multi-assigned: show audit trail as a table */
-          <Paper
-            elevation={0}
-            sx={{
-              border: '1px solid',
-              borderColor: GREEN_BORDER,
-              borderRadius: 2,
-              overflow: 'hidden',
-            }}
-          >
-            {sortedAuditTrail.length === 0 ? (
-              <Box sx={{ p: 3 }}>
-                <Typography variant="body2" color="text.secondary">No history available</Typography>
-              </Box>
-            ) : (
-              <Table size="small">
-                <TableHead>
-                  <TableRow sx={{ bgcolor: HEAD_LIGHT }}>
-                    <TableCell sx={{ fontWeight: 700, width: '18%' }}>By</TableCell>
-                    <TableCell sx={{ fontWeight: 700, width: '15%' }}>Action</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Remarks</TableCell>
-                    <TableCell sx={{ fontWeight: 700, width: '18%' }}>When</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {sortedAuditTrail.map((entry, idx) => (
-                    <TableRow key={idx} sx={{ bgcolor: idx % 2 === 0 ? ROW_LIGHT : 'inherit' }}>
-                      <TableCell>
-                        <Typography variant="body2">
-                          {entry.performed_by_details?.full_name || '—'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">
-                          {entry.action_display || entry.action}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                          {entry.remarks || '—'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" noWrap>
-                          {formatDateTime(entry.timestamp)}
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </Paper>
-        )}
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Paper>
 
       </Box>
 

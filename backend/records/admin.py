@@ -13,7 +13,7 @@ class RecordAttachmentInline(admin.TabularInline):
 @admin.register(MailRecord)
 class MailRecordAdmin(admin.ModelAdmin):
     inlines = [RecordAttachmentInline]
-    list_display = ['sl_no', 'letter_no', 'mail_reference_subject', 'current_handler', 'current_action_status', 'status', 'due_date', 'created_at']
+    list_display = ['sl_no', 'letter_no', 'mail_reference_subject', 'current_handler', 'current_action_status', 'status', 'due_date']
     list_filter = ['status', 'current_action_status', 'section', 'action_required', 'created_at']
     search_fields = ['sl_no', 'letter_no', 'mail_reference_subject', 'from_office']
     readonly_fields = ['sl_no', 'created_at', 'updated_at', 'last_status_change', 'current_action_updated_at']

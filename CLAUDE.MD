@@ -4,6 +4,39 @@ Copy and paste this 👇
 
 Note: `PRODUCT_SPEC.md` is the canonical runtime product spec. If this file conflicts with `PRODUCT_SPEC.md`, follow `PRODUCT_SPEC.md`.
 
+## Current Runtime Truth (2026-02-24)
+
+Use this section as the effective behavior baseline when older parts of this file differ.
+
+### Roles and Create Capability
+- AG, DAG, SrAO, AAO, auditor, clerk can create mail (backend-scoped by role).
+- DAG creation is restricted to managed section scope.
+- SrAO/AAO/clerk creation is scoped to own subsection.
+- Auditor creation is scoped to configured auditor subsections.
+
+### Mail Status Values
+- `Created`, `Assigned`, `In Progress`, `Closed`.
+- Creation flow currently sets new records to `Assigned` after assignee resolution.
+- List filtering supports scoped statuses:
+  - `all`
+  - `assigned` (assigned/current-handler/reassigned-to me and not closed)
+  - `created_by_me`
+  - `closed`
+
+### Multi-Assignment and Reassignment
+- Parallel assignment rows are stored in `MailAssignment`.
+- Reassignment within an assignment updates the same assignment row (`reassigned_to`) and appends timeline remarks.
+- Current assignee is `reassigned_to` if present, otherwise `assigned_to`.
+- Completing reassigned assignments is allowed for the current assignee.
+
+### Visibility and Permissions
+- `created_by` visibility is included across roles.
+- Active parallel assignment visibility includes both `assigned_to` and `reassigned_to`.
+- DAG `multi_assign` is allowed for managed-section mails and for mails where DAG has an active assignment.
+
+### UI Naming
+- Label `About Info` is used in place of `Initial Instruction` in active screens.
+
 ---
 
 ## 🗺️ Quick Navigation

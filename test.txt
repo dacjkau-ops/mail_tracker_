@@ -1,0 +1,240 @@
+Comprehensive Test Plan: Multi‑Assignment Feature for Mail Tracker
+1. Objective
+Validate the multi‑assignment functionality, including:
+
+Creation of multi‑assignments by AG, DAG, and SrAO.
+
+Reassignment by assignees (AAOs) to other AAOs within the same subsection.
+
+Completion of individual assignments.
+
+Partial completion (some assignments finished, others still active).
+
+Closing of the mail only when all assignments are completed/revoked.
+
+Consolidated remarks across all assignments.
+
+Permission enforcement for all actions (view, add remark, complete, reassign, revoke, close).
+
+Audit trail entries for each significant event.
+
+Edge cases (duplicate assignments, invalid targets, concurrent actions, large data, etc.)
+
+2. Scope
+Backend: Django REST API endpoints:
+
+POST /api/records/{id}/multi_assign/
+
+GET /api/assignments/ and /api/assignments/{id}/
+
+POST /api/assignments/{id}/add_remark/
+
+POST /api/assignments/{id}/complete/
+
+POST /api/assignments/{id}/reassign/ (if implemented – we'll include it)
+
+POST /api/assignments/{id}/revoke/ (if implemented)
+
+POST /api/records/{id}/close/
+
+GET /api/records/{id}/ (to check consolidated remarks and mail status)
+
+Models: MailRecord, MailAssignment, AssignmentRemark, AuditTrail.
+
+Roles: AG, DAG, SrAO, AAO with appropriate permissions as per MAP.md.
+
+3. Test Environment
+Fresh database with migrations applied.
+
+Pre‑populated with sections, subsections, and users (see test data below).
+
+API client authenticated via JWT tokens.
+
+4. Test Data
+4.1 Sections & Subsections
+Section Name	directly_under_ag	Subsections
+Admin	False	Admin‑1, Admin‑2
+Finance	True	Budget
+4.2 Users
+Username	Role	Full Name	Managed Sections / Subsection
+ag	AG	AG User	(all)
+dag	DAG	DAG User	Sections: Admin
+srao1	SrAO	SrAO One	Subsection: Admin‑1
+aao1	AAO	AAO One	Subsection: Admin‑1
+aao2	AAO	AAO Two	Subsection: Admin‑1
+aao3	AAO	AAO Three	Subsection: Admin‑1
+aao4	AAO	AAO Four	Subsection: Admin‑1
+srao2	SrAO	SrAO Two	Subsection: Admin‑2
+aao5	AAO	AAO Five	Subsection: Admin‑2
+aao6	AAO	AAO Six	Subsection: Admin‑2
+aao_fin	AAO	AAO Fin	Subsection: Budget
+4.3 Initial Mail Record
+letter_no: L2026/001
+
+date_received: 2026‑02‑01
+
+subject: Test Mail for Multi‑Assign
+
+from_office: External
+
+action_required: Review
+
+section: Admin
+
+subsection: Admin‑1
+
+assigned_to: srao1 (single assignment)
+
+current_handler: srao1
+
+monitoring_officer: dag
+
+status: Assigned
+
+is_multi_assigned: False
+
+5. Test Cases
+5.1 Multi‑Assignment Creation
+ID	Description	Preconditions	Steps	Expected Result
+MA‑CREATE‑01	AG creates multi‑assignment to two AAOs	Mail exists, AG logged in	POST /api/records/{mail}/multi_assign/ with user_ids = [aao1.id, aao2.id], instructions = "Review together"	- 200 OK
+- MailRecord.is_multi_assigned = True
+- Two MailAssignment records (aao1, aao2), status Active, assigned_by = AG
+- Each has one AssignmentRemark with instruction
+- Audit trail entry MULTI_ASSIGN
+MA‑CREATE‑02	DAG creates multi‑assignment within managed section	DAG logged in	Same as MA‑CREATE‑01	Same as above (200)
+MA‑CREATE‑03	DAG tries to assign to user outside managed section	DAG logged in	user_ids = [aao1.id, aao_fin.id]	403 Forbidden
+MA‑CREATE‑04	SrAO creates multi‑assignment to AAOs within his subsection	SrAO logged in	user_ids = [aao1.id, aao2.id]	200 OK
+Assignments created, assigned_by = srao1
+MA‑CREATE‑05	SrAO tries to assign to AAO from another subsection	SrAO logged in	user_ids = [aao1.id, aao5.id]	403 Forbidden
+MA‑CREATE‑06	AAO tries to create multi‑assignment	AAO logged in	Same as MA‑CREATE‑01	403 Forbidden
+MA‑CREATE‑07	Multi‑assign with duplicate user IDs	AG logged in	user_ids = [aao1.id, aao1.id]	400 Bad Request (duplicate not allowed)
+MA‑CREATE‑08	Multi‑assign with empty list	AG logged in	user_ids = []	400 Bad Request
+MA‑CREATE‑09	Multi‑assign with non‑existent user ID	AG logged in	user_ids = [9999]	400 Bad Request
+MA‑CREATE‑10	Multi‑assign to a user who already has an active assignment for the same mail	AG creates first multi‑assign to aao1, aao2; then tries to add aao1 again (if allowed)	Second multi‑assign with [aao1]	Should be rejected (400) to prevent duplicate active assignments
+MA‑CREATE‑11	Multi‑assign to a user who is inactive	Set aao2.is_active = False, AG tries to assign to aao2	user_ids = [aao2.id]	400 Bad Request
+MA‑CREATE‑12	Multi‑assign when mail is already closed	Close mail, AG tries multi‑assign	400 Bad Request	
+5.2 Viewing Assignments
+ID	Description	Preconditions	Steps	Expected Result
+MA‑VIEW‑01	AG lists assignments for a mail	Mail has multi‑assignments	GET /api/assignments/?mail_record={mail}	200 OK, list includes all assignments
+MA‑VIEW‑02	DAG lists assignments for a mail in his section	Same	GET /api/assignments/?mail_record={mail}	200 OK, sees all assignments (since he supervises section)
+MA‑VIEW‑03	DAG lists assignments for a mail outside his section	Create mail in Finance section	GET /api/assignments/?mail_record={other_mail}	403 Forbidden (or empty list if filtered)
+MA‑VIEW‑04	AAO with active assignment lists assignments for that mail	aao1 logged in	GET /api/assignments/?mail_record={mail}	200 OK, only sees his own assignment(s)
+MA‑VIEW‑05	AAO without any assignment tries to view	aao5 logged in	GET /api/assignments/?mail_record={mail}	200 OK, empty list (or 403 depending on permission; likely 200 with empty list)
+MA‑VIEW‑06	Detail view of an assignment	aao1 logged in, assignment A1	GET /api/assignments/{A1}/	200 OK, includes nested remarks timeline
+MA‑VIEW‑07	Unauthorized user tries to view another's assignment	aao2 tries to view aao1's assignment	403 Forbidden	
+5.3 Adding Remarks to an Assignment
+ID	Description	Preconditions	Steps	Expected Result
+MA‑REMARK‑01	Assignee adds remark to own active assignment	aao1 has active assignment	POST /api/assignments/{A1}/add_remark/ with content = "Working on it"	201 Created, remark added, consolidated remarks updated on mail
+MA‑REMARK‑02	DAG adds remark to subordinate's assignment	DAG logged in, assignment A1	Same as above	201 Created
+MA‑REMARK‑03	AG adds remark to any assignment	AG logged in	Same	201 Created
+MA‑REMARK‑04	Unrelated AAO adds remark to another's assignment	aao2 (no assignment) tries to remark on A1	403 Forbidden	
+MA‑REMARK‑05	Add remark to completed assignment	Assignment A1 completed	Add remark	Should be allowed? The spec doesn't forbid; 201 Created (remarks on completed assignments are part of history)
+MA‑REMARK‑06	Add remark with empty content	Any user with permission	content = ""	400 Bad Request
+MA‑REMARK‑07	Add remark with very long content (5000 chars)		Should succeed (assuming DB field can handle)	
+5.4 Reassigning an Assignment (by AAO)
+ID	Description	Preconditions	Steps	Expected Result
+MA‑REASSIGN‑01	AAO reassigns his active assignment to another AAO in same subsection	aao1 active, target aao3	POST /api/assignments/{A1}/reassign/ with assigned_to_id = aao3.id, remarks = "Pass to aao3"	- 200 OK
+- Original assignment status becomes Completed (or Revoked? we'll assume Completed) with final remark indicating reassignment
+- New assignment created for aao3, status Active, assigned_by = aao1
+- New assignment has a remark with the same instruction
+- Mail still multi‑assigned, consolidated remarks updated
+- Audit trail entries: COMPLETE (original), ASSIGN (new)
+MA‑REASSIGN‑02	AAO tries to reassign to a user outside his subsection	aao1 active, target aao5 (Admin‑2)	Same	403 Forbidden
+MA‑REASSIGN‑03	AAO tries to reassign to a user who already has an active assignment for same mail	aao1 active, aao3 already active	Reassign to aao3	400 Bad Request (cannot create duplicate active)
+MA‑REASSIGN‑04	AAO tries to reassign after his assignment is already completed	aao1 completed earlier	Reassign	400/403
+MA‑REASSIGN‑05	AAO reassigns to a nonexistent user	aao1 active	assigned_to_id = 9999	400 Bad Request
+MA‑REASSIGN‑06	AAO reassigns without remarks	aao1 active	remarks = ""	400 Bad Request
+MA‑REASSIGN‑07	DAG reassigns an assignment on behalf of an AAO	DAG logged in, assignment A1	Reassign to aao3	200 OK, same effect as MA‑REASSIGN‑01
+MA‑REASSIGN‑08	AG reassigns any assignment	AG logged in	Same	200 OK
+5.5 Completing an Assignment
+ID	Description	Preconditions	Steps	Expected Result
+MA‑COMPLETE‑01	Assignee completes own active assignment	aao1 active	POST /api/assignments/{A1}/complete/ with final_remarks = "Done"	- 200 OK
+- Assignment status becomes Completed
+- Final remark added
+- Consolidated remarks updated
+- Audit trail COMPLETE
+MA‑COMPLETE‑02	DAG completes subordinate's assignment	DAG logged in, assignment A2	Same	Same as above
+MA‑COMPLETE‑03	AG completes any assignment	AG logged in	Same	Same
+MA‑COMPLETE‑04	Unrelated user tries to complete another's assignment	aao2 tries to complete aao1's	403 Forbidden	
+MA‑COMPLETE‑05	Complete an already completed assignment	A1 already completed	Complete again	400 Bad Request
+MA‑COMPLETE‑06	Complete without final remarks		final_remarks = ""	400 Bad Request
+5.6 Revoking an Assignment (if implemented)
+ID	Description	Preconditions	Steps	Expected Result
+MA‑REVOKE‑01	DAG revokes subordinate's active assignment	DAG logged in, A1 active	POST /api/assignments/{A1}/revoke/ with reason = "Reassigned elsewhere"	- 200 OK
+- Assignment status becomes Revoked
+- Reason added as remark
+- Consolidated remarks updated
+- Audit trail REVOKE
+MA‑REVOKE‑02	AG revokes any assignment	AG logged in	Same	200 OK
+MA‑REVOKE‑03	Assignee tries to revoke own assignment	aao1 active	Revoke	403 Forbidden (only supervisors)
+MA‑REVOKE‑04	Revoke a completed assignment	A1 completed	Revoke	400 Bad Request
+MA‑REVOKE‑05	Revoke without reason		reason = ""	400 Bad Request
+5.7 Mail Status and Consolidated Remarks
+ID	Description	Preconditions	Steps	Expected Result
+MA‑MAIL‑01	Check consolidated remarks after multiple actions	After various remarks added to different assignments	GET /api/records/{mail}/	consolidated_remarks field contains all remarks from all assignments, concatenated in chronological order, possibly with user names
+MA‑MAIL‑02	Mail status after some assignments completed, others active	aao1 completed, aao2 still active	GET mail	status = "Assigned", is_multi_assigned = True
+MA‑MAIL‑03	Mail status after all assignments completed	All assignments completed	GET mail	status still "Assigned" (or "In Progress" if defined) – not closed automatically
+MA‑MAIL‑04	Supervisor closes mail after all assignments completed	DAG logs in	POST /api/records/{mail}/close/ with final_remarks = "All done"	- 200 OK
+- Mail status becomes Closed
+- date_of_completion set
+- Consolidated remarks appended with final remarks
+- Audit trail CLOSE
+MA‑MAIL‑05	Attempt to close mail while assignments still active	aao2 still active	DAG tries to close	400 Bad Request
+MA‑MAIL‑06	AG reopens a closed mail that had multi‑assignments	Mail closed, AG logs in	POST /api/records/{mail}/reopen/ with remarks = "Reopen for review"	- 200 OK
+- Mail status becomes Received (or Assigned?)
+- All assignments? Should be cleared? We'll assume they are deleted/archived and the mail is fresh
+- Check that no active assignments remain
+5.8 Permission Matrix for Various Actions
+Action / User	AG	DAG (same section)	DAG (other section)	SrAO (own subsection)	SrAO (other)	AAO (own assignment)	AAO (no assignment)
+Create multi‑assign	✅	✅	❌	✅ (to own AAOs)	❌	❌	❌
+View any assignment of mail	✅	✅	❌	✅ (for own subsection)	❌	✅ (own only)	❌
+Add remark to assignment	✅	✅ (subordinate)	❌	✅ (own AAOs)	❌	✅ (own)	❌
+Complete assignment	✅	✅ (subordinate)	❌	❌ (unless own)	❌	✅ (own)	❌
+Revoke assignment	✅	✅ (subordinate)	❌	❌	❌	❌	❌
+Reassign assignment	✅	✅ (subordinate)	❌	✅ (own assignments to AAOs)	❌	✅ (own to AAOs)	❌
+Close mail	✅	✅ (own section)	❌	❌	❌	❌	❌
+Reopen mail	✅	❌	❌	❌	❌	❌	❌
+(Test each cell with appropriate positive/negative test cases; most are covered above.)
+
+5.9 Edge Cases and Concurrency
+ID	Description	Preconditions	Steps	Expected Result
+MA‑EDGE‑01	Multi‑assign to 50 users	AG creates with 50 AAOs		Should succeed without performance degradation
+MA‑EDGE‑02	Two supervisors concurrently multi‑assign same mail	Two sessions simultaneously POST to multi_assign with different sets	Both requests	Both should succeed (additive) or one may fail if using optimistic locking; ensure no data corruption
+MA‑EDGE‑03	AAO reassigns while another supervisor adds remark	Concurrent requests	Both should succeed and history preserved	
+MA‑EDGE‑04	Mail section changed after multi‑assignments exist	AG updates mail.section to a different section	Permissions for existing assignments should be recalculated? DAG of new section should be able to view; old DAG may lose visibility. Ensure proper handling	
+MA‑EDGE‑05	User deleted while having active assignment	Attempt to delete aao1 while they have an active assignment	Should be prevented by database foreign key (on_delete protect or set null) – test that deletion fails	
+MA‑EDGE‑06	Consolidated remarks with very many remarks	Add 1000 remarks	Field should not exceed DB limits; truncation or pagination? Likely stored as text, so large string may cause issues. Ensure it's manageable or consider summarization	
+6. Audit Trail Verification
+For every action (multi_assign, reassign, complete, revoke, add_remark, close, reopen), an AuditTrail entry must be created with:
+
+mail_record
+
+action_type (one of: MULTI_ASSIGN, REASSIGN, COMPLETE, REVOKE, REMARK?, CLOSE, REOPEN)
+
+performed_by
+
+timestamp
+
+remarks (if applicable)
+
+Test each action to verify audit trail.
+
+7. Non‑Functional Requirements
+Performance: Multi‑assign to 50 users should complete within acceptable time (< 2 sec).
+
+Security: All endpoints enforce authentication and permission checks.
+
+Data Integrity: No orphaned assignments; cascading deletes handled properly.
+
+8. Test Execution Notes
+Use APITestCase to automate these scenarios.
+
+Mock the JWT authentication for each user.
+
+Assert database state after each operation.
+
+Verify that the consolidated_remarks on the mail record aggregates remarks correctly.
+
+Ensure that the MailRecord.time_in_current_stage() and is_overdue() methods still work correctly when multi‑assigned (they depend on last_status_change; status changes only on mail‑level actions like close/reopen, not on assignment state changes).
+
+This test plan provides comprehensive coverage for the multi‑assignment feature, including all roles, permissions, workflows, and edge cases. It can be used to guide both manual testing and automated test implementation.
