@@ -49,9 +49,17 @@ An on-premise office workflow tracker where every mail/action is visible to the 
 - ✓ MUI Timeline audit trail (newest-first, color-coded, relative+absolute timestamps) — v1.1
 - ✓ Conditional field display (null/empty fields hidden, no N/A placeholders) — v1.1
 
-### Active (Next Milestone)
+### Active
 
-*(No active requirements — planning next milestone)*
+## Current Milestone: v1.2 Refactor & Create Mail UX
+
+**Goal:** Code cleanup, Create Mail performance and UX improvements, PDF indicator on mail list.
+
+**Target features:**
+- Remove deprecated/unused model fields and frontend imports
+- Optimize Create Mail loading time
+- Move Section to same row as Assigned To; auto-populate from assignee selection
+- Add View PDF icon adjacent to subject column in mail list
 
 ### Out of Scope
 
@@ -116,4 +124,4 @@ An on-premise office workflow tracker where every mail/action is visible to the 
 | Two-layer overdue warning | Red due date text + banner ensures visibility | ✓ Good |
 
 ---
-*Last updated: 2026-02-22 after v1.1 milestone — Password Change + UI/UX Refresh complete*
+*Last updated: 2026-02-24 after starting v1.2 milestone — Refactor & Create Mail UX*
