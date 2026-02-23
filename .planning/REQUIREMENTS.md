@@ -61,31 +61,31 @@ Requirements for v1.2 release. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CLEAN-01 | — | Pending |
-| CLEAN-02 | — | Pending |
-| CLEAN-03 | — | Pending |
-| CLEAN-04 | — | Pending |
-| CLEAN-05 | — | Pending |
-| REFAC-01 | — | Pending |
-| REFAC-02 | — | Pending |
-| REFAC-03 | — | Pending |
-| REFAC-04 | — | Pending |
-| REFAC-05 | — | Pending |
-| PERF-01 | — | Pending |
-| CMUX-01 | — | Pending |
-| CMUX-02 | — | Pending |
-| CMUX-03 | — | Pending |
-| MLUX-01 | — | Pending |
-| MLUX-02 | — | Pending |
-| PAGE-01 | — | Pending |
-| PAGE-02 | — | Pending |
-| PAGE-03 | — | Pending |
+| CLEAN-01 | Phase 6 | Pending |
+| CLEAN-02 | Phase 6 | Pending |
+| CLEAN-03 | Phase 6 | Pending |
+| CLEAN-04 | Phase 6 | Pending |
+| CLEAN-05 | Phase 6 | Pending |
+| REFAC-01 | Phase 6 | Pending |
+| REFAC-02 | Phase 6 | Pending |
+| REFAC-03 | Phase 6 | Pending |
+| REFAC-04 | Phase 6 | Pending |
+| REFAC-05 | Phase 6 | Pending |
+| PERF-01 | Phase 7 | Pending |
+| CMUX-01 | Phase 7 | Pending |
+| CMUX-02 | Phase 7 | Pending |
+| CMUX-03 | Phase 7 | Pending |
+| MLUX-01 | Phase 8 | Pending |
+| MLUX-02 | Phase 8 | Pending |
+| PAGE-01 | Phase 8 | Pending |
+| PAGE-02 | Phase 8 | Pending |
+| PAGE-03 | Phase 8 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 19 total
-- Mapped to phases: 0
-- Unmapped: 19 (pending roadmap creation)
+- Mapped to phases: 19
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-24*
-*Last updated: 2026-02-24 after initial definition*
+*Last updated: 2026-02-24 — traceability updated with phase mappings*
