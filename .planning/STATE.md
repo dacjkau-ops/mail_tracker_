@@ -1,8 +1,8 @@
 # State: Mail Tracker v1.2 Refactor & Create Mail UX
 
 **Current Phase:** Phase 6 — Backend Cleanup & Refactoring
-**Current Plan:** TBD (awaiting plan-phase)
-**Last Action:** Roadmap created for v1.2
+**Current Plan:** Plan 06-02 (query optimization)
+**Last Action:** Completed Plan 06-01 (deprecated field removal)
 **Date:** 2026-02-24
 
 ## Project Reference
@@ -14,10 +14,10 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 
 ## Current Position
 
-Phase: 6 — Backend Cleanup & Refactoring (not started)
-Plan: TBD
-Status: Roadmap complete, awaiting phase planning
-Last activity: 2026-02-24 — Roadmap created with 3 phases (6-8)
+Phase: 6 — Backend Cleanup & Refactoring (in progress)
+Plan: 06-02 (next)
+Status: Plan 06-01 complete, executing 06-02
+Last activity: 2026-02-24 — Plan 06-01 completed (3 tasks, 3 commits)
 
 ```
 v1.2 Progress: [..........] 0% (0/3 phases)
@@ -34,7 +34,7 @@ v1.2 Progress: [..........] 0% (0/3 phases)
 
 | Phase | Goal | Status |
 |-------|------|--------|
-| 6 | Backend cleanup + query optimization | Not started |
+| 6 | Backend cleanup + query optimization | Plan 01 done, Plan 02 next |
 | 7 | Create Mail perf + section UX | Not started |
 | 8 | PDF icon on list + pagination | Not started |
 
@@ -44,6 +44,10 @@ v1.2 Progress: [..........] 0% (0/3 phases)
 - **AllowAny on change-password endpoint** — users may be logged out; current_password is auth factor
 - **Inline remarks editing** — no modal friction
 - **Two-column detail layout (65/35)** — separates mail context from tracking
+
+*(v1.2 Phase 6)*
+- **MailRecordUpdateSerializer.Meta.fields = []** — no directly-updatable fields remain on MailRecord
+- **AssignmentRemark timeline is sole remarks source** — no dual-write to user_remarks
 
 ## Current Blockers
 
