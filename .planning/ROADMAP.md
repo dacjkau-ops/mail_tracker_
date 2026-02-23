@@ -56,7 +56,10 @@ Archive: `.planning/milestones/v1.1-ROADMAP.md`
   3. Multi-assignment creation uses `bulk_create()` for both MailAssignment and AuditTrail rows instead of individual saves
   4. DAG section officer lookup and "touched records" visibility each execute in one query instead of two or more sequential queries
   5. No duplicate utility functions — `_human_readable_size()` exists in exactly one place as a static/class method
-**Plans:** TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 06-01-PLAN.md — Remove deprecated fields and dead frontend code
+- [ ] 06-02-PLAN.md — Optimize queries, bulk_create, and DRY permissions
 
 ### Phase 7: Create Mail UX
 **Goal:** The Create Mail page loads fast and intelligently handles section selection based on assignee
@@ -92,11 +95,11 @@ Archive: `.planning/milestones/v1.1-ROADMAP.md`
 | 3. Frontend & Workflow | v1.0 | 3/3 | Complete | 2026-02-21 |
 | 4. Password Change | v1.1 | 2/2 | Complete | 2026-02-22 |
 | 5. Mail Detail UI/UX Refresh | v1.1 | 2/2 | Complete | 2026-02-22 |
-| 6. Backend Cleanup & Refactoring | v1.2 | 0/? | Not started | - |
+| 6. Backend Cleanup & Refactoring | v1.2 | 0/2 | Planning complete | - |
 | 7. Create Mail UX | v1.2 | 0/? | Not started | - |
 | 8. Mail List Enhancements | v1.2 | 0/? | Not started | - |
 
 ---
 
 *Roadmap created: 2026-02-20*
-*Last updated: 2026-02-24 — v1.2 phases 6-8 added*
+*Last updated: 2026-02-24 — Phase 6 planned (2 plans)*
