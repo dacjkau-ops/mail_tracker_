@@ -76,6 +76,19 @@ class MailRecordPermission(permissions.BasePermission):
 
         return False
 
+    def _get_touched_record_ids(self, user, request):
+        """Get mail record IDs this user has touched, cached per request."""
+        cache_attr = '_touched_record_ids_cache'
+        cached = getattr(request, cache_attr, None)
+        if cached is not None:
+            return cached
+        from audit.models import AuditTrail
+        touched_ids = set(AuditTrail.objects.filter(
+            performed_by=user
+        ).values_list('mail_record_id', flat=True))
+        setattr(request, cache_attr, touched_ids)
+        return touched_ids
+
     def _can_view_mail(self, user, obj, request):
         """Helper: check if user can view this mail record"""
         from records.models import MailAssignment
@@ -111,15 +124,7 @@ class MailRecordPermission(permissions.BasePermission):
                     status__in=['Active', 'Completed']
                 ).exists():
                     return True
-            # PERFORMANCE FIX: Use cached touched_record_ids from request if available
-            touched_ids = getattr(request, '_touched_record_ids_cache', None)
-            if touched_ids is None:
-                from audit.models import AuditTrail
-                touched_ids = set(AuditTrail.objects.filter(
-                    performed_by=user
-                ).values_list('mail_record_id', flat=True))
-                request._touched_record_ids_cache = touched_ids
-            return obj.id in touched_ids
+            return obj.id in self._get_touched_record_ids(user, request)
 
         # SrAO/AAO: subsection-level visibility (expanded from assigned-only)
         if user.role in ['SrAO', 'AAO']:
@@ -131,15 +136,7 @@ class MailRecordPermission(permissions.BasePermission):
             # Check parallel assignments
             if has_active_parallel_assignment():
                 return True
-            # PERFORMANCE FIX: Check touched records with caching
-            touched_ids = getattr(request, '_touched_record_ids_cache', None)
-            if touched_ids is None:
-                from audit.models import AuditTrail
-                touched_ids = set(AuditTrail.objects.filter(
-                    performed_by=user
-                ).values_list('mail_record_id', flat=True))
-                request._touched_record_ids_cache = touched_ids
-            return obj.id in touched_ids
+            return obj.id in self._get_touched_record_ids(user, request)
 
         # Clerk: narrow — only mails assigned to them or created by them
         if user.role == 'clerk':

@@ -202,11 +202,9 @@ class MailRecordViewSet(viewsets.ModelViewSet):
 
             dag_section_ids = user.sections.values_list('id', flat=True)
 
-            section_officer_ids = User.objects.filter(
-                subsection__section_id__in=dag_section_ids, is_active=True
-            ).values_list('id', flat=True)
             cross_section_mail_ids = MailAssignment.objects.filter(
-                assigned_to_id__in=section_officer_ids,
+                assigned_to__subsection__section_id__in=dag_section_ids,
+                assigned_to__is_active=True,
                 status__in=['Active', 'Completed']
             ).values_list('mail_record_id', flat=True).distinct()
 
