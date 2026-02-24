@@ -6,17 +6,19 @@ const mailService = {
    * @param {Object} filters - Query parameters for filtering
    * @returns {Promise}
    */
-  async getAllMails(filters = {}) {
+  async getAllMails(filters = {}, page = 1, pageSize = 25) {
     const params = new URLSearchParams();
 
     if (filters.status) params.append('status', filters.status);
     if (filters.section) params.append('section', filters.section);
     if (filters.assigned_to) params.append('assigned_to', filters.assigned_to);
     if (filters.search) params.append('search', filters.search);
+    params.append('page', page);
+    params.append('page_size', pageSize);
 
     const response = await api.get(`/records/?${params.toString()}`);
-    // Handle paginated response
-    return response.data.results || response.data;
+    // Return full paginated response: { count, next, previous, results }
+    return response.data;
   },
 
   /**

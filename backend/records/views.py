@@ -1,5 +1,7 @@
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
+from rest_framework.filters import SearchFilter
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from django.http import HttpResponse
 from django.utils import timezone
@@ -32,8 +34,17 @@ from users.serializers import UserSerializer
 from sections.models import Section, Subsection
 
 
+class MailRecordPagination(PageNumberPagination):
+    page_size = 25
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 class MailRecordViewSet(viewsets.ModelViewSet):
     permission_classes = [MailRecordPermission]
+    pagination_class = MailRecordPagination
+    filter_backends = [SearchFilter]
+    search_fields = ['sl_no', 'letter_no', 'mail_reference_subject']
 
     STATUS_SCOPE_ALL = {'', 'all'}
 
