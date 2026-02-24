@@ -24,6 +24,14 @@ Use this section as the latest behavior reference when older sections below diff
   - records where the DAG already has an active assignment (cross-section AG chain flows)
 - Multi-assigned detail UI shows a single consolidated assignment-history table, with reassignment history appended in-row.
 
+### v1.2 Changes (2026-02-24)
+- **Deprecated fields removed:** `action_required_other`, `remarks` (MailRecord), `user_remarks` (MailAssignment) — migration 0014
+- **Query optimizations:** `bulk_create` for MailAssignment+AuditTrail, per-request caching for assigned IDs, single-query DAG lookups
+- **Create Mail UX:** Form shell renders immediately (fieldset disabled pattern), section auto-derived from assignees (no standalone section dropdown), assignee rows with section chips
+- **Mail List pagination:** Server-side pagination (25/page) via `MailRecordPagination`, `?page=` and `?page_size=` params, MUI Pagination controls
+- **Search filter:** DRF `SearchFilter` on `sl_no`, `letter_no`, `mail_reference_subject` via `?search=` param
+- **PDF icon:** Paperclip icon on mail list for mails with attachments, click opens PDF in new tab
+
 ---
 
 ## 📁 Project Structure (ASCII Tree)
@@ -213,7 +221,7 @@ class MailRecord:
 
     # Mail details
     letter_no, date_received, mail_reference_subject, from_office
-    action_required: Review/Approve/Process/File/Reply/Other
+    action_required: text (free-text, max 500 chars)
 
     # Assignment
     assigned_to: FK(User)  # Who it's assigned to
@@ -248,7 +256,7 @@ class MailRecord:
 | Action | AG | DAG | SrAO/AAO |
 |--------|----|----|----------|
 | View | All mails | Own sections + touched mails | Assigned mails + touched mails |
-| Create | Any section | Own sections | ❌ |
+| Create | Any section | Own sections | Own subsection |
 | Reassign | Anyone | Within own sections | Own mail only |
 | Close | Any mail | If current handler | If current handler |
 | Reopen | ✅ | ❌ | ❌ |
@@ -348,7 +356,7 @@ GET /api/subsections/{id}/     # Subsection detail
 
 ### **Mail Records**
 ```
-GET    /api/records/           # List mails (?status=Received)
+GET    /api/records/           # List mails (?status=Received&page=1&page_size=25&search=term)
 POST   /api/records/           # Create mail
 GET    /api/records/{id}/      # Mail detail
 PATCH  /api/records/{id}/      # Update mail
@@ -356,6 +364,7 @@ POST   /api/records/{id}/reassign/      # Reassign mail
 POST   /api/records/{id}/close/         # Close mail
 POST   /api/records/{id}/reopen/        # Reopen mail (AG only)
 POST   /api/records/{id}/multi_assign/  # Multi-assign to multiple users
+GET    /api/records/{id}/pdf/view/      # View attached PDF (X-Accel-Redirect)
 ```
 
 ### **Assignments**
@@ -555,28 +564,28 @@ http://localhost:8000/admin/              # Django admin interface
 
 ## 📝 Recent Major Changes
 
-### 2026-02-14 (Latest)
+### 2026-02-24 (v1.2 — Latest)
 
-#### ✅ Bulk Import for Sections/Subsections
-- **New Feature**: CSV/JSON import for sections and subsections
-- **Location**: Django admin → Sections → Import Sections/Subsections button
-- **Sample Files**: `backend/sample_data/sections_sample.csv` and `sections_sample.json`
-- **Supports**: Nested subsections, directly_under_ag flag, bulk creation
-- **Skips Duplicates**: Won't overwrite existing sections/subsections
+#### Backend Cleanup & Refactoring (Phase 6)
+- Removed deprecated fields: `action_required_other`, `remarks`, `user_remarks`
+- Migration 0014 removes columns from database
+- `bulk_create` for MailAssignment and AuditTrail in mail creation
+- DAG section officer query collapsed from 2 queries to 1
+- Per-request caching for `_assigned_mail_ids_for_user`
+- DRY `_get_touched_record_ids` helper in permissions.py
 
-#### ✅ Subsection Support Added
-- **Breaking Change**: User.section (FK) → User.sections (M2M) for DAG
-- **New Model**: Subsection (belongs to Section)
-- **New Field**: User.subsection (for SrAO/AAO)
-- **New Field**: MailRecord.subsection (optional)
-- **New API**: /api/subsections/
+#### Create Mail UX (Phase 7)
+- Form shell renders immediately (fieldset disabled pattern, no full-page spinner)
+- Section auto-derived from assignees (no standalone dropdown)
+- Sections API call removed from Create page
+- Assignee rows with section chip, name, role, remove button
 
-### Impact:
-- DAG can now manage multiple sections
-- SrAO/AAO belong to specific subsections
-- Sections can report directly to AG (no DAG)
-- Bulk import available for easy setup
-- CSV import format changed for users (see users/admin.py)
+#### Mail List Enhancements (Phase 8)
+- Server-side pagination: 25 records/page with MUI Pagination controls
+- Search filter: `?search=` on sl_no, letter_no, subject
+- PDF icon (paperclip) next to subject for mails with attachments
+- Loading overlay on table instead of full-page spinner
+- Page size selector (25/50/100)
 
 ---
 
@@ -592,7 +601,7 @@ http://localhost:8000/admin/              # Django admin interface
 
 ---
 
-**Last Updated**: 2026-02-14
-**Codebase Version**: Post-subsection migration
+**Last Updated**: 2026-02-24
+**Codebase Version**: v1.2 — Refactor & Create Mail UX
 **Django Version**: 5.x
 **DRF Version**: 3.14+

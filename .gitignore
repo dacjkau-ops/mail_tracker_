@@ -50,3 +50,7 @@ frontend/dist-ssr/
 # Misc
 nul
 *.bak
+
+# Planning and Claude files
+.claude/
+.planning/
