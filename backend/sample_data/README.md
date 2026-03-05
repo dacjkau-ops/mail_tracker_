@@ -29,7 +29,7 @@ For user import, go to: `http://localhost:8000/admin/users/user/`
 ```csv
 username,email,password,full_name,role,sections,subsection
 dag1,dag1@office.gov,pass123,DAG Smith,DAG,"Admin, Finance",
-srao1,srao1@office.gov,pass123,SrAO John,SRAO,,Admin-1
+srao1,srao1@office.gov,pass123,SrAO John,SrAO,,Admin-1
 ```
 
 ## Tips

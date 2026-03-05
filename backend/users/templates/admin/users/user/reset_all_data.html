@@ -1,0 +1,28 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block content %}
+<div style="max-width: 760px; margin: 24px auto;">
+    <h1>{% trans "Delete All Data" %}</h1>
+    <div style="background: #fff3cd; border: 1px solid #ffeeba; padding: 16px; border-radius: 6px; margin: 16px 0;">
+        <p style="margin-top: 0;">
+            <strong>Warning:</strong> This will permanently delete operational data.
+        </p>
+        <ul>
+            <li>Mail records, assignments, remarks, audit logs, and attachments</li>
+            <li>Sections and subsections</li>
+            <li>All non-superuser users</li>
+        </ul>
+        <p style="margin-bottom: 0;">
+            Superuser accounts are kept to avoid locking out admin access.
+        </p>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="confirm" value="yes">
+        <input type="submit" value="{% trans 'Yes, delete all data' %}" class="deletelink" style="border: 0; cursor: pointer; padding: 8px 14px;">
+        <a href="{% url 'admin:users_user_changelist' %}" class="button cancel-link">{% trans "Cancel" %}</a>
+    </form>
+</div>
+{% endblock %}

@@ -62,11 +62,11 @@
     <div class="format-info">
         <h3>CSV Format</h3>
         <p>Required columns: <code>username, email, password, full_name, role</code></p>
-        <p>Optional columns: <code>section_name</code></p>
-        <pre>username,email,password,full_name,role,section_name
-dag_finance,dag.finance@office.gov,password123,Amit Kumar,DAG,AMG-I
-srao_kumar,srao.kumar@office.gov,password123,Rahul Kumar,SrAO,AMG-I
-aao_sharma,aao.sharma@office.gov,password123,Priya Sharma,AAO,AMG-I</pre>
+        <p>Optional columns: <code>sections, subsection, auditor_subsections</code></p>
+        <pre>username,email,password,full_name,role,sections,subsection,auditor_subsections
+dag_finance,dag.finance@office.gov,password123,Amit Kumar,DAG,"AMG-I, Finance",,
+srao_kumar,srao.kumar@office.gov,password123,Rahul Kumar,SrAO,,AMG-I - Admin-1,
+aao_sharma,aao.sharma@office.gov,password123,Priya Sharma,AAO,,AMG-I - Admin-1,</pre>
 
         <h3>JSON Format</h3>
         <pre>[
@@ -76,7 +76,7 @@ aao_sharma,aao.sharma@office.gov,password123,Priya Sharma,AAO,AMG-I</pre>
     "password": "password123",
     "full_name": "Amit Kumar",
     "role": "DAG",
-    "section_name": "AMG-I"
+    "sections": "AMG-I, Finance"
   },
   {
     "username": "srao_kumar",
@@ -84,7 +84,7 @@ aao_sharma,aao.sharma@office.gov,password123,Priya Sharma,AAO,AMG-I</pre>
     "password": "password123",
     "full_name": "Rahul Kumar",
     "role": "SrAO",
-    "section_name": "AMG-I"
+    "subsection": "AMG-I - Admin-1"
   }
 ]</pre>
 
@@ -94,12 +94,14 @@ aao_sharma,aao.sharma@office.gov,password123,Priya Sharma,AAO,AMG-I</pre>
             <li><strong>DAG</strong> - Deputy Additional General (section head)</li>
             <li><strong>SrAO</strong> - Senior Accounts Officer</li>
             <li><strong>AAO</strong> - Assistant Accounts Officer</li>
+            <li><strong>auditor</strong> - Auditor</li>
+            <li><strong>clerk</strong> - Clerk</li>
         </ul>
 
         <h3>Notes</h3>
         <ul>
             <li>Section must exist before importing users (create sections first)</li>
-            <li>AG users typically have no section (leave section_name empty)</li>
+            <li>AG users typically have no section/subsection (leave those columns empty)</li>
             <li>Existing users (same username) will be skipped</li>
             <li>Passwords are stored securely (hashed)</li>
         </ul>

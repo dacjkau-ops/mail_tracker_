@@ -7,5 +7,10 @@
         Import Users (CSV/JSON)
     </a>
 </li>
+<li>
+    <a href="{% url 'admin:users_reset_all_data' %}" class="deletelink">
+        Delete All Data
+    </a>
+</li>
 {{ block.super }}
 {% endblock %}
