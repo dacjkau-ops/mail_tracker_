@@ -113,6 +113,25 @@ const authService = {
     });
     return response.data;
   },
+
+  /**
+   * Get signup metadata (roles + sections + subsections)
+   * @returns {Promise<{roles: Array, sections: Array}>}
+   */
+  async getSignupMetadata() {
+    const response = await api.get('/auth/signup-metadata/');
+    return response.data;
+  },
+
+  /**
+   * Submit signup request for superuser approval
+   * @param {Object} payload
+   * @returns {Promise<{message: string, status: string}>}
+   */
+  async signup(payload) {
+    const response = await api.post('/auth/signup/', payload);
+    return response.data;
+  },
 };
 
 export default authService;

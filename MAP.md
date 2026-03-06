@@ -2,7 +2,7 @@
 
 **Purpose**: Quick reference guide to navigate the codebase efficiently and reduce token usage.
 
-## Runtime Delta (2026-02-24)
+## Runtime Delta (2026-03-05)
 
 Use this section as the latest behavior reference when older sections below differ.
 
@@ -13,16 +13,26 @@ Use this section as the latest behavior reference when older sections below diff
   - `created_by_me`
   - `closed`
 - All operational roles can create mail: `AG`, `DAG`, `SrAO`, `AAO`, `auditor`, `clerk` (role-scoped validation still applies).
-- `created_by` is included in visibility rules for non-AG roles.
-- Active assignment visibility includes both `assigned_to` and `reassigned_to`.
+- Non-AG visibility is strict scope-based:
+  - DAG: managed section scope only
+  - SrAO/AAO/clerk: own subsection scope only
+  - auditor: configured auditor subsection scope only
+- Historical/touched visibility fallback is disabled for non-AG roles.
 - Reassignment chain behavior:
   - `reassign_assignment` updates the same `MailAssignment` row (`reassigned_to`), not a new row.
   - Timeline is append-only in `AssignmentRemark`.
   - Current assignee can add remarks and complete assignment after reassignment.
-- DAG `multi_assign` works for:
-  - records in DAG-managed sections
-  - records where the DAG already has an active assignment (cross-section AG chain flows)
+- DAG `multi_assign` works for records in DAG-managed sections.
 - Multi-assigned detail UI shows a single consolidated assignment-history table, with reassignment history appended in-row.
+
+### v1.3 Changes (2026-03-05)
+- **Signup workflow:** Public signup request flow added:
+  - `POST /api/auth/signup/`
+  - `GET /api/auth/signup-metadata/`
+  - Uses `SignupRequest` model with superuser-only approval in Django admin.
+- **Signup constraints:** roles limited to `SrAO`, `AAO`, `auditor`, `clerk`; blocked email domains: `gmail.com`, `hotmail.com`, `nic.in`.
+- **Admin controls:** one-click `Delete All Data` action available in Users admin (keeps superusers).
+- **User import reliability:** CSV/JSON import optimized with bulk create + role normalization (`SRAO` -> `SrAO`).
 
 ### v1.2 Changes (2026-02-24)
 - **Deprecated fields removed:** `action_required_other`, `remarks` (MailRecord), `user_remarks` (MailAssignment) — migration 0014
@@ -112,7 +122,7 @@ Mail_Tracker/
 #### **models.py - User Model**
 ```python
 class User(AbstractUser):
-    ROLES: AG, DAG, SrAO, AAO
+    ROLES: AG, DAG, SrAO, AAO, auditor, clerk
 
     # IMPORTANT: DAG can manage multiple sections (ManyToMany)
     sections = ManyToManyField(Section)  # For DAG role
@@ -126,6 +136,12 @@ class User(AbstractUser):
     is_staff_officer() -> bool
     get_sections_list() -> QuerySet[Section]
     get_dag() -> User  # Returns monitoring officer
+
+class SignupRequest:
+    status: pending/approved/rejected
+    requested_role: SrAO/AAO/auditor/clerk
+    requested_section: FK(Section)
+    requested_subsection: FK(Subsection)
 ```
 
 **Key Logic:**
@@ -233,7 +249,7 @@ class MailRecord:
     subsection: FK(Subsection, null=True)  # Optional subsection
 
     # Status tracking
-    status: Received/Assigned/In Progress/Closed
+    status: Created/Assigned/In Progress/Closed
     due_date: date
     date_of_completion: date (null until closed)
     last_status_change: datetime (tracks time in current stage)
@@ -255,7 +271,7 @@ class MailRecord:
 **Permission Logic Summary:**
 | Action | AG | DAG | SrAO/AAO |
 |--------|----|----|----------|
-| View | All mails | Own sections + touched mails | Assigned mails + touched mails |
+| View | All mails | Managed section scope | Own subsection scope |
 | Create | Any section | Own sections | Own subsection |
 | Reassign | Anyone | Within own sections | Own mail only |
 | Close | Any mail | If current handler | If current handler |
@@ -290,15 +306,10 @@ get_queryset():
 
     DAG: See mails where:
         - section_id in user.sections (ManyToMany)
-        - OR touched via audit trail
-        - OR assigned via parallel assignment
-        - OR officers in managed subsections have assignments
+        - OR section is null and subsection.section_id in user.sections
 
     SrAO/AAO: See mails where:
-        - current_handler = self
-        - OR assigned_to = self
-        - OR touched via audit trail
-        - OR parallel assignment exists
+        - subsection = user.subsection
 
 Custom actions:
     - /reassign/ → POST with {assigned_to_id, remarks}
@@ -333,6 +344,9 @@ class AuditTrail:
 ```
 POST /api/auth/login/          # Login (returns JWT + user data)
 POST /api/auth/refresh/        # Refresh JWT token
+POST /api/auth/change-password/ # Change password (username + current password)
+POST /api/auth/signup/         # Submit signup request (pending approval)
+GET  /api/auth/signup-metadata/ # Roles + sections/subsections for signup form
 ```
 
 ### **Users**
@@ -356,7 +370,7 @@ GET /api/subsections/{id}/     # Subsection detail
 
 ### **Mail Records**
 ```
-GET    /api/records/           # List mails (?status=Received&page=1&page_size=25&search=term)
+GET    /api/records/           # List mails (?status=Created&page=1&page_size=25&search=term)
 POST   /api/records/           # Create mail
 GET    /api/records/{id}/      # Mail detail
 PATCH  /api/records/{id}/      # Update mail
@@ -572,7 +586,7 @@ http://localhost:8000/admin/              # Django admin interface
 - `bulk_create` for MailAssignment and AuditTrail in mail creation
 - DAG section officer query collapsed from 2 queries to 1
 - Per-request caching for `_assigned_mail_ids_for_user`
-- DRY `_get_touched_record_ids` helper in permissions.py
+- Scope-first permissions in `permissions.py` (no touched-history fallback for non-AG)
 
 #### Create Mail UX (Phase 7)
 - Form shell renders immediately (fieldset disabled pattern, no full-page spinner)

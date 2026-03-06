@@ -1,5 +1,7 @@
 from django.db import models
+from django.db import transaction
 from django.contrib.auth.models import AbstractUser
+from django.utils import timezone
 from sections.models import Section, Subsection
 
 
@@ -150,3 +152,133 @@ class User(AbstractUser):
         if primary:
             return primary
         return cls.objects.filter(role='AG', is_active=True).order_by('id').first()
+
+
+class SignupRequest(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    REQUESTABLE_ROLES = [
+        ('SrAO', 'Senior Audit Officer'),
+        ('AAO', 'Assistant Audit Officer'),
+        ('auditor', 'Auditor'),
+        ('clerk', 'Clerk'),
+    ]
+
+    username = models.CharField(max_length=150)
+    email = models.EmailField()
+    full_name = models.CharField(max_length=100)
+    password_hash = models.CharField(max_length=128)
+
+    requested_role = models.CharField(max_length=10, choices=REQUESTABLE_ROLES)
+    requested_section = models.ForeignKey(
+        Section,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='signup_requests'
+    )
+    requested_subsection = models.ForeignKey(
+        Subsection,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='signup_requests'
+    )
+
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    approved_by = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_signup_requests'
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    processed_user = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='source_signup_requests'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'created_at']),
+            models.Index(fields=['username']),
+            models.Index(fields=['email']),
+        ]
+
+    def __str__(self):
+        return f"{self.username} ({self.requested_role}) - {self.status}"
+
+    def approve(self, reviewer, role=None, section=None, subsection=None):
+        if self.status != 'pending':
+            raise ValueError('Only pending signup requests can be approved.')
+        if not reviewer or not reviewer.is_superuser:
+            raise ValueError('Only superusers can approve signup requests.')
+
+        final_role = role or self.requested_role
+        final_section = section if section is not None else self.requested_section
+        final_subsection = subsection if subsection is not None else self.requested_subsection
+
+        if final_role not in {'SrAO', 'AAO', 'auditor', 'clerk'}:
+            raise ValueError('Invalid role for signup approval.')
+        if not final_subsection:
+            raise ValueError('Subsection is required for approval.')
+        if final_section and final_subsection.section_id != final_section.id:
+            raise ValueError('Selected subsection does not belong to selected section.')
+
+        if User.objects.filter(username=self.username).exists():
+            raise ValueError(f'Username "{self.username}" is already in use.')
+        if User.objects.filter(email=self.email).exists():
+            raise ValueError(f'Email "{self.email}" is already in use.')
+
+        with transaction.atomic():
+            user = User.objects.create(
+                username=self.username,
+                email=self.email,
+                password=self.password_hash,
+                full_name=self.full_name,
+                role=final_role,
+                subsection=final_subsection if final_role in {'SrAO', 'AAO', 'clerk'} else None,
+                is_active=True,
+            )
+            if final_role == 'auditor':
+                user.auditor_subsections.set([final_subsection])
+            self.status = 'approved'
+            self.approved_by = reviewer
+            self.reviewed_at = timezone.now()
+            self.processed_user = user
+            self.requested_role = final_role
+            self.requested_section = final_subsection.section
+            self.requested_subsection = final_subsection
+            self.save(
+                update_fields=[
+                    'status',
+                    'approved_by',
+                    'reviewed_at',
+                    'processed_user',
+                    'requested_role',
+                    'requested_section',
+                    'requested_subsection',
+                    'updated_at',
+                ]
+            )
+            return user
+
+    def reject(self, reviewer):
+        if self.status != 'pending':
+            raise ValueError('Only pending signup requests can be rejected.')
+        if not reviewer or not reviewer.is_superuser:
+            raise ValueError('Only superusers can reject signup requests.')
+        self.status = 'rejected'
+        self.approved_by = reviewer
+        self.reviewed_at = timezone.now()
+        self.save(update_fields=['status', 'approved_by', 'reviewed_at', 'updated_at'])

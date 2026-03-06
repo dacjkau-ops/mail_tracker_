@@ -7,8 +7,14 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import authenticate
+from sections.models import Section
 from .models import User
-from .serializers import UserSerializer, UserCreateSerializer, UserMinimalSerializer
+from .serializers import (
+    UserSerializer,
+    UserCreateSerializer,
+    UserMinimalSerializer,
+    SignupRequestCreateSerializer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -128,3 +134,52 @@ class ChangePasswordView(APIView):
             {'message': 'Password changed successfully.'},
             status=status.HTTP_200_OK
         )
+
+
+class SignupView(APIView):
+    """Public signup endpoint: creates a pending signup request for superuser approval."""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = SignupRequestCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        signup_request = serializer.save()
+        logger.info(
+            "Signup request created: username=%s role=%s",
+            signup_request.username,
+            signup_request.requested_role
+        )
+        return Response(
+            {
+                'message': 'Signup request submitted successfully. Await superuser approval before login.',
+                'status': signup_request.status,
+            },
+            status=status.HTTP_201_CREATED
+        )
+
+
+class SignupMetadataView(APIView):
+    """Public metadata endpoint so signup form can render section/subsection selectors."""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        sections = Section.objects.prefetch_related('subsections').all().order_by('name')
+        payload = []
+        for section in sections:
+            payload.append(
+                {
+                    'id': section.id,
+                    'name': section.name,
+                    'subsections': [
+                        {'id': sub.id, 'name': sub.name}
+                        for sub in section.subsections.all().order_by('name')
+                    ],
+                }
+            )
+        roles = [
+            {'value': 'SrAO', 'label': 'Senior Audit Officer'},
+            {'value': 'AAO', 'label': 'Assistant Audit Officer'},
+            {'value': 'auditor', 'label': 'Auditor'},
+            {'value': 'clerk', 'label': 'Clerk'},
+        ]
+        return Response({'roles': roles, 'sections': payload}, status=status.HTTP_200_OK)

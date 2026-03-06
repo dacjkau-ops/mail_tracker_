@@ -1,7 +1,8 @@
 from rest_framework import serializers
-from .models import User
+from django.contrib.auth.hashers import make_password
+from .models import User, SignupRequest
 from sections.serializers import SubsectionSerializer
-from sections.models import Subsection
+from sections.models import Section, Subsection
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -80,3 +81,68 @@ class UserMinimalSerializer(serializers.ModelSerializer):
         elif obj.subsection:
             return obj.subsection.section.name
         return '-'
+
+
+class SignupRequestCreateSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, min_length=8)
+    section_id = serializers.PrimaryKeyRelatedField(
+        source='requested_section',
+        queryset=Section.objects.all(),
+        required=True
+    )
+    subsection_id = serializers.PrimaryKeyRelatedField(
+        source='requested_subsection',
+        queryset=Subsection.objects.select_related('section').all(),
+        required=True
+    )
+
+    class Meta:
+        model = SignupRequest
+        fields = [
+            'username',
+            'email',
+            'password',
+            'full_name',
+            'requested_role',
+            'section_id',
+            'subsection_id',
+        ]
+
+    def validate_email(self, value):
+        blocked_domains = {'gmail.com', 'hotmail.com', 'nic.in'}
+        domain = value.split('@')[-1].lower().strip()
+        if domain in blocked_domains:
+            raise serializers.ValidationError('Please use your official office email address.')
+        return value
+
+    def validate_requested_role(self, value):
+        allowed_roles = {'SrAO', 'AAO', 'auditor', 'clerk'}
+        if value not in allowed_roles:
+            raise serializers.ValidationError('Signup is allowed only for SrAO, AAO, auditor, and clerk roles.')
+        return value
+
+    def validate(self, attrs):
+        section = attrs.get('requested_section')
+        subsection = attrs.get('requested_subsection')
+        username = attrs.get('username')
+        email = attrs.get('email')
+
+        if subsection.section_id != section.id:
+            raise serializers.ValidationError({'subsection_id': 'Selected subsection does not belong to selected section.'})
+
+        if User.objects.filter(username=username).exists():
+            raise serializers.ValidationError({'username': 'This username is already taken.'})
+        if User.objects.filter(email=email).exists():
+            raise serializers.ValidationError({'email': 'This email is already registered.'})
+
+        if SignupRequest.objects.filter(username=username, status='pending').exists():
+            raise serializers.ValidationError({'username': 'A pending signup request already exists for this username.'})
+        if SignupRequest.objects.filter(email=email, status='pending').exists():
+            raise serializers.ValidationError({'email': 'A pending signup request already exists for this email.'})
+
+        return attrs
+
+    def create(self, validated_data):
+        raw_password = validated_data.pop('password')
+        validated_data['password_hash'] = make_password(raw_password)
+        return SignupRequest.objects.create(**validated_data)

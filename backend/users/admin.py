@@ -9,7 +9,7 @@ from django.db import transaction
 from django.shortcuts import render, redirect
 from django.urls import path
 from django import forms
-from .models import User
+from .models import User, SignupRequest
 from sections.models import Section, Subsection
 from records.models import MailRecord, MailAssignment, AssignmentRemark, RecordAttachment
 from audit.models import AuditTrail
@@ -215,24 +215,40 @@ class UserAdmin(BaseUserAdmin):
         }
         return role_map.get(role_raw, role_map.get(role_upper, role_raw))
 
-    def _parse_subsection(self, subsection_name, subsection_by_pair, subsection_by_name):
+    def _get_or_create_section(self, section_name, section_cache):
+        section_name = (section_name or '').strip()
+        if not section_name:
+            return None
+        section = section_cache.get(section_name)
+        if section:
+            return section
+        section = Section.objects.create(name=section_name, directly_under_ag=False)
+        section_cache[section_name] = section
+        return section
+
+    def _get_or_create_subsection(
+        self,
+        section_name,
+        subsection_name,
+        section_cache,
+        subsection_by_pair,
+        subsection_by_name
+    ):
+        section_name = (section_name or '').strip()
         subsection_name = (subsection_name or '').strip()
-        if not subsection_name:
-            return None, None
+        if not section_name or not subsection_name:
+            return None, 'Both section and subsection names are required to create subsection.'
 
-        if ' - ' in subsection_name:
-            section_name, sub_name = subsection_name.split(' - ', 1)
-            subsection = subsection_by_pair.get((section_name.strip(), sub_name.strip()))
-            if not subsection:
-                return None, f'Subsection "{subsection_name}" does not exist'
-            return subsection, None
+        pair_key = (section_name, subsection_name)
+        existing = subsection_by_pair.get(pair_key)
+        if existing:
+            return existing, None
 
-        matches = subsection_by_name.get(subsection_name, [])
-        if not matches:
-            return None, f'Subsection "{subsection_name}" does not exist'
-        if len(matches) > 1:
-            return None, f'Multiple subsections named "{subsection_name}" found. Use format: "Section - Subsection"'
-        return matches[0], None
+        section = self._get_or_create_section(section_name, section_cache)
+        subsection = Subsection.objects.create(section=section, name=subsection_name)
+        subsection_by_pair[(section.name, subsection.name)] = subsection
+        subsection_by_name.setdefault(subsection.name, []).append(subsection)
+        return subsection, None
 
     def _format_username_preview(self, usernames, limit=20):
         if not usernames:
@@ -270,9 +286,13 @@ class UserAdmin(BaseUserAdmin):
             password = str(row.get('password', '')).strip()
             full_name = str(row.get('full_name', '')).strip()
             role = self._normalize_role(row.get('role', ''))
-            sections_raw = str(row.get('sections', row.get('section_name', ''))).strip()
-            subsection_raw = str(row.get('subsection', '')).strip()
+            section_value = row.get('section', row.get('section_name', ''))
+            sections_raw = str(row.get('sections', section_value)).strip()
+            subsection_raw = str(row.get('subsection', row.get('subsection_name', ''))).strip()
             auditor_subsections_raw = str(row.get('auditor_subsections', '')).strip()
+            section_hint = ''
+            if sections_raw:
+                section_hint = sections_raw.split(',')[0].strip()
 
             if not all([username, email, password, full_name, role]):
                 results['errors'].append(
@@ -301,18 +321,20 @@ class UserAdmin(BaseUserAdmin):
             sections_for_dag = []
             if role == 'DAG' and sections_raw:
                 section_names = [name.strip() for name in sections_raw.split(',') if name.strip()]
-                missing_sections = [name for name in section_names if name not in section_cache]
-                if missing_sections:
-                    results['errors'].append(
-                        f'Row {row_num} ({username}): Section(s) not found: {", ".join(missing_sections)}'
-                    )
-                    continue
-                sections_for_dag = [section_cache[name] for name in section_names]
+                sections_for_dag = [self._get_or_create_section(name, section_cache) for name in section_names]
+                sections_for_dag = [section for section in sections_for_dag if section is not None]
 
             subsection = None
             if role in ['SrAO', 'AAO', 'clerk'] and subsection_raw:
-                subsection, subsection_error = self._parse_subsection(
+                if not section_hint:
+                    results['errors'].append(
+                        f'Row {row_num} ({username}): "section" is required when "subsection" is provided'
+                    )
+                    continue
+                subsection, subsection_error = self._get_or_create_subsection(
+                    section_hint,
                     subsection_raw,
+                    section_cache,
                     subsection_by_pair,
                     subsection_by_name
                 )
@@ -328,8 +350,16 @@ class UserAdmin(BaseUserAdmin):
                     parsed = []
                     parse_failed = False
                     for token in subsection_tokens:
-                        parsed_subsection, subsection_error = self._parse_subsection(
+                        if not section_hint:
+                            results['errors'].append(
+                                f'Row {row_num} ({username}): "section" is required when importing auditor subsections'
+                            )
+                            parse_failed = True
+                            break
+                        parsed_subsection, subsection_error = self._get_or_create_subsection(
+                            section_hint,
                             token,
+                            section_cache,
                             subsection_by_pair,
                             subsection_by_name
                         )
@@ -389,3 +419,104 @@ class UserAdmin(BaseUserAdmin):
 
         results['created'].extend(sorted(created_users.keys()))
         return results
+
+
+@admin.register(SignupRequest)
+class SignupRequestAdmin(admin.ModelAdmin):
+    list_display = [
+        'username',
+        'email',
+        'full_name',
+        'requested_role',
+        'requested_section',
+        'requested_subsection',
+        'status',
+        'created_at',
+        'approved_by',
+    ]
+    list_filter = ['status', 'requested_role', 'created_at']
+    search_fields = ['username', 'email', 'full_name']
+    actions = ['approve_requests', 'reject_requests']
+    readonly_fields = ['created_at', 'updated_at', 'reviewed_at', 'approved_by', 'processed_user']
+    exclude = ['password_hash']
+
+    def has_module_permission(self, request):
+        return request.user.is_superuser
+
+    def has_view_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_change_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    @admin.action(description='Approve selected signup requests')
+    def approve_requests(self, request, queryset):
+        if not request.user.is_superuser:
+            self.message_user(request, 'Only superusers can approve signup requests.', level=messages.ERROR)
+            return
+
+        approved_count = 0
+        for signup_request in queryset.filter(status='pending'):
+            try:
+                signup_request.approve(
+                    reviewer=request.user,
+                    role=signup_request.requested_role,
+                    section=signup_request.requested_section,
+                    subsection=signup_request.requested_subsection
+                )
+                approved_count += 1
+            except Exception as exc:
+                self.message_user(
+                    request,
+                    f'Could not approve "{signup_request.username}": {exc}',
+                    level=messages.ERROR
+                )
+
+        if approved_count:
+            self.message_user(request, f'Approved {approved_count} signup request(s).', level=messages.SUCCESS)
+
+    @admin.action(description='Reject selected signup requests')
+    def reject_requests(self, request, queryset):
+        if not request.user.is_superuser:
+            self.message_user(request, 'Only superusers can reject signup requests.', level=messages.ERROR)
+            return
+
+        rejected_count = 0
+        for signup_request in queryset.filter(status='pending'):
+            try:
+                signup_request.reject(reviewer=request.user)
+                rejected_count += 1
+            except Exception as exc:
+                self.message_user(
+                    request,
+                    f'Could not reject "{signup_request.username}": {exc}',
+                    level=messages.ERROR
+                )
+
+        if rejected_count:
+            self.message_user(request, f'Rejected {rejected_count} signup request(s).', level=messages.SUCCESS)
+
+    def save_model(self, request, obj, form, change):
+        if not request.user.is_superuser:
+            self.message_user(request, 'Only superusers can review signup requests.', level=messages.ERROR)
+            return
+
+        if obj.status == 'approved' and not obj.processed_user_id:
+            obj.approve(
+                reviewer=request.user,
+                role=obj.requested_role,
+                section=obj.requested_section,
+                subsection=obj.requested_subsection
+            )
+            return
+        if obj.status == 'rejected' and obj.reviewed_at is None:
+            obj.reject(reviewer=request.user)
+            return
+
+        super().save_model(request, obj, form, change)

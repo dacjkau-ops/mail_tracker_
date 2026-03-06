@@ -4,6 +4,8 @@ from rest_framework import serializers
 from .models import MailRecord, MailAssignment, AssignmentRemark
 from users.serializers import UserMinimalSerializer
 from sections.serializers import SectionSerializer, SubsectionSerializer
+from sections.models import Section, Subsection
+from sections.models import Section, Subsection
 
 
 def _officer_in_dag_sections(officer, dag_section_ids):
@@ -230,17 +232,39 @@ class MailRecordDetailSerializer(serializers.ModelSerializer):
         return obj.get_attachment_metadata()
 
 
+class FlexibleAssignedToField(serializers.ListField):
+    """Custom field that accepts either a single integer or a list of integers for assigned_to."""
+    child = serializers.IntegerField()
+
+    def to_internal_value(self, data):
+        # Handle single integer value by converting to list
+        if isinstance(data, int):
+            return [data]
+        # Handle string that looks like an integer (from form data)
+        if isinstance(data, str) and data.isdigit():
+            return [int(data)]
+        # Default ListField behavior for actual lists
+        return super().to_internal_value(data)
+
+
 class MailRecordCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating mail records"""
-    assigned_to = serializers.ListField(
-        child=serializers.IntegerField(),
+    assigned_to = FlexibleAssignedToField(
         write_only=True,
         help_text="List of user IDs to assign (can be single or multiple)"
     )
     initial_instructions = serializers.CharField(required=False, allow_blank=True)
-    # Section is now optional - will be auto-detected based on role and assignees
-    section = serializers.IntegerField(required=False, allow_null=True)
-    subsection = serializers.IntegerField(required=False, allow_null=True)
+    # Section and subsection as PrimaryKeyRelatedField to handle ID-to-instance conversion
+    section = serializers.PrimaryKeyRelatedField(
+        queryset=Section.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    subsection = serializers.PrimaryKeyRelatedField(
+        queryset=Subsection.objects.all(),
+        required=False,
+        allow_null=True
+    )
 
     class Meta:
         model = MailRecord

@@ -4,7 +4,7 @@ Copy and paste this 👇
 
 Note: `PRODUCT_SPEC.md` is the canonical runtime product spec. If this file conflicts with `PRODUCT_SPEC.md`, follow `PRODUCT_SPEC.md`.
 
-## Current Runtime Truth (2026-02-24)
+## Current Runtime Truth (2026-03-05)
 
 Use this section as the effective behavior baseline when older parts of this file differ.
 
@@ -13,6 +13,15 @@ Use this section as the effective behavior baseline when older parts of this fil
 - DAG creation is restricted to managed section scope.
 - SrAO/AAO/clerk creation is scoped to own subsection.
 - Auditor creation is scoped to configured auditor subsections.
+
+### Signup and User Onboarding
+- Public signup is available at `POST /api/auth/signup/`.
+- Signup creates a **pending** `SignupRequest` record (does not create an active user immediately).
+- Approval is **superuser-only** and handled in Django admin (`SignupRequest` admin).
+- Superuser can edit requested role/section/subsection before approval.
+- Allowed signup roles: `SrAO`, `AAO`, `auditor`, `clerk` (not `AG`/`DAG`).
+- Blocked email domains for signup: `gmail.com`, `hotmail.com`, `nic.in`.
+- Frontend signup metadata endpoint: `GET /api/auth/signup-metadata/`.
 
 ### Mail Status Values
 - `Created`, `Assigned`, `In Progress`, `Closed`.
@@ -30,9 +39,12 @@ Use this section as the effective behavior baseline when older parts of this fil
 - Completing reassigned assignments is allowed for the current assignee.
 
 ### Visibility and Permissions
-- `created_by` visibility is included across roles.
-- Active parallel assignment visibility includes both `assigned_to` and `reassigned_to`.
-- DAG `multi_assign` is allowed for managed-section mails and for mails where DAG has an active assignment.
+- Non-AG visibility is strict scope-based:
+  - DAG: managed section scope only.
+  - SrAO/AAO/clerk: own subsection scope only.
+  - auditor: configured auditor subsection scope only.
+- Historical/touched visibility fallback is disabled for non-AG roles.
+- DAG `multi_assign` is allowed only for mails in DAG-managed scope.
 
 ### UI Naming
 - Label `About Info` is used in place of `Initial Instruction` in active screens.
@@ -57,24 +69,25 @@ The app is hosted locally (laptop server) and prioritizes correctness, security,
    - Full system access across all sections
 
 2. **DAG (Deputy Accountant General)** - Section heads
-   - **CANNOT create** mail entries (only AG can create)
+   - Can create mail entries within managed section scope
    - Can reassign mails within their managed sections
-   - Can view: Own section records + all records they've ever touched
+   - Can view: Own section records (strict scope)
    - Can update status and close records they're handling
 
 3. **SrAO/AAO (Senior Audit Officer / Assistant Audit Officer)** - Staff officers
+   - Can create mail entries within their own subsection scope
    - Can update status of mails assigned to them
    - Can close mails they're currently handling
-   - Can view records assigned to them
+   - Can view records in their own subsection scope
 
 ### Workflow Stages
-1. **Received** - Mail logged into system (initial state when created)
-2. **Assigned** - Auto-transitions when mail is assigned to an officer
+1. **Created** - Mail logged into system
+2. **Assigned** - Creation flow currently lands here after assignee resolution
 3. **In Progress** - Auto-transitions when assigned officer starts working on it
 4. **Closed** - Manually set by current handler when work is completed
 
 **Auto-transition rules:**
-- Creating a mail → Status: Received
+- Creating a mail → Status: Assigned
 - Assigning to an officer → Status: Assigned
 - Officer updates/works on it → Status: In Progress
 - Handler explicitly closes → Status: Closed
@@ -321,7 +334,7 @@ The system will be considered successful when these functional requirements are 
 - ✅ All required fields validated (letter_no, subject, from_office, action_required, section, assigned_to, due_date)
 - ✅ action_required is a free-text field (max 500 chars); the old dropdown options (Review, Approve, Process, File, Reply, Other) are no longer enforced
 - ✅ assigned_to dropdown filtered correctly (AG sees all, DAG sees section users)
-- ✅ Status auto-set to "Received" on creation
+- ✅ Status auto-set to "Assigned" on creation
 - ✅ monitoring_officer auto-assigned based on assigned_to user's DAG
 - ✅ current_handler set to assigned_to initially
 - ✅ Audit trail logs mail creation with creator and timestamp
@@ -329,10 +342,10 @@ The system will be considered successful when these functional requirements are 
 #### 5. Mail List View
 - ✅ Users see mails based on role permissions:
   - AG: ALL mails
-  - DAG: Own section mails + mails they've touched
-  - SrAO/AAO: Only mails assigned to them + mails they've touched
+  - DAG: Own section scope only
+  - SrAO/AAO: Own subsection scope only
 - ✅ Table displays all required columns: sl_no, letter_no, subject, from_office, assigned_to, due_date, status, time_in_current_stage, current_handler, date_of_completion
-- ✅ Status filter works (Received/Assigned/In Progress/Closed)
+- ✅ Status filter works (Created/Assigned/In Progress/Closed)
 - ✅ Overdue items highlighted in RED (current_date > due_date AND status ≠ Closed)
 - ✅ Time in current stage calculated and displayed correctly (e.g., "2 days 5 hours")
 - ✅ Columns are sortable (at minimum: date_received, due_date, status)
@@ -340,7 +353,7 @@ The system will be considered successful when these functional requirements are 
 
 #### 6. Mail Detail View
 - ✅ All mail information displayed correctly (read-only fields)
-- ✅ Status badge shows correct color (Received=gray, Assigned=blue, In Progress=orange, Closed=green)
+- ✅ Status badge shows correct color (Created=gray, Assigned=blue, In Progress=orange, Closed=green)
 - ✅ Current remarks visible
 - ✅ Action buttons display based on permissions:
   - Reassign: Visible to AG, DAG, current_handler
@@ -379,7 +392,7 @@ The system will be considered successful when these functional requirements are 
 - ✅ Editing remarks updates updated_at timestamp
 
 #### 11. Auto-Transitions
-- ✅ Creating mail → status: "Received"
+- ✅ Creating mail → status: "Assigned"
 - ✅ Assigning mail (on creation) → status: "Assigned"
 - ✅ Reassigning mail → status: "In Progress"
 - ✅ Handler updates remarks → status: "In Progress" (if not already)

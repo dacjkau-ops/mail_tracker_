@@ -7,7 +7,7 @@ If `CLAUDE.md` conflicts with this file, follow this file.
 
 - Secure, role-based office mail workflow tracking.
 - Focus: current handler visibility, stage duration, reassignment trail, closure accountability.
-- No attachments, no external integrations, no priority flags.
+- No external integrations, no priority flags.
 
 ## Roles and Permissions
 
@@ -19,23 +19,43 @@ If `CLAUDE.md` conflicts with this file, follow this file.
 - Can reopen closed records.
 
 2. DAG
-- Cannot create records.
-- Can view records in managed sections plus records touched/assigned through history rules.
+- Can create records in managed section scope.
+- Can view records in managed section scope only.
 - Can reassign only within managed sections.
 - Can close only when current handler.
 
 3. SrAO/AAO
-- Cannot create records.
-- Can view records assigned/handled/touched per backend rules.
+- Can create records in own subsection scope.
+- Can view records in own subsection scope.
 - Can update current action when current handler.
 - Can close only when current handler.
 
+4. auditor
+- Can create records in configured auditor subsection scope.
+- Can view records in configured auditor subsection scope.
+- Can reassign when current handler; target restrictions enforced by backend.
+
+5. clerk
+- Can create records in own subsection scope.
+- Can view records in own subsection scope.
+- Can update/close only when current handler.
+
 All permissions are enforced in backend APIs.
+
+## Signup and Approval
+
+- Public signup endpoint: `POST /api/auth/signup/`.
+- Signup metadata endpoint: `GET /api/auth/signup-metadata/`.
+- Signup writes to `SignupRequest` (pending by default), not active `User`.
+- Approval/rejection is superuser-only through Django admin.
+- Superuser can edit requested role/section/subsection before approval.
+- Allowed signup roles: `SrAO`, `AAO`, `auditor`, `clerk`.
+- Blocked signup email domains: `gmail.com`, `hotmail.com`, `nic.in`.
 
 ## Workflow States
 
 State labels:
-- `Received`
+- `Created`
 - `Assigned`
 - `In Progress`
 - `Closed`

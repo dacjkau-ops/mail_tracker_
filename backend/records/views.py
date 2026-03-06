@@ -84,39 +84,30 @@ class MailRecordViewSet(viewsets.ModelViewSet):
         assignments = list(mail_record.parallel_assignments.all())
         assignments.sort(key=lambda a: (a.created_at, a.id))
 
-        if user.role == 'AG' or mail_record.created_by_id == user.id:
+        if user.role == 'AG':
             return assignments
 
         if user.role == 'DAG':
-            dag_section_ids = set(user.sections.values_list('id', flat=True))
-            visible = []
+            section_id = mail_record.section_id or (mail_record.subsection.section_id if mail_record.subsection_id else None)
+            if section_id and user.sections.filter(id=section_id).exists():
+                return assignments
+            return []
 
-            def officer_in_scope(officer):
-                if not officer:
-                    return False
-                if officer.role == 'DAG':
-                    return officer.sections.filter(id__in=dag_section_ids).exists()
-                if officer.subsection_id:
-                    return officer.subsection.section_id in dag_section_ids
-                return False
+        if user.role in ['SrAO', 'AAO', 'clerk']:
+            if user.subsection_id and mail_record.subsection_id == user.subsection_id:
+                return assignments
+            return []
 
-            for assignment in assignments:
-                current_assignee = assignment.reassigned_to or assignment.assigned_to
-                if (
-                    assignment.assigned_by_id == user.id
-                    or assignment.assigned_to_id == user.id
-                    or assignment.reassigned_to_id == user.id
-                    or officer_in_scope(assignment.assigned_to)
-                    or officer_in_scope(assignment.reassigned_to)
-                    or officer_in_scope(current_assignee)
-                ):
-                    visible.append(assignment)
-            return visible
+        if user.role == 'auditor':
+            auditor_sub_ids = set(user.auditor_subsections.values_list('id', flat=True))
+            if mail_record.subsection_id and mail_record.subsection_id in auditor_sub_ids:
+                return assignments
+            if mail_record.section_id and mail_record.subsection_id is None:
+                if Subsection.objects.filter(id__in=auditor_sub_ids, section_id=mail_record.section_id).exists():
+                    return assignments
+            return []
 
-        return [
-            assignment for assignment in assignments
-            if assignment.assigned_to_id == user.id or assignment.reassigned_to_id == user.id
-        ]
+        return []
 
     def _get_reassign_candidates_queryset(self, mail_record, user):
         """Return eligible users for reassignment based on role + mail context."""
@@ -205,60 +196,23 @@ class MailRecordViewSet(viewsets.ModelViewSet):
         if user.role == 'AG':
             queryset = base_queryset
         elif user.role == 'DAG':
-            touched_record_ids = AuditTrail.objects.filter(
-                performed_by=user
-            ).values_list('mail_record_id', flat=True).distinct()
-
-            assigned_via_parallel = self._assigned_mail_ids_for_user(user, self.request)
-
             dag_section_ids = user.sections.values_list('id', flat=True)
-
-            cross_section_mail_ids = MailAssignment.objects.filter(
-                assigned_to__subsection__section_id__in=dag_section_ids,
-                assigned_to__is_active=True,
-                status__in=['Active', 'Completed']
-            ).values_list('mail_record_id', flat=True).distinct()
-
             queryset = base_queryset.filter(
                 Q(section_id__in=dag_section_ids) |
-                Q(id__in=touched_record_ids) |
-                Q(id__in=assigned_via_parallel) |
-                Q(id__in=cross_section_mail_ids) |
-                Q(created_by=user)
+                Q(section__isnull=True, subsection__section_id__in=dag_section_ids)
             )
         elif user.role in ['SrAO', 'AAO']:
-            touched_record_ids = AuditTrail.objects.filter(
-                performed_by=user
-            ).values_list('mail_record_id', flat=True).distinct()
-
-            assigned_via_parallel = self._assigned_mail_ids_for_user(user, self.request)
-
-            queryset = base_queryset.filter(
-                Q(current_handler=user) |
-                Q(assigned_to=user) |
-                Q(subsection=user.subsection) |
-                Q(id__in=touched_record_ids) |
-                Q(id__in=assigned_via_parallel) |
-                Q(created_by=user)
-            )
+            queryset = base_queryset.filter(subsection=user.subsection)
         elif user.role == 'clerk':
-            assigned_via_parallel = self._assigned_mail_ids_for_user(user, self.request)
-
-            queryset = base_queryset.filter(
-                Q(current_handler=user) |
-                Q(assigned_to=user) |
-                Q(created_by=user) |
-                Q(id__in=assigned_via_parallel)
-            )
+            queryset = base_queryset.filter(subsection=user.subsection)
         elif user.role == 'auditor':
             auditor_sub_ids = list(user.auditor_subsections.values_list('id', flat=True))
             if not auditor_sub_ids:
-                queryset = base_queryset.filter(created_by=user)
+                queryset = base_queryset.none()
             else:
                 queryset = base_queryset.filter(
                     Q(subsection__in=auditor_sub_ids) |
-                    Q(subsection__isnull=True, section__subsections__id__in=auditor_sub_ids) |
-                    Q(created_by=user)
+                    Q(subsection__isnull=True, section__subsections__id__in=auditor_sub_ids)
                 ).distinct()
         else:
             queryset = base_queryset.none()

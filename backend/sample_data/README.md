@@ -34,7 +34,7 @@ srao1,srao1@office.gov,pass123,SrAO John,SrAO,,Admin-1
 
 ## Tips
 
-1. **Import Order**: Import sections first, then users
+1. **Import Order**: You can import users directly; missing sections/subsections are auto-created
 2. **Existing Data**: Import skips duplicates (won't overwrite existing sections/users)
 3. **Error Handling**: If import fails, check admin messages for specific row errors
 4. **Validation**: Files are validated before import - fix errors and re-upload

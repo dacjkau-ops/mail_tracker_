@@ -233,36 +233,26 @@ class MailRecord(models.Model):
         """Check if user can view this mail record"""
         if user.is_ag():
             return True
-        if self.created_by_id == user.id:
-            return True
 
         if user.is_dag():
-            # DAG can view mails from any of their managed sections
-            if self.section and user.sections.filter(id=self.section.id).exists():
+            section_id = self.section_id or (self.subsection.section_id if self.subsection_id else None)
+            return bool(section_id and user.sections.filter(id=section_id).exists())
+
+        if user.role in ['SrAO', 'AAO', 'clerk']:
+            return bool(user.subsection_id and self.subsection_id == user.subsection_id)
+
+        if user.role == 'auditor':
+            auditor_sub_ids = set(user.auditor_subsections.values_list('id', flat=True))
+            if self.subsection_id and self.subsection_id in auditor_sub_ids:
                 return True
-            # DAG can view mails where they have a parallel assignment
-            if self.parallel_assignments.filter(assigned_to=user, status='Active').exists():
-                return True
-            # DAG can view mails they touched at any point
-            from audit.models import AuditTrail
-            return AuditTrail.objects.filter(
-                mail_record=self,
-                performed_by=user
-            ).exists()
+            if self.section_id and self.subsection_id is None:
+                return Subsection.objects.filter(
+                    id__in=auditor_sub_ids,
+                    section_id=self.section_id
+                ).exists()
+            return False
 
-        # SrAO/AAO can view mails assigned to them or they touched
-        if self.current_handler == user or self.assigned_to == user:
-            return True
-
-        # Staff can view mails where they have a parallel assignment
-        if self.parallel_assignments.filter(assigned_to=user, status='Active').exists():
-            return True
-
-        from audit.models import AuditTrail
-        return AuditTrail.objects.filter(
-            mail_record=self,
-            performed_by=user
-        ).exists()
+        return False
 
     def can_edit(self, user):
         """Current behavior: only AG or current handler can update mutable fields."""

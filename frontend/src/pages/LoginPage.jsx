@@ -121,6 +121,9 @@ const LoginPage = () => {
             </form>
 
             <Box sx={{ mt: 3, textAlign: 'center' }}>
+              <Link component={RouterLink} to="/signup" variant="body2" sx={{ mr: 2 }}>
+                Request New Account
+              </Link>
               <Link component={RouterLink} to="/change-password" variant="body2">
                 Change Password
               </Link>
