@@ -111,7 +111,16 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             return []
 
         if user.role in ['SrAO', 'AAO', 'clerk']:
-            if user.subsection_id and mail_record.subsection_id == user.subsection_id:
+            if (
+                (user.subsection_id and mail_record.subsection_id == user.subsection_id)
+                or mail_record.current_handler_id == user.id
+                or MailAssignment.objects.filter(
+                    mail_record=mail_record,
+                    status='Active'
+                ).filter(
+                    Q(assigned_to=user) | Q(reassigned_to=user)
+                ).exists()
+            ):
                 return assignments
             return []
 
@@ -219,9 +228,19 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 Q(section__isnull=True, subsection__section_id__in=dag_section_ids)
             )
         elif user.role in ['SrAO', 'AAO']:
-            queryset = base_queryset.filter(subsection=user.subsection)
+            assigned_ids = self._assigned_mail_ids_for_user(user, self.request)
+            queryset = base_queryset.filter(
+                Q(subsection=user.subsection) |
+                Q(current_handler=user) |
+                Q(id__in=assigned_ids)
+            ).distinct()
         elif user.role == 'clerk':
-            queryset = base_queryset.filter(subsection=user.subsection)
+            assigned_ids = self._assigned_mail_ids_for_user(user, self.request)
+            queryset = base_queryset.filter(
+                Q(subsection=user.subsection) |
+                Q(current_handler=user) |
+                Q(id__in=assigned_ids)
+            ).distinct()
         elif user.role == 'auditor':
             auditor_sub_ids = list(user.auditor_subsections.values_list('id', flat=True))
             if not auditor_sub_ids:
@@ -1003,6 +1022,21 @@ class MailRecordViewSet(viewsets.ModelViewSet):
         assignment.reassigned_to = new_assignee
         assignment.reassigned_at = timezone.now()
         assignment.save()
+
+        # Keep mail-level handler/scope aligned when current handler is being reassigned.
+        if mail_record.current_handler_id == old_assignee.id:
+            new_section, new_subsection = self._resolve_scope_for_handler(
+                new_assignee, fallback_section=mail_record.section
+            )
+            mail_record.current_handler = new_assignee
+            mail_record.section = new_section
+            mail_record.subsection = new_subsection
+            mail_record.status = 'In Progress'
+            mail_record.last_status_change = timezone.now()
+            mail_record.save(update_fields=[
+                'current_handler', 'section', 'subsection',
+                'status', 'last_status_change', 'updated_at'
+            ])
 
         # Add a remark about the reassignment
         AssignmentRemark.objects.create(

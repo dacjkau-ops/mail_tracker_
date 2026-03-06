@@ -78,7 +78,11 @@ class MailRecordPermission(permissions.BasePermission):
             return bool(section_id and user.sections.filter(id=section_id).exists())
 
         if user.role in ['SrAO', 'AAO', 'clerk']:
-            return bool(user.subsection_id and obj.subsection_id == user.subsection_id)
+            if user.subsection_id and obj.subsection_id == user.subsection_id:
+                return True
+            if obj.current_handler_id == user.id:
+                return True
+            return self._has_active_assignment(user, obj)
 
         if user.role == 'auditor':
             auditor_sub_ids = set(user.auditor_subsections.values_list('id', flat=True))
