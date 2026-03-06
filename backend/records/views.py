@@ -550,8 +550,10 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_403_FORBIDDEN
                 )
 
-        # Store old handler
+        # Store old handler and outgoing work notes (for immutable history snapshot)
         old_handler = mail_record.current_handler
+        outgoing_action_status = mail_record.current_action_status
+        outgoing_action_remarks = (mail_record.current_action_remarks or '').strip()
 
         with transaction.atomic():
             # Mark old handler's active assignment as completed and add timeline note
@@ -565,9 +567,13 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 old_assignment.status = 'Completed'
                 old_assignment.completed_at = timezone.now()
                 old_assignment.save(update_fields=['status', 'completed_at', 'updated_at'])
+                snapshot_suffix = (
+                    f"\nOutgoing handler notes: {outgoing_action_remarks}"
+                    if outgoing_action_remarks else ""
+                )
                 AssignmentRemark.objects.create(
                     assignment=old_assignment,
-                    content=f"Forwarded to {new_handler.full_name}: {remarks}",
+                    content=f"Forwarded to {new_handler.full_name}: {remarks}{snapshot_suffix}",
                     created_by=user
                 )
 
@@ -601,9 +607,19 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             mail_record=mail_record,
             action='REASSIGN',
             performed_by=user,
-            old_value={'current_handler': old_handler.full_name},
-            new_value={'current_handler': new_handler.full_name, 'status': 'In Progress'},
-            remarks=remarks
+            old_value={
+                'current_handler': old_handler.full_name,
+                'current_action_status': outgoing_action_status,
+                'current_action_remarks': outgoing_action_remarks
+            },
+            new_value={
+                'current_handler': new_handler.full_name,
+                'status': 'In Progress'
+            },
+            remarks=(
+                f"Reassigned with reason: {remarks}\n"
+                f"Outgoing handler remarks snapshot: {outgoing_action_remarks or '(none)'}"
+            )
         )
 
         response_serializer = MailRecordDetailSerializer(mail_record, context={'request': request})
@@ -780,6 +796,17 @@ class MailRecordViewSet(viewsets.ModelViewSet):
 
         mail_record.save()
 
+        # Persist immutable, append-only remark history on the active assignment timeline.
+        active_assignment = mail_record.parallel_assignments.filter(status='Active').filter(
+            Q(reassigned_to=user) | Q(reassigned_to__isnull=True, assigned_to=user)
+        ).first()
+        if active_assignment and current_action_remarks:
+            AssignmentRemark.objects.create(
+                assignment=active_assignment,
+                content=f"[Action Update] {current_action_status}: {current_action_remarks}",
+                created_by=user
+            )
+
         # Create audit trail
         AuditTrail.objects.create(
             mail_record=mail_record,
@@ -794,7 +821,11 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 'current_action_remarks': current_action_remarks,
                 'status': mail_record.status
             },
-            remarks=f"Updated current action to: {current_action_status}"
+            remarks=(
+                f"Updated current action to: {current_action_status}\n"
+                f"Previous remarks: {old_action_remarks or '(none)'}\n"
+                f"New remarks: {current_action_remarks or '(none)'}"
+            )
         )
 
         response_serializer = MailRecordDetailSerializer(mail_record, context={'request': request})
