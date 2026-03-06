@@ -82,7 +82,9 @@ class MailRecord(models.Model):
     current_handler = models.ForeignKey(
         django_settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
-        related_name='current_mails'
+        related_name='current_mails',
+        null=True,
+        blank=True
     )
     monitoring_officer = models.ForeignKey(
         django_settings.AUTH_USER_MODEL,
@@ -185,8 +187,9 @@ class MailRecord(models.Model):
 
             self.sl_no = f"{year}/{new_number:03d}"
 
-        # Auto-set current_handler if not set
-        if not self.current_handler_id:
+        # Auto-set current_handler for open mails when missing.
+        # Closed mails intentionally keep current_handler empty.
+        if not self.current_handler_id and self.status != 'Closed':
             self.current_handler = self.assigned_to
 
         # Auto-set monitoring officer based on assigned_to's DAG

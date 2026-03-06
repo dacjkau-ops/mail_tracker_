@@ -676,7 +676,12 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             mail_record.current_action_status = 'Completed'
             mail_record.current_action_remarks = remarks
             mail_record.current_action_updated_at = now
-            mail_record.save()
+            mail_record.current_handler = None
+            mail_record.save(update_fields=[
+                'status', 'date_of_completion', 'last_status_change',
+                'current_action_status', 'current_action_remarks',
+                'current_action_updated_at', 'current_handler', 'updated_at'
+            ])
 
             # Keep assignment history in sync: all active assignments become completed on close
             active_assignments = mail_record.parallel_assignments.filter(status='Active')
@@ -737,7 +742,12 @@ class MailRecordViewSet(viewsets.ModelViewSet):
         mail_record.current_action_status = None
         mail_record.current_action_remarks = None
         mail_record.current_action_updated_at = timezone.now()
-        mail_record.save()
+        mail_record.current_handler = mail_record.assigned_to
+        mail_record.save(update_fields=[
+            'status', 'date_of_completion', 'last_status_change',
+            'current_action_status', 'current_action_remarks',
+            'current_action_updated_at', 'current_handler', 'updated_at'
+        ])
 
         # Create audit trail
         AuditTrail.objects.create(
