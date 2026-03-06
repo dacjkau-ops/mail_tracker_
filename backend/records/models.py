@@ -251,7 +251,22 @@ class MailRecord(models.Model):
                 Q(assigned_to=user) | Q(reassigned_to=user)
             ).exists()
 
-        if user.role in ['AAO', 'clerk', 'auditor']:
+        if user.role == 'AAO':
+            if self.created_by.role == 'auditor' and user.subsection_id and self.subsection_id == user.subsection_id:
+                return True
+            if self.created_by_id == user.id:
+                return True
+            if self.current_handler_id == user.id:
+                return True
+            from django.db.models import Q
+            return MailAssignment.objects.filter(
+                mail_record=self,
+                status='Active'
+            ).filter(
+                Q(assigned_to=user) | Q(reassigned_to=user)
+            ).exists()
+
+        if user.role in ['clerk', 'auditor']:
             if self.created_by_id == user.id:
                 return True
             if self.current_handler_id == user.id:

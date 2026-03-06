@@ -124,7 +124,22 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 return assignments
             return []
 
-        if user.role in ['AAO', 'clerk', 'auditor']:
+        if user.role == 'AAO':
+            if (
+                (mail_record.created_by.role == 'auditor' and user.subsection_id and mail_record.subsection_id == user.subsection_id)
+                or mail_record.current_handler_id == user.id
+                or MailAssignment.objects.filter(
+                    mail_record=mail_record,
+                    status='Active'
+                ).filter(
+                    Q(assigned_to=user) | Q(reassigned_to=user)
+                ).exists()
+                or mail_record.created_by_id == user.id
+            ):
+                return assignments
+            return []
+
+        if user.role in ['clerk', 'auditor']:
             if (
                 mail_record.current_handler_id == user.id
                 or MailAssignment.objects.filter(
@@ -239,7 +254,15 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 Q(current_handler=user) |
                 Q(id__in=assigned_ids)
             ).distinct()
-        elif user.role in ['AAO', 'clerk']:
+        elif user.role == 'AAO':
+            assigned_ids = self._assigned_mail_ids_for_user(user, self.request)
+            queryset = base_queryset.filter(
+                Q(created_by__role='auditor', subsection=user.subsection) |
+                Q(current_handler=user) |
+                Q(id__in=assigned_ids) |
+                Q(created_by=user)
+            ).distinct()
+        elif user.role == 'clerk':
             assigned_ids = self._assigned_mail_ids_for_user(user, self.request)
             queryset = base_queryset.filter(
                 Q(current_handler=user) |

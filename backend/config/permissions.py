@@ -84,7 +84,16 @@ class MailRecordPermission(permissions.BasePermission):
                 return True
             return self._has_active_assignment(user, obj)
 
-        if user.role in ['AAO', 'clerk', 'auditor']:
+        if user.role == 'AAO':
+            if obj.created_by.role == 'auditor' and user.subsection_id and obj.subsection_id == user.subsection_id:
+                return True
+            if obj.created_by_id == user.id:
+                return True
+            if obj.current_handler_id == user.id:
+                return True
+            return self._has_active_assignment(user, obj)
+
+        if user.role in ['clerk', 'auditor']:
             if obj.created_by_id == user.id:
                 return True
             if obj.current_handler_id == user.id:
