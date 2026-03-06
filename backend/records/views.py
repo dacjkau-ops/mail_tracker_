@@ -48,6 +48,23 @@ class MailRecordViewSet(viewsets.ModelViewSet):
 
     STATUS_SCOPE_ALL = {'', 'all'}
 
+    def _resolve_scope_for_handler(self, handler, fallback_section=None):
+        """
+        Determine canonical section/subsection for the current handler.
+        Visibility is scope-driven, so handler changes must keep scope in sync.
+        """
+        if handler.subsection_id:
+            return handler.subsection.section, handler.subsection
+
+        if handler.role == 'DAG':
+            if fallback_section and handler.sections.filter(id=fallback_section.id).exists():
+                return fallback_section, None
+            managed_section = handler.sections.order_by('id').first()
+            return managed_section, None
+
+        # AG or roles without explicit scope attachment.
+        return fallback_section, None
+
     def _assigned_mail_ids_for_user(self, user, request=None):
         cache_attr = '_assigned_mail_ids_cache'
         if request and hasattr(request, cache_attr):
@@ -485,10 +502,18 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             )
 
             # Reassign at mail level
+            new_section, new_subsection = self._resolve_scope_for_handler(
+                new_handler, fallback_section=mail_record.section
+            )
             mail_record.current_handler = new_handler
+            mail_record.section = new_section
+            mail_record.subsection = new_subsection
             mail_record.status = 'In Progress'  # Auto-transition
             mail_record.last_status_change = timezone.now()
-            mail_record.save(update_fields=['current_handler', 'status', 'last_status_change', 'updated_at'])
+            mail_record.save(update_fields=[
+                'current_handler', 'section', 'subsection',
+                'status', 'last_status_change', 'updated_at'
+            ])
 
         # Create audit trail
         AuditTrail.objects.create(

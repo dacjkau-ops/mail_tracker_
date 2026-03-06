@@ -23,17 +23,17 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     """Custom serializer to include user data in token response"""
     def validate(self, attrs):
         username = attrs.get('username', '')
-        logger.info(f"Login attempt for user: {username}")
 
         try:
             data = super().validate(attrs)
-            # Fetch user with prefetched sections for proper M2M serialization
+            # One shaped query for serializer fields shown on login response.
             user = User.objects.prefetch_related('sections').select_related(
                 'subsection', 'subsection__section'
+            ).prefetch_related(
+                'auditor_subsections__section'
             ).get(pk=self.user.pk)
             user_serializer = UserSerializer(user)
             data['user'] = user_serializer.data
-            logger.info(f"Login successful for user: {username}")
             return data
         except Exception as e:
             logger.warning(f"Login failed for user: {username} - {str(e)}")
@@ -46,7 +46,9 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
 
 class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.filter(is_active=True).prefetch_related('sections').select_related('subsection', 'subsection__section')
+    queryset = User.objects.filter(is_active=True).prefetch_related(
+        'sections', 'auditor_subsections__section'
+    ).select_related('subsection', 'subsection__section')
     permission_classes = [IsAuthenticated]
 
     def get_serializer_class(self):
@@ -87,6 +89,8 @@ class UserViewSet(viewsets.ModelViewSet):
         """Return current logged-in user's info"""
         user = User.objects.prefetch_related('sections').select_related(
             'subsection', 'subsection__section'
+        ).prefetch_related(
+            'auditor_subsections__section'
         ).get(pk=request.user.pk)
         serializer = UserSerializer(user)
         return Response(serializer.data)
