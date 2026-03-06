@@ -137,13 +137,13 @@ class MailRecordPermission(permissions.BasePermission):
             if self._is_dag_for_section(user, obj):
                 return True
             if user.role == 'auditor':
-                return obj.current_handler == user
-            return obj.current_handler == user
+                return obj.current_handler == user or self._has_active_assignment(user, obj)
+            return obj.current_handler == user or self._has_active_assignment(user, obj)
 
         if view.action == 'reassign_candidates':
             if self._is_dag_for_section(user, obj):
                 return True
-            return obj.current_handler == user
+            return obj.current_handler == user or self._has_active_assignment(user, obj)
 
         if view.action == 'multi_assign':
             return self._is_dag_for_section(user, obj)

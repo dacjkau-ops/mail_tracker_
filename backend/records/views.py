@@ -137,7 +137,7 @@ class MailRecordViewSet(viewsets.ModelViewSet):
 
     def _get_reassign_candidates_queryset(self, mail_record, user):
         """Return eligible users for reassignment based on role + mail context."""
-        candidates = User.objects.filter(is_active=True).exclude(id=user.id)
+        candidates = User.objects.filter(is_active=True)
 
         # Helper filters based on mail scope
         def filter_by_mail_scope(qs):
@@ -152,14 +152,14 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             return qs
 
         if user.role == 'AG':
-            return filter_by_mail_scope(candidates).distinct()
+            return filter_by_mail_scope(candidates.exclude(id=user.id)).distinct()
 
         if user.role == 'DAG':
             dag_section_ids = set(user.sections.values_list('id', flat=True))
             if mail_record.section_id and mail_record.section_id not in dag_section_ids:
                 return User.objects.none()
 
-            scoped = filter_by_mail_scope(candidates)
+            scoped = filter_by_mail_scope(candidates.exclude(id=user.id))
             return scoped.filter(
                 Q(subsection__section_id__in=dag_section_ids) |
                 Q(role='DAG', sections__in=dag_section_ids)
@@ -179,7 +179,7 @@ class MailRecordViewSet(viewsets.ModelViewSet):
             auditor_sub_ids = list(user.auditor_subsections.values_list('id', flat=True))
             if not auditor_sub_ids:
                 return User.objects.none()
-            return candidates.filter(
+            return candidates.exclude(id=user.id).filter(
                 role__in=['SrAO', 'AAO'],
                 subsection__in=auditor_sub_ids
             ).distinct()
@@ -463,7 +463,9 @@ class MailRecordViewSet(viewsets.ModelViewSet):
         elif user.role in ['SrAO', 'AAO']:
             # Staff can only reassign if they're current handler or have an active assignment
             user_assignment = mail_record.parallel_assignments.filter(
-                assigned_to=user, status='Active'
+                status='Active'
+            ).filter(
+                Q(assigned_to=user) | Q(reassigned_to=user)
             ).first() if mail_record.is_multi_assigned else None
             
             if not user_assignment and mail_record.current_handler != user:

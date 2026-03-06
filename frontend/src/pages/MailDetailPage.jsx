@@ -205,6 +205,13 @@ const MailDetailPage = () => {
     if (user?.role === 'DAG' && sectionId && user?.sections?.includes(sectionId)) return true;
     const handlerId = mail?.current_handler_details?.id || mail?.current_handler;
     if (user?.id === handlerId) return true;
+    if (Array.isArray(mail?.assignments)) {
+      const hasActiveAssignment = mail.assignments.some((a) => {
+        const currentId = a.reassigned_to || a.assigned_to;
+        return a.status === 'Active' && currentId === user.id;
+      });
+      if (hasActiveAssignment) return true;
+    }
     return false;
   };
 
