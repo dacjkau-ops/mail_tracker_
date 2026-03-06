@@ -14,6 +14,9 @@ const authService = {
     // Store tokens only (user profile is fetched from /users/me when needed)
     localStorage.setItem('access_token', access);
     localStorage.setItem('refresh_token', refresh);
+    if (user) {
+      localStorage.setItem('user', JSON.stringify(user));
+    }
 
     return { user, access, refresh };
   },
@@ -32,7 +35,12 @@ const authService = {
    * @returns {Object|null}
    */
   getCurrentUser() {
-    return null;
+    try {
+      const raw = localStorage.getItem('user');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
   },
 
   /**
@@ -73,6 +81,9 @@ const authService = {
    */
   async fetchMe() {
     const response = await api.get('/users/me/');
+    if (response.data) {
+      localStorage.setItem('user', JSON.stringify(response.data));
+    }
     return response.data;
   },
 

@@ -7,12 +7,14 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import authenticate
+from django.db.models import Q
 from sections.models import Section
 from .models import User
 from .serializers import (
     UserSerializer,
     UserCreateSerializer,
     UserMinimalSerializer,
+    UserAssignableSerializer,
     SignupRequestCreateSerializer,
 )
 
@@ -82,6 +84,36 @@ class UserViewSet(viewsets.ModelViewSet):
         """Return minimal user info for dropdowns"""
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='assignable')
+    def assignable(self, request):
+        """
+        Return assignable users scoped to current user's role for create-mail flow.
+        Unpaginated by design for autocomplete lists.
+        """
+        user = request.user
+        qs = User.objects.filter(is_active=True).select_related(
+            'subsection', 'subsection__section'
+        ).prefetch_related('sections')
+
+        if user.role == 'AG':
+            scoped = qs
+        elif user.role == 'DAG':
+            dag_section_ids = list(user.sections.values_list('id', flat=True))
+            scoped = qs.filter(
+                Q(subsection__section_id__in=dag_section_ids) |
+                Q(role='DAG', sections__in=dag_section_ids)
+            ).distinct()
+        elif user.role == 'auditor':
+            auditor_sub_ids = list(user.auditor_subsections.values_list('id', flat=True))
+            scoped = qs.filter(subsection__in=auditor_sub_ids)
+        elif user.subsection_id:
+            scoped = qs.filter(subsection_id=user.subsection_id)
+        else:
+            scoped = qs.none()
+
+        serializer = UserAssignableSerializer(scoped.order_by('full_name'), many=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])

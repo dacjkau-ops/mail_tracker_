@@ -83,6 +83,19 @@ class UserMinimalSerializer(serializers.ModelSerializer):
         return '-'
 
 
+class UserAssignableSerializer(serializers.ModelSerializer):
+    """Lean serializer for assignment dropdowns."""
+    subsection_detail = SubsectionSerializer(source='subsection', read_only=True)
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'full_name', 'role', 'actual_role',
+            'sections', 'subsection', 'subsection_detail'
+        ]
+        read_only_fields = fields
+
+
 class SignupRequestCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
     section_id = serializers.PrimaryKeyRelatedField(

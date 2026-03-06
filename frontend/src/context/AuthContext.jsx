@@ -28,6 +28,10 @@ export const AuthProvider = ({ children }) => {
         const hasToken = authService.isAuthenticated();
 
         if (hasToken) {
+          const cachedUser = authService.getCurrentUser();
+          if (cachedUser?.id && cachedUser?.username && cachedUser?.role) {
+            setUser(cachedUser);
+          }
           try {
             const currentUser = await authService.fetchMe();
             if (currentUser?.id && currentUser?.username && currentUser?.role) {
