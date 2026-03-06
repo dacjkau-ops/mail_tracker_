@@ -54,9 +54,10 @@ const CreateMailPage = () => {
     }
     const sectionMap = new Map();
     for (const a of assignees) {
-      const sec = a.subsection_detail?.section;
-      if (sec) {
-        sectionMap.set(sec.id, sec.name);
+      const secId = a.subsection_detail?.section;
+      const secName = a.subsection_detail?.section_name;
+      if (secId && secName) {
+        sectionMap.set(Number(secId), secName);
       }
     }
     if (sectionMap.size === 0) return { name: '', id: null };
@@ -74,7 +75,7 @@ const CreateMailPage = () => {
     if (isDAG) {
       const managedSectionIds = new Set((user.sections || []).map((id) => Number(id)));
       return users.filter((u) => {
-        const userSectionId = u.subsection_detail?.section?.id;
+        const userSectionId = Number(u.subsection_detail?.section || 0);
         if (u.role === 'DAG') {
           return (u.sections || []).some((sectionId) => managedSectionIds.has(Number(sectionId)));
         }
@@ -372,8 +373,8 @@ const CreateMailPage = () => {
 
                     const groupedOptions = isAG
                       ? [...filteredUsers].sort((a, b) => {
-                          const sectionA = a.subsection_detail?.section?.name || '';
-                          const sectionB = b.subsection_detail?.section?.name || '';
+                          const sectionA = a.subsection_detail?.section_name || '';
+                          const sectionB = b.subsection_detail?.section_name || '';
                           if (sectionA !== sectionB) return sectionA.localeCompare(sectionB);
                           return a.full_name.localeCompare(b.full_name);
                         })
@@ -388,8 +389,8 @@ const CreateMailPage = () => {
                           groupBy={
                             isAG
                               ? (option) => {
-                                  if (option.subsection_detail?.section?.name) {
-                                    return option.subsection_detail.section.name;
+                                  if (option.subsection_detail?.section_name) {
+                                    return option.subsection_detail.section_name;
                                   }
                                   if (option.role === 'DAG') {
                                     return 'DAG (Multi-section)';
@@ -428,7 +429,7 @@ const CreateMailPage = () => {
                           <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                             {value.map((assignee, index) => {
                               const sectionName =
-                                assignee.subsection_detail?.section?.name || 'No section';
+                                assignee.subsection_detail?.section_name || 'No section';
                               return (
                                 <Box
                                   key={assignee.id}
