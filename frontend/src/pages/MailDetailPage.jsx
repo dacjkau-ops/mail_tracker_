@@ -286,7 +286,6 @@ const MailDetailPage = () => {
     const timeline = [...(assignment.remarks_timeline || [])].sort(
       (a, b) => new Date(a.created_at) - new Date(b.created_at)
     );
-    const remarkByOfficer = {};
     const reassignRegex = /^Reassigned to\s+(.+?):\s*(.*)$/i;
     let currentOfficer = assignment.assigned_to_details?.full_name || '-';
 
@@ -295,44 +294,51 @@ const MailDetailPage = () => {
       const parsed = content.match(reassignRegex);
       const createdBy = remark.created_by_details?.full_name;
 
-      if (!parsed) {
-        if (createdBy) {
-          remarkByOfficer[createdBy] = content;
-        } else {
-          remarkByOfficer[currentOfficer] = content;
-        }
+      if (parsed) {
+        const nextOfficer = parsed[1]?.trim() || '-';
+        const reason = parsed[2]?.trim();
+        rows.push({
+          officerId: null,
+          officer: createdBy || currentOfficer,
+          remarks: reason || '-',
+          reassignedToId: null,
+          reassignedTo: nextOfficer,
+          on: remark.created_at,
+        });
+        currentOfficer = nextOfficer;
         return;
       }
 
-      const nextOfficer = parsed[1]?.trim() || '-';
-      const reason = parsed[2]?.trim();
+      // Keep every non-reassignment remark as an explicit history row (append-only visibility).
       rows.push({
-        officerId: null,
-        officer: currentOfficer,
-        remarks: remarkByOfficer[currentOfficer] || reason || '-',
+        officerId: remark.created_by || null,
+        officer: createdBy || currentOfficer,
+        remarks: content || '-',
         reassignedToId: null,
-        reassignedTo: nextOfficer,
+        reassignedTo: '-',
         on: remark.created_at,
       });
-      currentOfficer = nextOfficer;
     });
 
-    const isUntouchedActiveAssignment =
-      assignment.status === 'Active' &&
-      timeline.length === 0;
-
-    rows.push({
-      officerId: assignment.reassigned_to || assignment.assigned_to || null,
-      officer: currentOfficer,
-      remarks: isUntouchedActiveAssignment
-        ? 'Still Working'
-        : (remarkByOfficer[currentOfficer] || '-'),
-      reassignedToId: null,
-      reassignedTo: isUntouchedActiveAssignment ? '' : '-',
-      on: isUntouchedActiveAssignment
-        ? ''
-        : (assignment.completed_at || assignment.updated_at || assignment.created_at),
-    });
+    if (assignment.status === 'Active') {
+      rows.push({
+        officerId: assignment.reassigned_to || assignment.assigned_to || null,
+        officer: currentOfficer,
+        remarks: 'Still Working',
+        reassignedToId: null,
+        reassignedTo: '',
+        on: '',
+      });
+    } else if (rows.length === 0) {
+      rows.push({
+        officerId: assignment.reassigned_to || assignment.assigned_to || null,
+        officer: currentOfficer,
+        remarks: '-',
+        reassignedToId: null,
+        reassignedTo: '-',
+        on: assignment.completed_at || assignment.updated_at || assignment.created_at,
+      });
+    }
 
     return rows;
   };
