@@ -62,11 +62,11 @@
     <div class="format-info">
         <h3>CSV Format</h3>
         <p>Required columns: <code>username, email, password, full_name, role</code></p>
-        <p>Optional columns: <code>sections, subsection, auditor_subsections</code></p>
-        <pre>username,email,password,full_name,role,sections,subsection,auditor_subsections
-dag_finance,dag.finance@office.gov,password123,Amit Kumar,DAG,"AMG-I, Finance",,
-srao_kumar,srao.kumar@office.gov,password123,Rahul Kumar,SrAO,,AMG-I - Admin-1,
-aao_sharma,aao.sharma@office.gov,password123,Priya Sharma,AAO,,AMG-I - Admin-1,</pre>
+        <p>Optional columns: <code>actual_role, sections/section, subsection, auditor_subsections</code></p>
+        <pre>username,email,password,full_name,role,actual_role,section,subsection,auditor_subsections
+dag_finance,dag.finance@office.gov,password123,Amit Kumar,DAG,DAG(Finance),"AMG-I",,
+srao_kumar,srao.kumar@office.gov,password123,Rahul Kumar,SrAO,Sr AO (Civil),AMG-I,Admin-1,
+audit_user,audit.user@office.gov,password123,Sana Khan,auditor,Sr PS Consultant,AMG-I,Vetting(Srinagar),</pre>
 
         <h3>JSON Format</h3>
         <pre>[

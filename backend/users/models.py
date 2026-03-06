@@ -19,6 +19,12 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
 
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)
+    actual_role = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text="Display role/title shown in UI (functional permissions still use role)."
+    )
 
     # DAG can manage multiple sections (e.g., same DAG for Admin, AMG-I, FAW)
     sections = models.ManyToManyField(
@@ -63,9 +69,12 @@ class User(AbstractUser):
         ]
 
     def __str__(self):
-        return f"{self.full_name} ({self.role})"
+        display_role = self.actual_role or self.role
+        return f"{self.full_name} ({display_role})"
 
     def save(self, *args, **kwargs):
+        if not self.actual_role:
+            self.actual_role = self.role
         if self.role != 'AG':
             self.is_primary_ag = False
         super().save(*args, **kwargs)

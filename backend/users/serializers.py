@@ -11,7 +11,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'full_name', 'role', 'is_primary_ag', 'sections', 'sections_list', 'subsection', 'subsection_detail', 'auditor_subsections', 'is_active']
+        fields = ['id', 'username', 'email', 'full_name', 'role', 'actual_role', 'is_primary_ag', 'sections', 'sections_list', 'subsection', 'subsection_detail', 'auditor_subsections', 'is_active']
         read_only_fields = ['id']
 
     def get_sections_list(self, obj):
@@ -39,7 +39,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'password', 'full_name', 'role', 'is_primary_ag', 'sections', 'subsection', 'auditor_subsections', 'is_active']
+        fields = ['id', 'username', 'email', 'password', 'full_name', 'role', 'actual_role', 'is_primary_ag', 'sections', 'subsection', 'auditor_subsections', 'is_active']
         read_only_fields = ['id']
 
     def create(self, validated_data):
@@ -65,8 +65,8 @@ class UserMinimalSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'full_name', 'role', 'sections_display', 'subsection', 'subsection_name']
-        read_only_fields = ['id', 'full_name', 'role', 'sections_display', 'subsection', 'subsection_name']
+        fields = ['id', 'full_name', 'role', 'actual_role', 'sections_display', 'subsection', 'subsection_name']
+        read_only_fields = ['id', 'full_name', 'role', 'actual_role', 'sections_display', 'subsection', 'subsection_name']
 
     def get_sections_display(self, obj):
         """Display sections for DAG, auditor, or subsection's section for SrAO/AAO/clerk"""

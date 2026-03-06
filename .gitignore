@@ -54,3 +54,5 @@ nul
 # Planning and Claude files
 .claude/
 .planning/
+#initial Password and userid data
+users.csv

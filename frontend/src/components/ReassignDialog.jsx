@@ -102,7 +102,7 @@ const ReassignDialog = ({ open, onClose, mailId, onReassign }) => {
                 ) : (
                   users.map((user) => (
                     <MenuItem key={user.id} value={user.id}>
-                      {user.full_name} ({user.role}{user.subsection_detail ? ` - ${user.subsection_detail.name}` : ''})
+                      {user.full_name} ({user.actual_role || user.role}{user.subsection_detail ? ` - ${user.subsection_detail.name}` : ''})
                     </MenuItem>
                   ))
                 )}

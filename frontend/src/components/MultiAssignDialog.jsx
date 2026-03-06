@@ -153,7 +153,7 @@ const MultiAssignDialog = ({ open, onClose, mailId, onSuccess, currentUser }) =>
                     <Checkbox checked={selectedUserIds.indexOf(user.id) > -1} />
                     <ListItemText
                       primary={user.full_name}
-                      secondary={`${user.role}${user.subsection_detail ? ` - ${user.subsection_detail.name}` : ''}`}
+                      secondary={`${user.actual_role || user.role}${user.subsection_detail ? ` - ${user.subsection_detail.name}` : ''}`}
                     />
                   </MenuItem>
                 ))

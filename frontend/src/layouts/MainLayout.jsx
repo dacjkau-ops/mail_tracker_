@@ -76,7 +76,7 @@ const MainLayout = () => {
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Chip
-              label={ROLE_LABELS[user?.role] || user?.role || 'User'}
+              label={user?.actual_role || ROLE_LABELS[user?.role] || user?.role || 'User'}
               size="small"
               color="secondary"
             />

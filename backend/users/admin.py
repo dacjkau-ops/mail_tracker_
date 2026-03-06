@@ -32,15 +32,15 @@ class ImportUsersForm(forms.Form):
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ['username', 'full_name', 'email', 'role', 'is_primary_ag', 'get_sections_display', 'subsection', 'is_active']
+    list_display = ['username', 'full_name', 'email', 'role', 'actual_role', 'is_primary_ag', 'get_sections_display', 'subsection', 'is_active']
     list_filter = ['role', 'is_primary_ag', 'is_active']
     search_fields = ['username', 'full_name', 'email']
     filter_horizontal = ['sections']  # For ManyToMany field
     fieldsets = BaseUserAdmin.fieldsets + (
-        ('Additional Info', {'fields': ('role', 'is_primary_ag', 'sections', 'subsection', 'full_name')}),
+        ('Additional Info', {'fields': ('role', 'actual_role', 'is_primary_ag', 'sections', 'subsection', 'full_name')}),
     )
     add_fieldsets = BaseUserAdmin.add_fieldsets + (
-        ('Additional Info', {'fields': ('role', 'is_primary_ag', 'sections', 'subsection', 'full_name', 'email')}),
+        ('Additional Info', {'fields': ('role', 'actual_role', 'is_primary_ag', 'sections', 'subsection', 'full_name', 'email')}),
     )
     change_list_template = 'admin/users/user/change_list.html'
 
@@ -184,7 +184,8 @@ class UserAdmin(BaseUserAdmin):
         if not reader.fieldnames:
             raise ValueError('CSV file is empty')
 
-        missing = [col for col in required_columns if col not in reader.fieldnames]
+        normalized_fieldnames = {str(name).strip().lower() for name in reader.fieldnames if name}
+        missing = [col for col in required_columns if col not in normalized_fieldnames]
         if missing:
             raise ValueError(f'Missing required columns: {", ".join(missing)}. Optional: sections (for DAG), subsection (for SrAO/AAO)')
 
@@ -277,19 +278,26 @@ class UserAdmin(BaseUserAdmin):
         pending_users = []
         dag_section_map = {}
         auditor_subsection_map = {}
+        pending_user_map = {}
 
         for idx, row in enumerate(rows):
             row_num = row_start + idx
 
-            username = str(row.get('username', '')).strip()
-            email = str(row.get('email', '')).strip()
-            password = str(row.get('password', '')).strip()
-            full_name = str(row.get('full_name', '')).strip()
-            role = self._normalize_role(row.get('role', ''))
-            section_value = row.get('section', row.get('section_name', ''))
-            sections_raw = str(row.get('sections', section_value)).strip()
-            subsection_raw = str(row.get('subsection', row.get('subsection_name', ''))).strip()
-            auditor_subsections_raw = str(row.get('auditor_subsections', '')).strip()
+            normalized_row = {}
+            for key, value in (row or {}).items():
+                normalized_key = str(key or '').strip().lstrip('\ufeff').lower()
+                normalized_row[normalized_key] = '' if value is None else str(value).strip()
+
+            username = normalized_row.get('username', '').strip()
+            email = normalized_row.get('email', '').strip()
+            password = normalized_row.get('password', '').strip()
+            full_name = normalized_row.get('full_name', '').strip()
+            actual_role = normalized_row.get('actual_role', '').strip()
+            role = self._normalize_role(normalized_row.get('role', ''))
+            section_value = normalized_row.get('section', normalized_row.get('section_name', ''))
+            sections_raw = normalized_row.get('sections', section_value).strip()
+            subsection_raw = normalized_row.get('subsection', normalized_row.get('subsection_name', '')).strip()
+            auditor_subsections_raw = normalized_row.get('auditor_subsections', '').strip()
             section_hint = ''
             if sections_raw:
                 section_hint = sections_raw.split(',')[0].strip()
@@ -343,6 +351,7 @@ class UserAdmin(BaseUserAdmin):
                     continue
 
             auditor_subsections = []
+            auditor_primary_subsection = None
             if role == 'auditor':
                 raw_value = auditor_subsections_raw or subsection_raw
                 if raw_value:
@@ -371,6 +380,8 @@ class UserAdmin(BaseUserAdmin):
                     if parse_failed:
                         continue
                     auditor_subsections = parsed
+                    if parsed:
+                        auditor_primary_subsection = parsed[0]
 
             user = User(
                 username=username,
@@ -378,10 +389,12 @@ class UserAdmin(BaseUserAdmin):
                 password=make_password(password),
                 full_name=full_name,
                 role=role,
-                subsection=subsection,
+                actual_role=actual_role or role,
+                subsection=(subsection or auditor_primary_subsection),
                 is_active=True,
             )
             pending_users.append(user)
+            pending_user_map[username] = user
             pending_usernames.add(username)
             pending_emails.add(email)
             dag_section_map[username] = sections_for_dag
@@ -390,32 +403,49 @@ class UserAdmin(BaseUserAdmin):
         if not pending_users:
             return results
 
-        with transaction.atomic():
-            User.objects.bulk_create(pending_users, batch_size=500)
-            created_users = {
-                u.username: u
-                for u in User.objects.filter(username__in=pending_usernames)
-            }
-
-            dag_through = User.sections.through
-            dag_links = []
-            auditor_through = User.auditor_subsections.through
-            auditor_links = []
-
-            for username, user in created_users.items():
-                for section in dag_section_map.get(username, []):
-                    dag_links.append(
-                        dag_through(user_id=user.id, section_id=section.id)
+        created_users = {}
+        try:
+            with transaction.atomic():
+                User.objects.bulk_create(pending_users, batch_size=500)
+                created_users = {
+                    u.username: u
+                    for u in User.objects.filter(username__in=pending_usernames)
+                }
+        except Exception as bulk_exc:
+            results['errors'].append(
+                f'Bulk create failed. Falling back to row-wise import: {bulk_exc}'
+            )
+            for username in pending_usernames:
+                user_obj = pending_user_map.get(username)
+                if not user_obj:
+                    continue
+                try:
+                    user_obj.save()
+                    created_users[username] = user_obj
+                except Exception as row_exc:
+                    results['errors'].append(
+                        f'Row import failed ({username}): {row_exc}'
                     )
-                for subsection in auditor_subsection_map.get(username, []):
-                    auditor_links.append(
-                        auditor_through(user_id=user.id, subsection_id=subsection.id)
-                    )
 
-            if dag_links:
-                dag_through.objects.bulk_create(dag_links, ignore_conflicts=True)
-            if auditor_links:
-                auditor_through.objects.bulk_create(auditor_links, ignore_conflicts=True)
+        dag_through = User.sections.through
+        dag_links = []
+        auditor_through = User.auditor_subsections.through
+        auditor_links = []
+
+        for username, user in created_users.items():
+            for section in dag_section_map.get(username, []):
+                dag_links.append(
+                    dag_through(user_id=user.id, section_id=section.id)
+                )
+            for subsection in auditor_subsection_map.get(username, []):
+                auditor_links.append(
+                    auditor_through(user_id=user.id, subsection_id=subsection.id)
+                )
+
+        if dag_links:
+            dag_through.objects.bulk_create(dag_links, ignore_conflicts=True)
+        if auditor_links:
+            auditor_through.objects.bulk_create(auditor_links, ignore_conflicts=True)
 
         results['created'].extend(sorted(created_users.keys()))
         return results
