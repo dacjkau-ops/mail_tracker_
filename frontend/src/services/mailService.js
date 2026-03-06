@@ -163,9 +163,33 @@ const mailService = {
    * @returns {Promise<Array>}
    */
   async getUsers() {
-    const response = await api.get('/users/');
-    // Handle paginated response
-    return response.data.results || response.data;
+    let url = '/users/?page_size=500';
+    const users = [];
+    let guard = 0;
+
+    while (url && guard < 20) {
+      const response = await api.get(url);
+      const payload = response.data;
+
+      if (Array.isArray(payload)) {
+        return payload;
+      }
+
+      users.push(...(payload.results || []));
+
+      const next = payload.next;
+      if (!next) break;
+
+      try {
+        const nextUrl = new URL(next);
+        url = `${nextUrl.pathname}${nextUrl.search}`;
+      } catch {
+        url = next;
+      }
+      guard += 1;
+    }
+
+    return users;
   },
 
   // ==================== Multi-Assignment Methods ====================
