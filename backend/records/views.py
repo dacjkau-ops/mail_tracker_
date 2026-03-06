@@ -288,9 +288,10 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 Q(role='DAG', sections__in=dag_section_ids)
             ).distinct()
         elif user.role == 'auditor':
-            if not user.subsection_id:
+            effective_subsection = user.get_effective_subsection(persist=True)
+            if not effective_subsection:
                 return Response([])
-            scoped = qs.filter(subsection_id=user.subsection_id)
+            scoped = qs.filter(subsection_id=effective_subsection.id)
         elif user.role in ['SrAO', 'AAO', 'clerk']:
             if not user.subsection_id:
                 return Response([])
@@ -361,13 +362,14 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 )
         elif user.role == 'auditor':
             # Auditor: scoped to their own subsection (same unit scope as staff)
-            if not user.subsection_id:
+            effective_subsection = user.get_effective_subsection(persist=True)
+            if not effective_subsection:
                 return Response(
                     {'error': 'Your auditor account has no subsection assigned. Contact an administrator.'},
                     status=status.HTTP_403_FORBIDDEN
                 )
-            section = user.subsection.section
-            serializer.validated_data['subsection'] = user.subsection
+            section = effective_subsection.section
+            serializer.validated_data['subsection'] = effective_subsection
         else:
             return Response(
                 {'error': 'Your role is not permitted to create mail records.'},

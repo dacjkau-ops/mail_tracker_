@@ -103,11 +103,34 @@ class User(AbstractUser):
         elif self.role == 'auditor':
             # Return sections that contain any of the auditor's configured subsections
             subsection_ids = self.auditor_subsections.values_list('id', flat=True)
-            return Section.objects.filter(subsections__id__in=subsection_ids).distinct()
+            sections = Section.objects.filter(subsections__id__in=subsection_ids).distinct()
+            if sections.exists():
+                return sections
+            if self.subsection_id:
+                return Section.objects.filter(id=self.subsection.section_id)
+            return Section.objects.none()
         elif self.subsection:
             # SrAO, AAO, clerk — subsection FK
             return Section.objects.filter(id=self.subsection.section_id)
         return Section.objects.none()
+
+    def get_effective_subsection(self, persist=False):
+        """
+        Resolve the operative subsection for role-scoped logic.
+        For auditors, prefer FK `subsection`, else fallback to first configured auditor_subsection.
+        Optionally persist back to FK to keep data consistent.
+        """
+        if self.subsection_id:
+            return self.subsection
+
+        if self.role != 'auditor':
+            return None
+
+        first_sub = self.auditor_subsections.select_related('section').order_by('id').first()
+        if first_sub and persist:
+            self.subsection = first_sub
+            self.save(update_fields=['subsection'])
+        return first_sub
 
     def get_dag(self):
         """
@@ -124,7 +147,7 @@ class User(AbstractUser):
         elif self.role == 'auditor':
             # Auditor's immediate superior is an SrAO/AAO in any of their configured subsections
             # Return first active SrAO/AAO in their primary auditor subsection (first configured)
-            first_sub = self.auditor_subsections.first()
+            first_sub = self.get_effective_subsection()
             if first_sub:
                 return User.objects.filter(
                     role__in=['SrAO', 'AAO'],

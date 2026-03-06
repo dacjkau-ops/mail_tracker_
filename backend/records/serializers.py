@@ -374,12 +374,13 @@ class MailRecordCreateSerializer(serializers.ModelSerializer):
 
             elif user.role == 'auditor':
                 # Assignees must be in auditor's own subsection (same unit scope as staff)
-                if not user.subsection_id:
+                effective_subsection = user.get_effective_subsection()
+                if not effective_subsection:
                     raise serializers.ValidationError({
                         'assigned_to': 'Your account has no subsection assigned. Contact an administrator.'
                     })
                 for assignee in assignees:
-                    if assignee.subsection_id != user.subsection_id:
+                    if assignee.subsection_id != effective_subsection.id:
                         raise serializers.ValidationError({
                             'assigned_to': f'{assignee.full_name} is not in your subsection.'
                         })

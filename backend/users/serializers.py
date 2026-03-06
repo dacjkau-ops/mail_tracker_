@@ -19,10 +19,15 @@ class UserSerializer(serializers.ModelSerializer):
         if obj.role == 'DAG':
             return [{'id': s.id, 'name': s.name} for s in obj.sections.all()]
         elif obj.role == 'auditor':
-            return [
-                {'id': s.section.id, 'name': f"{s.section.name} / {s.name}"}
-                for s in obj.auditor_subsections.select_related('section').all()
-            ]
+            subs = list(obj.auditor_subsections.select_related('section').all())
+            if subs:
+                return [
+                    {'id': s.section.id, 'name': f"{s.section.name} / {s.name}"}
+                    for s in subs
+                ]
+            if obj.subsection_id:
+                return [{'id': obj.subsection.section.id, 'name': f"{obj.subsection.section.name} / {obj.subsection.name}"}]
+            return []
         elif obj.subsection:
             return [{'id': obj.subsection.section.id, 'name': obj.subsection.section.name}]
         return []
@@ -54,6 +59,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
             user.sections.set(sections)
         if auditor_subsections:
             user.auditor_subsections.set(auditor_subsections)
+            if user.role == 'auditor' and not user.subsection_id:
+                user.subsection = auditor_subsections[0]
         user.save()
         return user
 
@@ -77,6 +84,8 @@ class UserMinimalSerializer(serializers.ModelSerializer):
             subs = list(obj.auditor_subsections.select_related('section').all())
             if subs:
                 return ', '.join([f"{s.section.name}/{s.name}" for s in subs])
+            if obj.subsection_id:
+                return f"{obj.subsection.section.name}/{obj.subsection.name}"
             return '-'
         elif obj.subsection:
             return obj.subsection.section.name
