@@ -238,7 +238,7 @@ class MailRecord(models.Model):
             section_id = self.section_id or (self.subsection.section_id if self.subsection_id else None)
             return bool(section_id and user.sections.filter(id=section_id).exists())
 
-        if user.role in ['SrAO', 'AAO', 'clerk']:
+        if user.role == 'SrAO':
             if user.subsection_id and self.subsection_id == user.subsection_id:
                 return True
             if self.current_handler_id == user.id:
@@ -251,16 +251,18 @@ class MailRecord(models.Model):
                 Q(assigned_to=user) | Q(reassigned_to=user)
             ).exists()
 
-        if user.role == 'auditor':
-            auditor_sub_ids = set(user.auditor_subsections.values_list('id', flat=True))
-            if self.subsection_id and self.subsection_id in auditor_sub_ids:
+        if user.role in ['AAO', 'clerk', 'auditor']:
+            if self.created_by_id == user.id:
                 return True
-            if self.section_id and self.subsection_id is None:
-                return Subsection.objects.filter(
-                    id__in=auditor_sub_ids,
-                    section_id=self.section_id
-                ).exists()
-            return False
+            if self.current_handler_id == user.id:
+                return True
+            from django.db.models import Q
+            return MailAssignment.objects.filter(
+                mail_record=self,
+                status='Active'
+            ).filter(
+                Q(assigned_to=user) | Q(reassigned_to=user)
+            ).exists()
 
         return False
 

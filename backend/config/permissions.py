@@ -77,26 +77,19 @@ class MailRecordPermission(permissions.BasePermission):
             section_id = obj.section_id or (obj.subsection.section_id if obj.subsection_id else None)
             return bool(section_id and user.sections.filter(id=section_id).exists())
 
-        if user.role in ['SrAO', 'AAO', 'clerk']:
+        if user.role == 'SrAO':
             if user.subsection_id and obj.subsection_id == user.subsection_id:
                 return True
             if obj.current_handler_id == user.id:
                 return True
             return self._has_active_assignment(user, obj)
 
-        if user.role == 'auditor':
-            auditor_sub_ids = set(user.auditor_subsections.values_list('id', flat=True))
-            if not auditor_sub_ids:
-                return False
-            if obj.subsection_id and obj.subsection_id in auditor_sub_ids:
+        if user.role in ['AAO', 'clerk', 'auditor']:
+            if obj.created_by_id == user.id:
                 return True
-            if obj.section_id and obj.subsection_id is None:
-                from sections.models import Subsection
-                if Subsection.objects.filter(
-                    id__in=auditor_sub_ids, section_id=obj.section_id
-                ).exists():
-                    return True
-            return False
+            if obj.current_handler_id == user.id:
+                return True
+            return self._has_active_assignment(user, obj)
 
         return False
 

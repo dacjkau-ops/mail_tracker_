@@ -110,7 +110,7 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 return assignments
             return []
 
-        if user.role in ['SrAO', 'AAO', 'clerk']:
+        if user.role == 'SrAO':
             if (
                 (user.subsection_id and mail_record.subsection_id == user.subsection_id)
                 or mail_record.current_handler_id == user.id
@@ -124,13 +124,18 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 return assignments
             return []
 
-        if user.role == 'auditor':
-            auditor_sub_ids = set(user.auditor_subsections.values_list('id', flat=True))
-            if mail_record.subsection_id and mail_record.subsection_id in auditor_sub_ids:
+        if user.role in ['AAO', 'clerk', 'auditor']:
+            if (
+                mail_record.current_handler_id == user.id
+                or MailAssignment.objects.filter(
+                    mail_record=mail_record,
+                    status='Active'
+                ).filter(
+                    Q(assigned_to=user) | Q(reassigned_to=user)
+                ).exists()
+                or mail_record.created_by_id == user.id
+            ):
                 return assignments
-            if mail_record.section_id and mail_record.subsection_id is None:
-                if Subsection.objects.filter(id__in=auditor_sub_ids, section_id=mail_record.section_id).exists():
-                    return assignments
             return []
 
         return []
@@ -227,29 +232,27 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 Q(section_id__in=dag_section_ids) |
                 Q(section__isnull=True, subsection__section_id__in=dag_section_ids)
             )
-        elif user.role in ['SrAO', 'AAO']:
+        elif user.role == 'SrAO':
             assigned_ids = self._assigned_mail_ids_for_user(user, self.request)
             queryset = base_queryset.filter(
                 Q(subsection=user.subsection) |
                 Q(current_handler=user) |
                 Q(id__in=assigned_ids)
             ).distinct()
-        elif user.role == 'clerk':
+        elif user.role in ['AAO', 'clerk']:
             assigned_ids = self._assigned_mail_ids_for_user(user, self.request)
             queryset = base_queryset.filter(
-                Q(subsection=user.subsection) |
                 Q(current_handler=user) |
-                Q(id__in=assigned_ids)
+                Q(id__in=assigned_ids) |
+                Q(created_by=user)
             ).distinct()
         elif user.role == 'auditor':
-            auditor_sub_ids = list(user.auditor_subsections.values_list('id', flat=True))
-            if not auditor_sub_ids:
-                queryset = base_queryset.none()
-            else:
-                queryset = base_queryset.filter(
-                    Q(subsection__in=auditor_sub_ids) |
-                    Q(subsection__isnull=True, section__subsections__id__in=auditor_sub_ids)
-                ).distinct()
+            assigned_ids = self._assigned_mail_ids_for_user(user, self.request)
+            queryset = base_queryset.filter(
+                Q(current_handler=user) |
+                Q(id__in=assigned_ids) |
+                Q(created_by=user)
+            ).distinct()
         else:
             queryset = base_queryset.none()
 
