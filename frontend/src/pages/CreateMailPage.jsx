@@ -39,7 +39,7 @@ const CreateMailPage = () => {
 
   const isAG = user?.role === 'AG';
   const isDAG = user?.role === 'DAG';
-  const dataReady = !loading && !usersError;
+  const dataReady = !loading;
 
   // DAG's locked section name
   const dagSectionName = useMemo(() => {
@@ -126,8 +126,16 @@ const CreateMailPage = () => {
 
     try {
       usersData = await mailService.getUsers();
+      // If endpoint returned empty, keep a safe fallback to current user.
+      if (!Array.isArray(usersData) || usersData.length === 0) {
+        usersOk = false;
+      }
     } catch {
       usersOk = false;
+    }
+
+    if (!usersOk && user?.id) {
+      usersData = [user];
     }
 
     setUsers(usersData);

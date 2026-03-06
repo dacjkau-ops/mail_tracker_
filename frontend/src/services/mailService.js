@@ -167,6 +167,14 @@ const mailService = {
       const response = await api.get('/users/assignable/');
       return response.data;
     } catch {
+      // Secondary fallback: existing lightweight endpoint.
+      try {
+        const minimal = await api.get('/users/list_minimal/?page_size=500');
+        return minimal.data.results || minimal.data;
+      } catch {
+        // Final fallback: paginated full users list.
+      }
+
       // Backward-compatible fallback during staggered frontend/backend deploys.
       let url = '/users/?page_size=500';
       const users = [];
