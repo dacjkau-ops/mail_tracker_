@@ -373,14 +373,17 @@ class MailRecordCreateSerializer(serializers.ModelSerializer):
                 # No section validation needed here
 
             elif user.role == 'auditor':
-                # Assignees must be in one of auditor's configured subsections
-                auditor_sub_ids = set(user.auditor_subsections.values_list('id', flat=True))
+                # Assignees must be in auditor's own subsection (same unit scope as staff)
+                if not user.subsection_id:
+                    raise serializers.ValidationError({
+                        'assigned_to': 'Your account has no subsection assigned. Contact an administrator.'
+                    })
                 for assignee in assignees:
-                    if assignee.subsection_id not in auditor_sub_ids:
+                    if assignee.subsection_id != user.subsection_id:
                         raise serializers.ValidationError({
-                            'assigned_to': f'{assignee.full_name} is not in your configured subsections.'
+                            'assigned_to': f'{assignee.full_name} is not in your subsection.'
                         })
-                # Section is determined by the view based on auditor's first configured subsection
+                # Section is determined by the view based on auditor's subsection
 
         return data
 

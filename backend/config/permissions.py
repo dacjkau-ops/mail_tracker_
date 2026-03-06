@@ -64,7 +64,7 @@ class MailRecordPermission(permissions.BasePermission):
             'multi_assign', 'assignments', 'update_assignment',
             'complete_assignment', 'add_assignment_remark',
             'reassign_assignment', 'update_current_action',
-            'reassign_candidates',
+            'reassign_candidates', 'assignable_users',
             'upload_pdf', 'get_pdf_metadata', 'view_pdf',
         ]:
             return True

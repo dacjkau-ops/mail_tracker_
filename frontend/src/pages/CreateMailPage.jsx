@@ -39,7 +39,7 @@ const CreateMailPage = () => {
 
   const isAG = user?.role === 'AG';
   const isDAG = user?.role === 'DAG';
-  const dataReady = !loading;
+  const dataReady = !loading && !usersError;
 
   // DAG's locked section name
   const dagSectionName = useMemo(() => {
@@ -69,31 +69,8 @@ const CreateMailPage = () => {
   }, []);
 
   const getAssignableUsers = useCallback(() => {
-    if (!user) return [];
-    if (isAG) return users;
-
-    if (isDAG) {
-      const managedSectionIds = new Set((user.sections || []).map((id) => Number(id)));
-      return users.filter((u) => {
-        const userSectionId = Number(u.subsection_detail?.section || 0);
-        if (u.role === 'DAG') {
-          return (u.sections || []).some((sectionId) => managedSectionIds.has(Number(sectionId)));
-        }
-        return userSectionId && managedSectionIds.has(Number(userSectionId));
-      });
-    }
-
-    if (user.role === 'auditor') {
-      const allowedSubIds = new Set((user.auditor_subsections || []).map((id) => Number(id)));
-      return users.filter((u) => u.subsection && allowedSubIds.has(Number(u.subsection)));
-    }
-
-    if (user.subsection) {
-      return users.filter((u) => Number(u.subsection) === Number(user.subsection));
-    }
-
     return users;
-  }, [user, users, isAG, isDAG]);
+  }, [users]);
 
   const {
     control,
@@ -126,16 +103,11 @@ const CreateMailPage = () => {
 
     try {
       usersData = await mailService.getUsers();
-      // If endpoint returned empty, keep a safe fallback to current user.
       if (!Array.isArray(usersData) || usersData.length === 0) {
         usersOk = false;
       }
     } catch {
       usersOk = false;
-    }
-
-    if (!usersOk && user?.id) {
-      usersData = [user];
     }
 
     setUsers(usersData);

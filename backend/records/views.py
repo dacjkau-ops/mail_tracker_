@@ -30,7 +30,7 @@ from .serializers import (
 )
 from audit.models import AuditTrail
 from users.models import User
-from users.serializers import UserSerializer
+from users.serializers import UserSerializer, UserAssignableSerializer
 from sections.models import Section, Subsection
 
 
@@ -268,6 +268,39 @@ class MailRecordViewSet(viewsets.ModelViewSet):
 
         return queryset.order_by('-created_at')
 
+    @action(detail=False, methods=['get'], url_path='assignable-users')
+    def assignable_users(self, request):
+        """
+        Authoritative assignee list for Create Mail.
+        Keeps frontend filtering minimal and consistent with backend create rules.
+        """
+        user = request.user
+        qs = User.objects.filter(is_active=True).select_related(
+            'subsection', 'subsection__section'
+        ).prefetch_related('sections')
+
+        if user.role == 'AG':
+            scoped = qs
+        elif user.role == 'DAG':
+            dag_section_ids = list(user.sections.values_list('id', flat=True))
+            scoped = qs.filter(
+                Q(subsection__section_id__in=dag_section_ids) |
+                Q(role='DAG', sections__in=dag_section_ids)
+            ).distinct()
+        elif user.role == 'auditor':
+            if not user.subsection_id:
+                return Response([])
+            scoped = qs.filter(subsection_id=user.subsection_id)
+        elif user.role in ['SrAO', 'AAO', 'clerk']:
+            if not user.subsection_id:
+                return Response([])
+            scoped = qs.filter(subsection_id=user.subsection_id)
+        else:
+            scoped = qs.none()
+
+        serializer = UserAssignableSerializer(scoped.order_by('full_name'), many=True)
+        return Response(serializer.data)
+
     def create(self, request, *args, **kwargs):
         """Create new mail record — all roles can create, scoped to their subsection"""
         serializer = self.get_serializer(data=request.data, context={'request': request})
@@ -327,15 +360,14 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_403_FORBIDDEN
                 )
         elif user.role == 'auditor':
-            # Auditor: scoped to their first configured subsection
-            first_sub = user.auditor_subsections.select_related('section').first()
-            if not first_sub:
+            # Auditor: scoped to their own subsection (same unit scope as staff)
+            if not user.subsection_id:
                 return Response(
-                    {'error': 'Your auditor account has no subsections configured. Contact an administrator.'},
+                    {'error': 'Your auditor account has no subsection assigned. Contact an administrator.'},
                     status=status.HTTP_403_FORBIDDEN
                 )
-            section = first_sub.section
-            serializer.validated_data['subsection'] = first_sub
+            section = user.subsection.section
+            serializer.validated_data['subsection'] = user.subsection
         else:
             return Response(
                 {'error': 'Your role is not permitted to create mail records.'},
