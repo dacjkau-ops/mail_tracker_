@@ -48,11 +48,11 @@ const mailService = {
    * @param {File} file - PDF File object
    * @returns {Promise}
    */
-  async uploadPdf(id, file) {
+  async uploadPdf(id, file, stage = 'created') {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('upload_stage', 'created');
-    const response = await api.post(`/records/${id}/pdf/`, formData, {
+    formData.append('upload_stage', stage);
+    const response = await api.post(`/records/${id}/pdf/upload/`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;
@@ -65,8 +65,9 @@ const mailService = {
    * @param {string} id - Mail record ID
    * @returns {Promise<Blob>}
    */
-  async viewPdf(id) {
+  async viewPdf(id, stage = 'created') {
     const response = await api.get(`/records/${id}/pdf/view/`, {
+      params: { stage },
       responseType: 'blob',
     });
     return response.data; // Blob

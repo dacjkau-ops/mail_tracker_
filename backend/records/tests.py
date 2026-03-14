@@ -1,5 +1,9 @@
 from datetime import timedelta
+import shutil
+import tempfile
 
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -648,3 +652,100 @@ class MultiAssignmentPlanCoverageTests(APITestCase):
             (row.get('assigned_to') == self.aao3.id) or (row.get('reassigned_to') == self.aao3.id)
             for row in rows
         ))
+
+
+class MailRecordPdfFlowTests(APITestCase):
+    def setUp(self):
+        self.temp_pdf_dir = tempfile.mkdtemp(prefix='mailtracker-pdfs-')
+        self.override = override_settings(PDF_STORAGE_PATH=self.temp_pdf_dir)
+        self.override.enable()
+
+        self.section = Section.objects.create(name='PDF Section')
+        self.subsection = Subsection.objects.create(section=self.section, name='PDF-1')
+        self.ag = User.objects.create_user(
+            username='pdf_ag',
+            password='pass12345',
+            email='pdf-ag@example.com',
+            full_name='PDF AG',
+            role='AG',
+        )
+        self.aao = User.objects.create_user(
+            username='pdf_aao',
+            password='pass12345',
+            email='pdf-aao@example.com',
+            full_name='PDF AAO',
+            role='AAO',
+            subsection=self.subsection,
+        )
+        self.mail = MailRecord.objects.create(
+            letter_no='PDF/001',
+            date_received=timezone.now().date(),
+            mail_reference_subject='PDF workflow mail',
+            from_office='HQ',
+            action_required='Process',
+            assigned_to=self.aao,
+            current_handler=self.aao,
+            monitoring_officer=self.aao.get_dag(),
+            section=self.section,
+            subsection=self.subsection,
+            due_date=timezone.now().date() + timedelta(days=2),
+            status='Assigned',
+            created_by=self.ag,
+        )
+
+    def tearDown(self):
+        self.override.disable()
+        shutil.rmtree(self.temp_pdf_dir, ignore_errors=True)
+
+    @staticmethod
+    def _pdf_file(name, content=b'%PDF-1.4 test pdf'):
+        return SimpleUploadedFile(name, content, content_type='application/pdf')
+
+    def test_created_and_closed_pdfs_are_returned_by_stage_and_viewable(self):
+        self.client.force_authenticate(self.ag)
+
+        created_upload = self.client.post(
+            f'/api/records/{self.mail.id}/pdf/',
+            {'file': self._pdf_file('created.pdf'), 'upload_stage': 'created'},
+            format='multipart',
+        )
+        self.assertEqual(created_upload.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(created_upload.data['upload_stage'], 'created')
+
+        close_response = self.client.post(
+            f'/api/records/{self.mail.id}/close/',
+            {'remarks': 'Completed with final dispatch'},
+            format='json',
+        )
+        self.assertEqual(close_response.status_code, status.HTTP_200_OK)
+
+        closed_upload = self.client.post(
+            f'/api/records/{self.mail.id}/pdf/',
+            {'file': self._pdf_file('closed.pdf'), 'upload_stage': 'closed'},
+            format='multipart',
+        )
+        self.assertEqual(closed_upload.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(closed_upload.data['upload_stage'], 'closed')
+
+        detail_response = self.client.get(f'/api/records/{self.mail.id}/')
+        self.assertEqual(detail_response.status_code, status.HTTP_200_OK)
+        attachment_metadata = detail_response.data['attachment_metadata']
+        self.assertTrue(attachment_metadata['has_attachment'])
+        self.assertIn('created', attachment_metadata['by_stage'])
+        self.assertIn('closed', attachment_metadata['by_stage'])
+        self.assertEqual(len(attachment_metadata['attachments']), 2)
+
+        list_response = self.client.get('/api/records/')
+        self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+        rows = list_response.data.get('results', list_response.data)
+        row = next(item for item in rows if item['id'] == self.mail.id)
+        self.assertIn('created', row['attachment_metadata']['by_stage'])
+        self.assertIn('closed', row['attachment_metadata']['by_stage'])
+
+        view_created = self.client.get(f'/api/records/{self.mail.id}/pdf/view/?stage=created')
+        self.assertEqual(view_created.status_code, status.HTTP_200_OK)
+        self.assertIn('/_protected_pdfs/', view_created['X-Accel-Redirect'])
+
+        view_closed = self.client.get(f'/api/records/{self.mail.id}/pdf/view/?stage=closed')
+        self.assertEqual(view_closed.status_code, status.HTTP_200_OK)
+        self.assertIn('/_protected_pdfs/', view_closed['X-Accel-Redirect'])

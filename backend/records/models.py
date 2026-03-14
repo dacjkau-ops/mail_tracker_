@@ -334,8 +334,8 @@ class MailRecord(models.Model):
         return bool(self.current_attachment)
 
     def get_attachment_metadata(self):
-        attachment = self.current_attachment
-        if not attachment:
+        attachments = list(self.attachments.filter(is_current=True).order_by('upload_stage', '-uploaded_at'))
+        if not attachments:
             return {
                 'has_attachment': False,
                 'attachment_id': None,
@@ -344,15 +344,24 @@ class MailRecord(models.Model):
                 'file_size_human': None,
                 'uploaded_at': None,
                 'uploaded_by': None,
+                'attachments': [],
+                'by_stage': {},
             }
+
+        attachment_items = [attachment.get_metadata_dict() for attachment in attachments]
+        by_stage = {item['upload_stage']: item for item in attachment_items}
+        primary = by_stage.get('created') or by_stage.get('closed') or attachment_items[0]
+
         return {
             'has_attachment': True,
-            'attachment_id': str(attachment.id),
-            'original_filename': attachment.original_filename,
-            'file_size': attachment.file_size,
-            'file_size_human': RecordAttachment._human_readable_size(attachment.file_size),
-            'uploaded_at': attachment.uploaded_at.isoformat() if attachment.uploaded_at else None,
-            'uploaded_by': attachment.uploaded_by.username if attachment.uploaded_by else None,
+            'attachment_id': primary['id'],
+            'original_filename': primary['original_filename'],
+            'file_size': primary['file_size'],
+            'file_size_human': primary['file_size_human'],
+            'uploaded_at': primary['uploaded_at'],
+            'uploaded_by': primary['uploaded_by'],
+            'attachments': attachment_items,
+            'by_stage': by_stage,
         }
 
     def update_consolidated_remarks(self):

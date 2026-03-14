@@ -12,9 +12,15 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 import os
 from pathlib import Path
+from urllib.parse import quote_plus
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def env_list(name, default=''):
+    value = os.environ.get(name, default)
+    return [item.strip() for item in value.split(',') if item.strip()]
 
 
 # Quick-start development settings - unsuitable for production
@@ -29,7 +35,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-#m!%-=545l_b5d^^w3u0u
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
 # ALLOWED_HOSTS: Parse from environment or use default for local development
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = env_list('ALLOWED_HOSTS', 'localhost,127.0.0.1')
 
 
 # Application definition
@@ -88,11 +94,32 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 import dj_database_url
 
+
+def build_database_url():
+    database_url = os.environ.get('DATABASE_URL', '').strip()
+    if database_url:
+        return database_url
+
+    postgres_db = os.environ.get('POSTGRES_DB', '').strip()
+    postgres_user = os.environ.get('POSTGRES_USER', '').strip()
+    postgres_password = os.environ.get('POSTGRES_PASSWORD', '')
+    postgres_host = os.environ.get('POSTGRES_HOST', '').strip()
+    postgres_port = os.environ.get('POSTGRES_PORT', '5432').strip()
+
+    if all([postgres_db, postgres_user, postgres_host]):
+        encoded_user = quote_plus(postgres_user)
+        encoded_password = quote_plus(postgres_password)
+        auth = encoded_user if not encoded_password else f'{encoded_user}:{encoded_password}'
+        return f'postgresql://{auth}@{postgres_host}:{postgres_port}/{postgres_db}'
+
+    return f'sqlite:///{BASE_DIR / "db.sqlite3"}'
+
+
 # Database configuration
-# Uses DATABASE_URL environment variable if available, otherwise falls back to SQLite
+# Prefer DATABASE_URL, otherwise build a PostgreSQL URL from POSTGRES_* vars, else fall back to SQLite.
 DATABASES = {
     'default': dj_database_url.config(
-        default=f'sqlite:///{BASE_DIR / "db.sqlite3"}',
+        default=build_database_url(),
         conn_max_age=600,
         conn_health_checks=True,
     )
@@ -182,12 +209,23 @@ SIMPLE_JWT = {
 
 # CORS configuration
 # Parse from environment variable, fallback to localhost for development
-CORS_ALLOWED_ORIGINS = os.environ.get(
+CORS_ALLOWED_ORIGINS = env_list(
     'CORS_ALLOWED_ORIGINS',
     'http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:3000,http://127.0.0.1:5173,http://127.0.0.1:5174'
-).split(',')
+)
 
 CORS_ALLOW_CREDENTIALS = True
+
+CSRF_TRUSTED_ORIGINS = env_list(
+    'CSRF_TRUSTED_ORIGINS',
+    'http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:3000,http://127.0.0.1:5173,http://127.0.0.1:5174'
+)
+
+USE_X_FORWARDED_HOST = os.environ.get('USE_X_FORWARDED_HOST', 'True') == 'True'
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'True' if not DEBUG else 'False') == 'True'
+CSRF_COOKIE_SECURE = os.environ.get('CSRF_COOKIE_SECURE', 'True' if not DEBUG else 'False') == 'True'
 
 # PDF Storage Configuration
 PDF_STORAGE_PATH = os.environ.get('PDF_STORAGE_PATH', str(BASE_DIR / 'pdfs'))

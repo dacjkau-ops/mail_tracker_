@@ -29,6 +29,7 @@ import {
   GroupAdd as MultiAssignIcon,
   PictureAsPdf as PdfIcon,
   WarningAmber as WarningIcon,
+  Visibility as ViewIcon,
 } from '@mui/icons-material';
 import mailService from '../services/mailService';
 import { useAuth } from '../context/AuthContext';
@@ -68,6 +69,7 @@ const MailDetailPage = () => {
   const [multiAssignDialogOpen, setMultiAssignDialogOpen] = useState(false);
   const [updateActionDialogOpen, setUpdateActionDialogOpen] = useState(false);
   const [pdfUploadWarning, setPdfUploadWarning] = useState(false);
+  const [closePdfUploadWarning, setClosePdfUploadWarning] = useState(false);
 
   const [remarksEditing, setRemarksEditing] = useState(false);
   const [remarksValue, setRemarksValue] = useState('');
@@ -105,9 +107,9 @@ const MailDetailPage = () => {
     }
   };
 
-  const handleViewPdf = async () => {
+  const handleViewPdf = async (stage = 'created') => {
     try {
-      const blob = await mailService.viewPdf(id);
+      const blob = await mailService.viewPdf(id, stage);
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank');
       setTimeout(() => URL.revokeObjectURL(url), 60000);
@@ -116,13 +118,13 @@ const MailDetailPage = () => {
     }
   };
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = async (stage = 'created') => {
     try {
-      const blob = await mailService.viewPdf(id);
+      const blob = await mailService.viewPdf(id, stage);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = mail?.attachment_metadata?.original_filename || 'attachment.pdf';
+      a.download = mail?.attachment_metadata?.by_stage?.[stage]?.original_filename || `${stage}-attachment.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -143,9 +145,20 @@ const MailDetailPage = () => {
     }
   };
 
-  const handleClose = async (remarks) => {
+  const handleClose = async ({ remarks, pdfFile }) => {
     try {
       await mailService.closeMail(id, remarks);
+      if (pdfFile) {
+        try {
+          await mailService.uploadPdf(id, pdfFile, 'closed');
+          setClosePdfUploadWarning(false);
+        } catch (uploadErr) {
+          console.error('Failed to upload closing PDF:', uploadErr);
+          setClosePdfUploadWarning(true);
+        }
+      } else {
+        setClosePdfUploadWarning(false);
+      }
       setCloseDialogOpen(false);
       loadMail();
       loadAuditTrail();
@@ -471,6 +484,11 @@ const MailDetailPage = () => {
           Mail was created successfully, but the PDF attachment could not be uploaded.
         </Alert>
       )}
+      {closePdfUploadWarning && (
+        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setClosePdfUploadWarning(false)}>
+          Mail was closed successfully, but the closing PDF could not be uploaded.
+        </Alert>
+      )}
 
       {/* ── HEADER CARD ─────────────────────────────────────────────────── */}
       <Paper
@@ -501,9 +519,7 @@ const MailDetailPage = () => {
                 whiteSpace: 'nowrap',
               }}
             >
-              <Typography variant="caption" fontWeight={600} color="text.secondary">
-                Letter No.
-              </Typography>
+              
             </Box>
 
             {/* Letter number value */}
@@ -719,17 +735,49 @@ const MailDetailPage = () => {
             >
               <PdfIcon color="error" />
               <Box flex={1}>
-                <Typography variant="body2">
-                  {mail.attachment_metadata.original_filename || 'attachment.pdf'}
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  PDF Attachments
                 </Typography>
-                {mail.attachment_metadata.file_size_human && (
-                  <Typography variant="caption" color="text.secondary">
-                    {mail.attachment_metadata.file_size_human}
-                  </Typography>
-                )}
+                <Stack spacing={1}>
+                  {(mail.attachment_metadata.attachments || []).map((attachment) => (
+                    <Box
+                      key={attachment.id}
+                      sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}
+                    >
+                      <Chip
+                        size="small"
+                        label={attachment.upload_stage === 'closed' ? 'Closing PDF' : 'Created PDF'}
+                        color={attachment.upload_stage === 'closed' ? 'success' : 'default'}
+                      />
+                      <Box sx={{ flex: 1, minWidth: 180 }}>
+                        <Typography variant="body2">
+                          {attachment.original_filename || 'attachment.pdf'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {[attachment.file_size_human, attachment.uploaded_at ? formatDateTime(attachment.uploaded_at) : null]
+                            .filter(Boolean)
+                            .join(' • ')}
+                        </Typography>
+                      </Box>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<ViewIcon />}
+                        onClick={() => handleViewPdf(attachment.upload_stage)}
+                      >
+                        View
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => handleDownloadPdf(attachment.upload_stage)}
+                      >
+                        Download
+                      </Button>
+                    </Box>
+                  ))}
+                </Stack>
               </Box>
-              <Button variant="outlined" size="small" onClick={handleViewPdf}>View</Button>
-              <Button variant="outlined" size="small" onClick={handleDownloadPdf}>Download</Button>
             </Box>
           )}
 

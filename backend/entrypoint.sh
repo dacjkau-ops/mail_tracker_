@@ -10,6 +10,11 @@ echo "Postgres is ready."
 echo "Running migrations..."
 python manage.py migrate --noinput
 
+if [ "${BOOTSTRAP_ON_START:-True}" = "True" ]; then
+    echo "Bootstrapping application data..."
+    python manage.py bootstrap_system --no-input
+fi
+
 echo "Collecting static files..."
 python manage.py collectstatic --noinput
 

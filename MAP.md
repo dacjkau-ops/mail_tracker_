@@ -33,6 +33,8 @@ Use this section as the latest behavior reference when older sections below diff
 - **Signup constraints:** roles limited to `SrAO`, `AAO`, `auditor`, `clerk`; blocked email domains: `gmail.com`, `hotmail.com`, `nic.in`.
 - **Admin controls:** one-click `Delete All Data` action available in Users admin (keeps superusers).
 - **User import reliability:** CSV/JSON import optimized with bulk create + role normalization (`SRAO` -> `SrAO`).
+- **PostgreSQL bootstrap:** `settings.py` now derives the DB connection from `DATABASE_URL` or `POSTGRES_*`; `migrate` creates the schema and `bootstrap_system` can create the AG superuser plus seed sections/users.
+- **PDF workflow fixes:** upload now uses `POST /api/records/{id}/pdf/upload/` (separate from metadata `GET /api/records/{id}/pdf/`), list rows can show separate created/closed eye icons, and `view_pdf` falls back to direct Django file streaming for split local-dev servers.
 
 ### v1.2 Changes (2026-02-24)
 - **Deprecated fields removed:** `action_required_other`, `remarks` (MailRecord), `user_remarks` (MailAssignment) — migration 0014
@@ -40,7 +42,7 @@ Use this section as the latest behavior reference when older sections below diff
 - **Create Mail UX:** Form shell renders immediately (fieldset disabled pattern), section auto-derived from assignees (no standalone section dropdown), assignee rows with section chips
 - **Mail List pagination:** Server-side pagination (25/page) via `MailRecordPagination`, `?page=` and `?page_size=` params, MUI Pagination controls
 - **Search filter:** DRF `SearchFilter` on `sl_no`, `letter_no`, `mail_reference_subject` via `?search=` param
-- **PDF icon:** Paperclip icon on mail list for mails with attachments, click opens PDF in new tab
+- **PDF icons:** mail list can show separate eye icons for created-stage and closed-stage PDFs, click opens the PDF in a new tab
 
 ---
 
@@ -82,10 +84,11 @@ Mail_Tracker/
 │   │   └── migrations/              # DB migrations for audit
 │   │
 │   ├── manage.py                     # Django CLI entry point
-│   ├── create_superuser.py           # Auto-create admin user (for deployment)
-│   ├── build.sh                      # Render deployment build script
+│   ├── create_superuser.py           # Compatibility wrapper around ensure_superuser
+│   ├── build.sh                      # Deployment build script (migrate + bootstrap)
+│   ├── entrypoint.sh                 # Container startup (wait PG, migrate, bootstrap, gunicorn)
 │   ├── requirements.txt              # Python dependencies
-│   └── db.sqlite3                    # SQLite database (local dev)
+│   └── sample_data/                  # Bootstrap seed files for fresh deployments
 │
 ├── frontend/                         # React + MUI application
 │   ├── src/
@@ -111,7 +114,7 @@ Mail_Tracker/
 
 | File | Purpose | Key Contents |
 |------|---------|--------------|
-| `settings.py` | Django settings | DATABASE (SQLite/PostgreSQL), CORS_ALLOWED_ORIGINS, JWT config, ALLOWED_HOSTS, WhiteNoise static files |
+| `settings.py` | Django settings | DATABASE (`DATABASE_URL` or derived `POSTGRES_*`), CORS_ALLOWED_ORIGINS, JWT config, ALLOWED_HOSTS, WhiteNoise static files |
 | `urls.py` | API routing | Router registration for all viewsets, JWT endpoints (`/api/auth/login/`, `/api/auth/refresh/`) |
 | `permissions.py` | Custom permissions | `MailRecordPermission` - enforces role-based access on backend |
 
@@ -154,6 +157,10 @@ class SignupRequest:
 - `UserSerializer`: Full user details with sections_list and subsection_detail
 - `UserCreateSerializer`: Create user with password hashing + ManyToMany sections
 - `UserMinimalSerializer`: Minimal info for dropdowns (id, full_name, role, sections_display)
+- CLI bootstrap commands:
+  - `python manage.py ensure_superuser`
+  - `python manage.py bootstrap_system`
+  - `python manage.py import_users_file <path>`
 
 #### **views.py - User ViewSet**
 ```python
@@ -205,6 +212,7 @@ SubsectionViewSet (read-only):
 
 #### **admin.py - Section Admin + Import**
 - **CSV/JSON Import**: `/admin/sections/section/import/`
+- **CLI Import**: `python manage.py import_sections_file backend/sample_data/sections_sample.json --update-existing`
 - **CSV Format**:
   - Required: `section_name`
   - Optional: `description`, `directly_under_ag`, `subsection_name`, `subsection_description`
@@ -378,7 +386,9 @@ POST   /api/records/{id}/reassign/      # Reassign mail
 POST   /api/records/{id}/close/         # Close mail
 POST   /api/records/{id}/reopen/        # Reopen mail (AG only)
 POST   /api/records/{id}/multi_assign/  # Multi-assign to multiple users
-GET    /api/records/{id}/pdf/view/      # View attached PDF (X-Accel-Redirect)
+POST   /api/records/{id}/pdf/upload/    # Upload created/closed stage PDF
+GET    /api/records/{id}/pdf/           # Get current PDF metadata
+GET    /api/records/{id}/pdf/view/      # View attached PDF (Django FileResponse locally, nginx/proxy-compatible)
 ```
 
 ### **Assignments**
@@ -430,7 +440,8 @@ GET /api/audit/{id}/           # Audit detail
 - **CSV Columns**: username, email, password, full_name, role, sections (comma-sep for DAG), subsection (for SrAO/AAO)
 
 ### **Deployment**
-- **Backend (Render)**: `backend/build.sh` runs on deploy (collectstatic, migrate, create superuser)
+- **Backend startup**: `backend/build.sh` / `backend/entrypoint.sh` run `migrate` and then `bootstrap_system`
+- **Bootstrap defaults**: `.env` can provide `DJANGO_SUPERUSER_*`, `INITIAL_SECTIONS_FILE`, and `INITIAL_USERS_FILE`
 - **Frontend (Vercel)**: Auto-deploys from GitHub, uses `frontend/vercel.json` config
 - **Environment vars**: See CLAUDE.md → Cloud Deployment Guide
 
@@ -443,8 +454,8 @@ If you only read **5 files**, read these:
 1. **CLAUDE.md** - Project instructions, requirements, and deployment guide
 2. **backend/records/models.py** - Core business logic (MailRecord, permissions)
 3. **backend/records/views.py** - API filtering and custom actions
-4. **backend/users/models.py** - User roles and hierarchy logic
-5. **backend/config/urls.py** - All API endpoints registered here
+4. **backend/config/settings.py** - Database/env wiring for PostgreSQL bootstrap
+5. **backend/users/management/commands/bootstrap_system.py** - Fresh-deployment bootstrap path
 
 ---
 
@@ -557,8 +568,9 @@ If you only read **5 files**, read these:
 cd backend
 python manage.py runserver 0.0.0.0:8000  # Start dev server
 python manage.py makemigrations           # Create migrations
-python manage.py migrate                  # Apply migrations
-python manage.py createsuperuser          # Create admin user
+python manage.py migrate                  # Apply schema to DB
+python manage.py bootstrap_system         # Ensure AG superuser + optional seed files
+python manage.py ensure_superuser         # Ensure only the AG superuser
 python manage.py shell                    # Django shell
 
 # Frontend
@@ -568,7 +580,8 @@ npm run dev                               # Start dev server
 npm run build                             # Production build
 
 # Database
-backend/db.sqlite3                        # SQLite DB file (local dev)
+docker compose up -d --build              # Start PostgreSQL + backend + nginx
+backend/sample_data/sections_sample.json  # Default section seed file
 
 # Admin Panel
 http://localhost:8000/admin/              # Django admin interface
@@ -597,7 +610,7 @@ http://localhost:8000/admin/              # Django admin interface
 #### Mail List Enhancements (Phase 8)
 - Server-side pagination: 25 records/page with MUI Pagination controls
 - Search filter: `?search=` on sl_no, letter_no, subject
-- PDF icon (paperclip) next to subject for mails with attachments
+- Stage-aware PDF eye icons next to subject for created/closed PDFs
 - Loading overlay on table instead of full-page spinner
 - Page size selector (25/50/100)
 

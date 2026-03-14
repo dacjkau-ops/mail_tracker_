@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.filters import SearchFilter
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
-from django.http import HttpResponse
+from django.http import FileResponse, HttpResponse
 from django.utils import timezone
 from django.db.models import Q
 from django.db import transaction
@@ -1167,10 +1167,10 @@ class MailRecordViewSet(viewsets.ModelViewSet):
         assignments = self._filter_assignments_for_user(mail_record, request.user)
         return Response(MailAssignmentSerializer(assignments, many=True).data)
 
-    @action(detail=True, methods=['post'], url_path='pdf', url_name='upload-pdf')
+    @action(detail=True, methods=['post'], url_path='pdf/upload', url_name='upload-pdf')
     def upload_pdf(self, request, pk=None):
         """
-        POST /api/records/{id}/pdf/
+        POST /api/records/{id}/pdf/upload/
         Upload a PDF to a mail record. Accepts multipart/form-data with:
           - file: PDF file (required, max 10MB, must be .pdf extension)
           - upload_stage: 'created' or 'closed' (required)
@@ -1269,16 +1269,11 @@ class MailRecordViewSet(viewsets.ModelViewSet):
     def view_pdf(self, request, pk=None):
         """
         GET /api/records/{id}/pdf/view/?stage=created
-        Returns 200 with X-Accel-Redirect header. Nginx intercepts and serves the PDF file.
+        Returns the selected PDF inline.
         Query param 'stage' selects which stage PDF to serve (default: 'created').
 
-        Response headers set:
-          - X-Accel-Redirect: /_protected_pdfs/{uuid}.pdf
-          - Content-Type: application/pdf
-          - Content-Disposition: inline; filename="{original_filename}"
-          - X-Accel-Buffering: no
-
-        Permissions: same as viewing the mail record (PDF-07).
+        In local split-server development, Django serves the file directly.
+        Behind nginx, proxying the response still works correctly.
         """
         mail_record = self.get_object()  # triggers has_object_permission
 
@@ -1300,21 +1295,16 @@ class MailRecordViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        stored_filename = attachment.stored_filename
-        if not stored_filename:
+        if not attachment.file:
             return Response(
                 {'error': "PDF file reference is missing. Contact an administrator."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        response = HttpResponse(status=200)
-        response['X-Accel-Redirect'] = f'/_protected_pdfs/{stored_filename}'
-        response['X-Accel-Buffering'] = 'no'
-        response['Content-Type'] = 'application/pdf'
-        # Sanitize original filename for Content-Disposition (remove quotes/special chars)
         safe_filename = attachment.original_filename.replace('"', '').replace('\\', '')
+        attachment.file.open('rb')
+        response = FileResponse(attachment.file, content_type='application/pdf')
         response['Content-Disposition'] = f'inline; filename="{safe_filename}"'
-
         return response
 
 

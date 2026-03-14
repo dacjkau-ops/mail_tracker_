@@ -23,6 +23,20 @@ Use this section as the effective behavior baseline when older parts of this fil
 - Blocked email domains for signup: `gmail.com`, `hotmail.com`, `nic.in`.
 - Frontend signup metadata endpoint: `GET /api/auth/signup-metadata/`.
 
+### Deployment and Database Bootstrap
+- Docker/WLS deployments are PostgreSQL-first.
+- `config/settings.py` uses `DATABASE_URL` when present, otherwise derives a PostgreSQL connection from `POSTGRES_*`.
+- `python manage.py migrate` is the authoritative way the PostgreSQL schema is created.
+- `python manage.py bootstrap_system` idempotently ensures the AG superuser exists and can seed sections/users from files.
+- `backend/entrypoint.sh` and `backend/build.sh` both run the bootstrap flow.
+
+### PDF Runtime Behavior
+- Created-stage upload uses `POST /api/records/{id}/pdf/upload/`.
+- Current PDF metadata uses `GET /api/records/{id}/pdf/`.
+- PDF view uses `GET /api/records/{id}/pdf/view/?stage=created|closed`.
+- Split local-dev servers use Django `FileResponse` for PDF bytes.
+- Docker/nginx deployments remain compatible with protected PDF serving.
+
 ### Mail Status Values
 - `Created`, `Assigned`, `In Progress`, `Closed`.
 - Creation flow currently sets new records to `Assigned` after assignee resolution.
@@ -111,7 +125,7 @@ The app is hosted locally (laptop server) and prioritizes correctness, security,
 - API: Django REST Framework
 - Language: Python 3.11+
 - Authentication: JWT (SimpleJWT) with username/password
-- Database: SQLite (local file)
+- Database: PostgreSQL by default in Docker/WLS, SQLite only as a fallback when no DB env is configured
 - Hosting: Laptop (LAN access)
 
 ### Frontend
@@ -135,7 +149,7 @@ The app is hosted locally (laptop server) and prioritizes correctness, security,
 - sections/ → Predefined office sections/departments
 - permissions/ → Custom permission classes for role-based access
 - manage.py → Django entry point
-- db.sqlite3 → SQLite database file
+- sample_data/ → Bootstrap seed files for sections/subsections
 
 ### frontend/
 - src/pages/ → Page-level components
@@ -157,8 +171,9 @@ python manage.py runserver 0.0.0.0:8000
 python manage.py makemigrations
 python manage.py migrate
 
-# Create admin user
-python manage.py createsuperuser
+# Bootstrap a fresh deployment
+python manage.py bootstrap_system
+python manage.py ensure_superuser
 ```
 
 ### Frontend
@@ -232,7 +247,7 @@ npm run build
 
 - Do not change the tech stack
 - Do not introduce cloud services
-- Do not replace SQLite
+- Do not bypass the Postgres/bootstrap flow with hardcoded local-only assumptions
 - Do not add features not requested
 - Do not bypass backend permissions
 - Do not expose secrets to frontend
@@ -293,7 +308,7 @@ If any check fails, fix it before marking complete.
 - Correctness > Speed
 - Simplicity > Cleverness
 - Laptop hosting is intentional
-- SQLite is intentional
+- PostgreSQL bootstrap is the primary deployment path
 - Long-term maintainability matters
 - Focus on tracking, not storing documents
 - Audit trail is mandatory for accountability
@@ -458,7 +473,7 @@ These criteria ensure the system is secure and production-ready:
 #### 18. Deployment
 - ✅ Django backend runs on 0.0.0.0:8000 (accessible on LAN)
 - ✅ React frontend accessible via browser on LAN
-- ✅ Database file (db.sqlite3) created and functional
+- ✅ PostgreSQL schema applied successfully via `python manage.py migrate`
 - ✅ Initial AG superuser created successfully
 - ✅ Sample sections imported
 - ✅ Sample users imported with correct roles and sections
@@ -538,18 +553,18 @@ set -o errexit
 # Install Python dependencies
 pip install -r requirements.txt
 
-# Collect static files
-python manage.py collectstatic --no-input
-
 # Run database migrations
 python manage.py migrate
 
-# Create superuser if it doesn't exist
-echo "Creating superuser if needed..."
-python create_superuser.py
+# Bootstrap initial application data
+echo "Bootstrapping application data..."
+python manage.py bootstrap_system --no-input
+
+# Collect static files
+python manage.py collectstatic --no-input
 ```
 
-3. **backend/create_superuser.py** - Auto-create admin user
+3. **backend/users/management/commands/bootstrap_system.py** - Idempotent deployment bootstrap
 ```python
 #!/usr/bin/env python
 import os
@@ -567,7 +582,7 @@ if not User.objects.filter(is_superuser=True).exists():
     User.objects.create_superuser(
         username='admin',
         email='admin@office.gov',
-        password='admin123',  # CHANGE THIS PASSWORD AFTER FIRST LOGIN!
+        password=os.environ['DJANGO_SUPERUSER_PASSWORD'],
         full_name='System Administrator',
         role='AG'
     )
@@ -605,12 +620,33 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-fallback-key')
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
-# Database - uses PostgreSQL on Render, SQLite locally
+# Database - uses DATABASE_URL when present, otherwise builds PostgreSQL from POSTGRES_*
 import dj_database_url
+from urllib.parse import quote_plus
+
+def build_database_url():
+    database_url = os.environ.get('DATABASE_URL', '').strip()
+    if database_url:
+        return database_url
+
+    if all([
+        os.environ.get('POSTGRES_DB'),
+        os.environ.get('POSTGRES_USER'),
+        os.environ.get('POSTGRES_HOST'),
+    ]):
+        user = quote_plus(os.environ['POSTGRES_USER'])
+        password = quote_plus(os.environ.get('POSTGRES_PASSWORD', ''))
+        auth = user if not password else f'{user}:{password}'
+        host = os.environ['POSTGRES_HOST']
+        port = os.environ.get('POSTGRES_PORT', '5432')
+        name = os.environ['POSTGRES_DB']
+        return f'postgresql://{auth}@{host}:{port}/{name}'
+
+    return f'sqlite:///{BASE_DIR / "db.sqlite3"}'
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=f'sqlite:///{BASE_DIR / "db.sqlite3"}',
+        default=build_database_url(),
         conn_max_age=600,
         conn_health_checks=True,
     )
@@ -759,13 +795,14 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localho
 5. **Database Auto-Migrates**
    - Migrations run automatically via build.sh
    - PostgreSQL on Render (production)
-   - SQLite locally (development)
+   - PostgreSQL in Docker/WLS deployments
+   - SQLite only as fallback when no DB env is configured
    - No manual migration needed
 
 6. **Superuser Auto-Creates**
-   - create_superuser.py runs in build
-   - Default: username=admin, password=admin123
-   - **MUST CHANGE PASSWORD** after first login!
+   - `bootstrap_system` / `ensure_superuser` run in build and container startup
+   - Credentials come from `DJANGO_SUPERUSER_*`
+   - **MUST set a strong password before first production boot**
 
 ### Post-Deployment Checklist
 
@@ -804,7 +841,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localho
 2. **Password Change** (immediately after deployment):
    - Login to /admin/
    - Go to Users → admin
-   - Change password from admin123
+- Verify the configured `DJANGO_SUPERUSER_PASSWORD` is rotated to a strong long-term secret
 
 3. **Monitor Logs**:
    - Render: Dashboard → Logs

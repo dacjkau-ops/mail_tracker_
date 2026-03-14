@@ -160,6 +160,11 @@ class MailRecordPermission(permissions.BasePermission):
             return self._can_view_mail(user, obj, request)
 
         if view.action == 'upload_pdf':
+            # If a user can legitimately see the mail in their workflow scope,
+            # allow attaching the stage PDF as well. This keeps create-stage and
+            # close-stage uploads functional even after current_handler changes.
+            if self._can_view_mail(user, obj, request):
+                return True
             if user.role == 'DAG':
                 return self._is_dag_for_section(user, obj)
             if user.role in ['SrAO', 'AAO']:

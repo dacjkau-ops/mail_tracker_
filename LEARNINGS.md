@@ -152,6 +152,31 @@ if (originalRequest.url?.includes('/auth/login') ||
 
 ---
 
+## 8. PDF Upload Route Collision and Empty Local Downloads
+
+**Issue**:
+- PDF upload from the create/close flow was failing.
+- No attachment icon appeared because no attachment metadata was stored.
+- In split local dev, clicking View/Download returned a 0-byte file.
+
+**Root Cause**:
+1. Backend defined both `GET /api/records/{id}/pdf/` and `POST /api/records/{id}/pdf/` as separate DRF actions on the same route, which made the upload path unreliable.
+2. PDF view relied on nginx-style `X-Accel-Redirect`, so Django `runserver` returned no real file bytes in separate local-dev mode.
+
+**Solution**:
+- Split the upload route to `POST /api/records/{id}/pdf/upload/`.
+- Keep metadata at `GET /api/records/{id}/pdf/`.
+- Keep viewing at `GET /api/records/{id}/pdf/view/?stage=created|closed`.
+- Return the PDF with Django `FileResponse` so local backend/frontend dev servers can actually stream the file.
+- Extend attachment metadata so the UI can render separate created-stage and closed-stage eye icons.
+
+**Prevention**:
+- Do not define multiple DRF actions with the same `url_path` for different methods unless the routing behavior is explicitly verified.
+- Any file-view endpoint must be tested both behind nginx and with plain Django `runserver`.
+- Verify uploaded attachment metadata is present in the list/detail API before debugging the frontend icon rendering.
+
+---
+
 ## Quick Checklist for New Projects
 
 1. [ ] Verify DRF pagination settings and handle in frontend services
@@ -162,6 +187,8 @@ if (originalRequest.url?.includes('/auth/login') ||
 6. [ ] Match frontend field names to backend serializer expectations
 7. [ ] Exclude auth endpoints from token refresh interceptor logic
 8. [ ] Test full auth flow: login, refresh, logout, expired token scenarios
+9. [ ] Test file upload routes separately from file metadata routes
+10. [ ] Test binary download/view behavior in both dev and proxied environments
 
 ---
 

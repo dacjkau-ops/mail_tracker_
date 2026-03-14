@@ -25,7 +25,7 @@ import {
   Pagination as MuiPagination,
 } from '@mui/material';
 import {
-  AttachFile as AttachFileIcon,
+  Visibility as VisibilityIcon,
   PictureAsPdf as PdfIcon,
 } from '@mui/icons-material';
 import mailService from '../services/mailService';
@@ -138,9 +138,9 @@ const MailListPage = () => {
     navigate(`/mails/${mailId}`);
   }, [navigate]);
 
-  const handleViewPdf = useCallback(async (mailId) => {
+  const handleViewPdf = useCallback(async (mailId, stage = 'created') => {
     try {
-      const blob = await mailService.viewPdf(mailId);
+      const blob = await mailService.viewPdf(mailId, stage);
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank');
       // Clean up the object URL after a delay to allow the browser to load it
@@ -433,18 +433,32 @@ const MailListPage = () => {
                               ? `${mail.mail_reference_subject.substring(0, 50)}...`
                               : mail.mail_reference_subject}
                           </Typography>
-                          <Box sx={{ width: 28, flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
-                            {mail.attachment_metadata?.has_attachment && (
-                              <Tooltip title="View PDF">
+                          <Box sx={{ minWidth: 28, flexShrink: 0, display: 'flex', justifyContent: 'center', gap: 0.25 }}>
+                            {mail.attachment_metadata?.by_stage?.created && (
+                              <Tooltip title="Open created PDF">
                                 <IconButton
                                   size="small"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleViewPdf(mail.id);
+                                    handleViewPdf(mail.id, 'created');
                                   }}
                                   sx={{ p: 0.25 }}
                                 >
-                                  <AttachFileIcon fontSize="small" color="action" />
+                                  <VisibilityIcon fontSize="small" color="action" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {mail.attachment_metadata?.by_stage?.closed && (
+                              <Tooltip title="Open closing PDF">
+                                <IconButton
+                                  size="small"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleViewPdf(mail.id, 'closed');
+                                  }}
+                                  sx={{ p: 0.25 }}
+                                >
+                                  <VisibilityIcon fontSize="small" color="success" />
                                 </IconButton>
                               </Tooltip>
                             )}
