@@ -28,7 +28,7 @@ class AuditTrail(models.Model):
     action = models.CharField(max_length=20, choices=ACTION_CHOICES)
     performed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
+        on_delete=models.PROTECT,  
         related_name='audit_actions'
     )
     timestamp = models.DateTimeField(auto_now_add=True)
