@@ -129,7 +129,10 @@ class Command(BaseCommand):
             username = normalized.get("username", "")
             email = normalized.get("email", "")
             password = normalized.get("password", "")
-            full_name = normalized.get("full_name", "")
+            full_name = importer._resolve_full_name(
+                normalized.get("full_name", ""),
+                normalized.get("username", ""),
+            )
             role = importer._normalize_role(normalized.get("role", ""))
             actual_role = normalized.get("actual_role", "").strip()
             section_value = normalized.get("section", normalized.get("section_name", ""))

@@ -259,6 +259,12 @@ class UserAdmin(BaseUserAdmin):
             return f'{preview} ... (+{len(usernames) - limit} more)'
         return preview
 
+    def _resolve_full_name(self, full_name, username):
+        full_name = (full_name or '').strip()
+        if full_name:
+            return full_name
+        return (username or '').strip()
+
     def _import_rows(self, rows, row_start=1):
         results = {'created': [], 'errors': [], 'skipped': []}
         if not rows:
@@ -291,7 +297,10 @@ class UserAdmin(BaseUserAdmin):
             username = normalized_row.get('username', '').strip()
             email = normalized_row.get('email', '').strip()
             password = normalized_row.get('password', '').strip()
-            full_name = normalized_row.get('full_name', '').strip()
+            full_name = self._resolve_full_name(
+                normalized_row.get('full_name', ''),
+                normalized_row.get('username', ''),
+            )
             actual_role = normalized_row.get('actual_role', '').strip()
             role = self._normalize_role(normalized_row.get('role', ''))
             section_value = normalized_row.get('section', normalized_row.get('section_name', ''))
