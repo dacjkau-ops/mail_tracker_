@@ -4,19 +4,14 @@ import os
 from django.db import models
 from django.conf import settings as django_settings
 from django.core.exceptions import ValidationError
-from django.core.files.storage import FileSystemStorage
+from django.core.files.storage import storages
 from django.utils import timezone
 from sections.models import Section, Subsection
 
 
 def get_pdf_storage():
-    """Return FileSystemStorage pointed at PDF_STORAGE_PATH setting."""
-    storage_path = getattr(django_settings, 'PDF_STORAGE_PATH', None)
-    if storage_path is None:
-        from pathlib import Path
-        storage_path = Path(django_settings.BASE_DIR) / 'pdfs'
-    os.makedirs(storage_path, exist_ok=True)
-    return FileSystemStorage(location=str(storage_path))
+    """Return configured PDF storage backend (R2)."""
+    return storages["pdfs"]
 
 
 def pdf_upload_path(instance, filename):
@@ -562,7 +557,9 @@ class RecordAttachment(models.Model):
             return f"{size_bytes / (1024 * 1024):.1f} MB"
 
     def delete_file(self):
-        """Delete physical file from storage."""
+        """Delete file from configured storage backend."""
         if self.file:
-            if os.path.isfile(self.file.path):
-                os.remove(self.file.path)
+            storage = self.file.storage
+            file_name = self.file.name
+            if file_name and storage.exists(file_name):
+                storage.delete(file_name)

@@ -23,6 +23,10 @@ def env_list(name, default=''):
     return [item.strip() for item in value.split(',') if item.strip()]
 
 
+def env_bool(name, default='False'):
+    return os.environ.get(name, default).strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
@@ -55,6 +59,11 @@ INSTALLED_APPS = [
     'records',
     'audit',
 ]
+
+USE_R2_FOR_PDFS = env_bool('USE_R2', 'False')
+if not USE_R2_FOR_PDFS:
+    raise RuntimeError("PDF storage is configured as R2-only. Set USE_R2=True.")
+INSTALLED_APPS.append('storages')
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -114,7 +123,6 @@ def build_database_url():
 
     return f'sqlite:///{BASE_DIR / "db.sqlite3"}'
 
-
 # Database configuration
 # Prefer DATABASE_URL, otherwise build a PostgreSQL URL from POSTGRES_* vars, else fall back to SQLite.
 DATABASES = {
@@ -163,6 +171,30 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+# PDF Storage Configuration (R2-only)
+R2_ACCOUNT_ID = os.environ.get('R2_ACCOUNT_ID', '').strip()
+R2_ACCESS_KEY_ID = os.environ.get('R2_ACCESS_KEY_ID', '').strip()
+R2_SECRET_ACCESS_KEY = os.environ.get('R2_SECRET_ACCESS_KEY', '').strip()
+R2_BUCKET_NAME = os.environ.get('R2_BUCKET_NAME', '').strip()
+R2_ENDPOINT_URL = os.environ.get('R2_ENDPOINT_URL', '').strip()
+R2_REGION = os.environ.get('R2_REGION', 'auto').strip()
+R2_PDF_PREFIX = os.environ.get('R2_PDF_PREFIX', 'pdfs').strip('/')
+
+missing_r2 = []
+if not R2_BUCKET_NAME:
+    missing_r2.append('R2_BUCKET_NAME')
+if not R2_ACCESS_KEY_ID:
+    missing_r2.append('R2_ACCESS_KEY_ID')
+if not R2_SECRET_ACCESS_KEY:
+    missing_r2.append('R2_SECRET_ACCESS_KEY')
+if not R2_ENDPOINT_URL:
+    missing_r2.append('R2_ENDPOINT_URL')
+
+if missing_r2:
+    raise RuntimeError(
+        "R2 PDF storage is enabled but required settings are missing: " + ", ".join(missing_r2)
+    )
+
 # WhiteNoise configuration for static file serving
 STORAGES = {
     "default": {
@@ -170,6 +202,20 @@ STORAGES = {
     },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+    "pdfs": {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "bucket_name": R2_BUCKET_NAME,
+            "endpoint_url": R2_ENDPOINT_URL,
+            "access_key": R2_ACCESS_KEY_ID,
+            "secret_key": R2_SECRET_ACCESS_KEY,
+            "region_name": R2_REGION,
+            "default_acl": None,
+            "file_overwrite": False,
+            "querystring_auth": True,
+            "location": R2_PDF_PREFIX,
+        },
     },
 }
 
@@ -201,8 +247,7 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': False,
     'BLACKLIST_AFTER_ROTATION': True,
-    # Avoid extra DB write on every login token issuance.
-    'UPDATE_LAST_LOGIN': False,
+    'UPDATE_LAST_LOGIN': True,
     'ALGORITHM': 'HS256',
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
@@ -214,12 +259,12 @@ CORS_ALLOWED_ORIGINS = env_list(
     'http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:3000,http://127.0.0.1:5173,http://127.0.0.1:5174'
 )
 
-CORS_ALLOW_CREDENTIALS = True
-
 CSRF_TRUSTED_ORIGINS = env_list(
     'CSRF_TRUSTED_ORIGINS',
     'http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:3000,http://127.0.0.1:5173,http://127.0.0.1:5174'
 )
+
+CORS_ALLOW_CREDENTIALS = True
 
 USE_X_FORWARDED_HOST = os.environ.get('USE_X_FORWARDED_HOST', 'True') == 'True'
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
@@ -227,12 +272,9 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'True' if not DEBUG else 'False') == 'True'
 CSRF_COOKIE_SECURE = os.environ.get('CSRF_COOKIE_SECURE', 'True' if not DEBUG else 'False') == 'True'
 
-# PDF Storage Configuration
-PDF_STORAGE_PATH = os.environ.get('PDF_STORAGE_PATH', str(BASE_DIR / 'pdfs'))
-
 # File upload size limits (10MB max for PDF uploads)
-FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 
 # Performance observability
 SLOW_REQUEST_MS = int(os.environ.get('SLOW_REQUEST_MS', '500'))
