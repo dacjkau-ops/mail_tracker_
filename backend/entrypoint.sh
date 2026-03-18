@@ -21,8 +21,8 @@ python manage.py collectstatic --noinput
 echo "Starting gunicorn..."
 exec gunicorn config.wsgi:application \
     --bind 0.0.0.0:8000 \
-    --workers 4 \
-    --threads 2 \
-    --timeout 60 \
+    --workers "${WEB_CONCURRENCY:-4}" \
+    --threads "${GUNICORN_THREADS:-2}" \
+    --timeout "${GUNICORN_TIMEOUT:-300}" \
     --access-logfile - \
     --error-logfile -
