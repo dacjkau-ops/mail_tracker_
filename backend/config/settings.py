@@ -16,6 +16,27 @@ from urllib.parse import quote_plus
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = BASE_DIR.parent
+
+
+def load_local_env_file(path):
+    """Load simple KEY=VALUE pairs from a local .env without overriding real env vars."""
+    if not path.exists():
+        return
+
+    for raw_line in path.read_text(encoding='utf-8').splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith('#') or '=' not in line:
+            continue
+
+        key, value = line.split('=', 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key:
+            os.environ.setdefault(key, value)
+
+
+load_local_env_file(PROJECT_ROOT / '.env')
 
 
 def env_list(name, default=''):

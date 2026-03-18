@@ -314,3 +314,45 @@ class SignupRequest(models.Model):
         self.approved_by = reviewer
         self.reviewed_at = timezone.now()
         self.save(update_fields=['status', 'approved_by', 'reviewed_at', 'updated_at'])
+
+
+class UserImportJob(models.Model):
+    STATUS_CHOICES = [
+        ('queued', 'Queued'),
+        ('running', 'Running'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+    FORMAT_CHOICES = [
+        ('csv', 'CSV'),
+        ('json', 'JSON'),
+    ]
+
+    original_filename = models.CharField(max_length=255)
+    file_format = models.CharField(max_length=10, choices=FORMAT_CHOICES)
+    payload = models.TextField(help_text='Original uploaded CSV/JSON content.')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='queued')
+    created_by = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='initiated_user_import_jobs'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    created_count = models.PositiveIntegerField(default=0)
+    skipped_count = models.PositiveIntegerField(default=0)
+    error_count = models.PositiveIntegerField(default=0)
+    summary = models.JSONField(default=dict, blank=True)
+    failure_message = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.original_filename} [{self.status}]"

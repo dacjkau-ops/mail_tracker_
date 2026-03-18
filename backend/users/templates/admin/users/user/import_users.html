@@ -45,6 +45,37 @@
         overflow-x: auto;
         font-size: 0.85em;
     }
+    .jobs-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+        background: #fff;
+    }
+    .jobs-table th,
+    .jobs-table td {
+        border: 1px solid #ddd;
+        padding: 8px 10px;
+        vertical-align: top;
+        text-align: left;
+    }
+    .jobs-table th {
+        background: #f3f3f3;
+    }
+    .job-status {
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 12px;
+        letter-spacing: 0.04em;
+    }
+    .job-status.queued { color: #7a5d00; }
+    .job-status.running { color: #0b5394; }
+    .job-status.completed { color: #2a7f2a; }
+    .job-status.failed { color: #a61c1c; }
+    .job-preview {
+        color: #555;
+        font-size: 0.9em;
+        margin-top: 4px;
+    }
 </style>
 {% endblock %}
 
@@ -56,8 +87,51 @@
         {% csrf_token %}
         {{ form.as_p }}
         <input type="submit" value="{% trans 'Import' %}" class="default">
+        <a href="{% url 'admin:users_user_import' %}" class="button">{% trans "Refresh Status" %}</a>
         <a href="{% url 'admin:users_user_changelist' %}" class="button cancel-link">{% trans "Cancel" %}</a>
     </form>
+
+    {% if recent_jobs %}
+    <div class="format-info">
+        <h3>Recent Import Jobs</h3>
+        <table class="jobs-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>File</th>
+                    <th>Status</th>
+                    <th>Results</th>
+                    <th>Started By</th>
+                    <th>Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in recent_jobs %}
+                <tr>
+                    <td>{{ job.id }}</td>
+                    <td>{{ job.original_filename }}</td>
+                    <td>
+                        <span class="job-status {{ job.status }}">{{ job.status }}</span>
+                        {% if job.failure_message %}
+                        <div class="job-preview">{{ job.failure_message }}</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        Created: {{ job.created_count }}<br>
+                        Skipped: {{ job.skipped_count }}<br>
+                        Errors: {{ job.error_count }}
+                        {% if job.summary.error_preview %}
+                        <div class="job-preview">{{ job.summary.error_preview|join:" | " }}</div>
+                        {% endif %}
+                    </td>
+                    <td>{% if job.created_by %}{{ job.created_by.username }}{% else %}-{% endif %}</td>
+                    <td>{{ job.created_at }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
 
     <div class="format-info">
         <h3>CSV Format</h3>
@@ -103,6 +177,7 @@ audit_user,audit.user@office.gov,password123,Sana Khan,auditor,Sr PS Consultant,
             <li>Missing sections/subsections are auto-created from import values</li>
             <li>AG users typically have no section/subsection (leave those columns empty)</li>
             <li>Existing users (same username) will be skipped</li>
+            <li>Imports now run in the background; use Refresh Status to monitor progress</li>
             <li>Passwords are stored securely (hashed)</li>
         </ul>
     </div>

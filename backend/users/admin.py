@@ -9,7 +9,8 @@ from django.db import transaction
 from django.shortcuts import render, redirect
 from django.urls import path
 from django import forms
-from .models import User, SignupRequest
+from .import_jobs import start_user_import_job
+from .models import User, SignupRequest, UserImportJob
 from sections.models import Section, Subsection
 from records.models import MailRecord, MailAssignment, AssignmentRemark, RecordAttachment
 from audit.models import AuditTrail
@@ -70,32 +71,23 @@ class UserAdmin(BaseUserAdmin):
                 ext = file.name.split('.')[-1].lower()
 
                 try:
-                    if ext == 'csv':
-                        results = self._import_from_csv(file)
-                    else:
-                        results = self._import_from_json(file)
-
-                    # Show results
-                    if results['created']:
-                        created_preview = self._format_username_preview(results['created'])
-                        messages.success(
-                            request,
-                            f"Successfully created {len(results['created'])} users: {created_preview}"
-                        )
-                    if results['errors']:
-                        for error in results['errors']:
-                            messages.error(request, error)
-                    if results['skipped']:
-                        skipped_preview = self._format_username_preview(results['skipped'])
-                        messages.warning(
-                            request,
-                            f"Skipped {len(results['skipped'])} existing users: {skipped_preview}"
-                        )
+                    content = file.read().decode('utf-8-sig' if ext == 'csv' else 'utf-8')
+                    job = UserImportJob.objects.create(
+                        original_filename=file.name,
+                        file_format=ext,
+                        payload=content,
+                        created_by=request.user,
+                    )
+                    transaction.on_commit(lambda: start_user_import_job(job.id))
+                    messages.success(
+                        request,
+                        f'Import started in background as job #{job.id}. Refresh this page to see progress.'
+                    )
 
                 except Exception as e:
                     messages.error(request, f'Import failed: {str(e)}')
 
-                return redirect('..')
+                return redirect('admin:users_user_import')
         else:
             form = ImportUsersForm()
 
@@ -104,6 +96,7 @@ class UserAdmin(BaseUserAdmin):
             'title': 'Import Users',
             'opts': self.model._meta,
             'has_view_permission': self.has_view_permission(request),
+            'recent_jobs': UserImportJob.objects.select_related('created_by')[:10],
         }
         return render(request, 'admin/users/user/import_users.html', context)
 
@@ -559,3 +552,39 @@ class SignupRequestAdmin(admin.ModelAdmin):
             return
 
         super().save_model(request, obj, form, change)
+
+
+@admin.register(UserImportJob)
+class UserImportJobAdmin(admin.ModelAdmin):
+    list_display = [
+        'id',
+        'original_filename',
+        'file_format',
+        'status',
+        'created_count',
+        'skipped_count',
+        'error_count',
+        'created_by',
+        'created_at',
+        'finished_at',
+    ]
+    list_filter = ['status', 'file_format', 'created_at']
+    search_fields = ['original_filename', 'created_by__username', 'created_by__full_name']
+    readonly_fields = [
+        'original_filename',
+        'file_format',
+        'payload',
+        'status',
+        'created_by',
+        'created_at',
+        'started_at',
+        'finished_at',
+        'created_count',
+        'skipped_count',
+        'error_count',
+        'summary',
+        'failure_message',
+    ]
+
+    def has_add_permission(self, request):
+        return False
