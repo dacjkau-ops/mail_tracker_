@@ -1,0 +1,41 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div id="content-main">
+    <h1>Import Calendar of Returns Master</h1>
+
+    <div class="module">
+        <h2>Upload CSV</h2>
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <div class="submit-row">
+                <input type="submit" value="Import" class="default" />
+                <a href="{% url 'admin:returns_returndefinition_changelist' %}" class="button cancel-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="module" style="margin-top: 20px;">
+        <h2>CSV Format</h2>
+        <p>Required columns: <code>report_code</code>, <code>report_name</code>, <code>frequency</code>, <code>section_name</code>, <code>due_day</code></p>
+        <p>Optional columns: <code>applicable_months</code>, <code>active</code>, <code>description</code></p>
+
+        <pre style="background: #f5f5f5; padding: 10px; border: 1px solid #ddd;">
+report_code,report_name,frequency,section_name,due_day,applicable_months,active,description
+ITA,ITA Report,monthly,ALL,7,,true,Common report for all sections
+SMU,SMU Report,monthly,ALL,10,,true,
+IR,IR Report,quarterly,IR,15,"3,6,9,12",true,Quarterly return
+ANNUAL_A,Annual Return,annual,AMG-I,30,"4",true,Annual filing
+        </pre>
+
+        <ul>
+            <li>Use <code>ALL</code> in <code>section_name</code> to apply a return to every existing section.</li>
+            <li>For monthly returns, leave <code>applicable_months</code> empty.</li>
+            <li>For quarterly and annual returns, provide month numbers like <code>3,6,9,12</code> or <code>4</code>.</li>
+            <li>Import is upsert-based: existing report codes and section mappings are updated, not duplicated.</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+

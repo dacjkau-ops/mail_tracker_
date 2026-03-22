@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import {
   AccountCircle,
+  Apps as AppsIcon,
   Mail as MailIcon,
   Add as AddIcon,
 } from '@mui/icons-material';
@@ -54,6 +55,15 @@ const MainLayout = () => {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             Mail Tracking System
           </Typography>
+
+          <Button
+            color="inherit"
+            startIcon={<AppsIcon />}
+            onClick={() => navigate('/apps')}
+            sx={{ mr: 2 }}
+          >
+            Apps
+          </Button>
 
           <Button
             color="inherit"

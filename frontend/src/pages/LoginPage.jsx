@@ -43,7 +43,7 @@ const LoginPage = () => {
     const result = await login(formData.username, formData.password);
 
     if (result.success) {
-      navigate('/mails');
+      navigate('/apps');
     } else {
       setError(result.error);
     }
@@ -64,11 +64,11 @@ const LoginPage = () => {
         <Card sx={{ width: '100%', maxWidth: 500 }}>
           <CardContent sx={{ p: 4 }}>
             <Typography variant="h4" component="h1" gutterBottom align="center" sx={{ mb: 3 }}>
-              Mail Tracker
+              Office Workflow Portal
             </Typography>
 
             <Typography variant="body1" align="center" color="text.secondary" sx={{ mb: 4 }}>
-              Sign in to access the mail tracking system
+              Sign in once to access Mail Tracker and Calendar of Returns
             </Typography>
 
             {successMessage && (

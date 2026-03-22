@@ -14,6 +14,7 @@ from .models import User, SignupRequest, UserImportJob
 from sections.models import Section, Subsection
 from records.models import MailRecord, MailAssignment, AssignmentRemark, RecordAttachment
 from audit.models import AuditTrail
+from returns.models import ReturnApplicability, ReturnDefinition, ReturnPeriodEntry, ReturnStatusLog
 
 
 class ImportUsersForm(forms.Form):
@@ -117,6 +118,10 @@ class UserAdmin(BaseUserAdmin):
                 'assignment_remarks': AssignmentRemark.objects.count(),
                 'audit_logs': AuditTrail.objects.count(),
                 'attachments': RecordAttachment.objects.count(),
+                'return_definitions': ReturnDefinition.objects.count(),
+                'return_applicabilities': ReturnApplicability.objects.count(),
+                'return_period_entries': ReturnPeriodEntry.objects.count(),
+                'return_status_logs': ReturnStatusLog.objects.count(),
                 'sections': Section.objects.count(),
                 'subsections': Subsection.objects.count(),
                 'users': User.objects.filter(is_superuser=False).count(),
@@ -133,6 +138,10 @@ class UserAdmin(BaseUserAdmin):
                 AuditTrail.objects.all().delete()
                 RecordAttachment.objects.all().delete()
                 MailRecord.objects.all().delete()
+                ReturnStatusLog.objects.all().delete()
+                ReturnPeriodEntry.objects.all().delete()
+                ReturnApplicability.objects.all().delete()
+                ReturnDefinition.objects.all().delete()
                 User.objects.filter(is_superuser=False).delete()
                 Subsection.objects.all().delete()
                 Section.objects.all().delete()
@@ -153,6 +162,10 @@ class UserAdmin(BaseUserAdmin):
                     f"{summary['assignment_remarks']} assignment remarks, "
                     f"{summary['audit_logs']} audit logs, "
                     f"{summary['attachments']} attachments, "
+                    f"{summary['return_definitions']} return definitions, "
+                    f"{summary['return_applicabilities']} return mappings, "
+                    f"{summary['return_period_entries']} return period entries, "
+                    f"{summary['return_status_logs']} return status logs, "
                     f"{summary['sections']} sections, "
                     f"{summary['subsections']} subsections, "
                     f"{summary['users']} non-superuser users."

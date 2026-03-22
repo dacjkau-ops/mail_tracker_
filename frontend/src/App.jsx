@@ -5,10 +5,14 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
+import AppSelectorPage from './pages/AppSelectorPage';
 import MailListPage from './pages/MailListPage';
 import MailDetailPage from './pages/MailDetailPage';
 import CreateMailPage from './pages/CreateMailPage';
 import MainLayout from './layouts/MainLayout';
+import ReturnsLayout from './layouts/ReturnsLayout';
+import ReturnsDashboardPage from './pages/ReturnsDashboardPage';
+import ReturnsHistoryPage from './pages/ReturnsHistoryPage';
 
 // Create MUI theme
 const theme = createTheme({
@@ -44,7 +48,7 @@ const ProtectedRoute = ({ children }) => {
   return isAuthenticated ? children : <Navigate to="/login" replace />;
 };
 
-// Public Route component (redirect to mails if already authenticated)
+// Public Route component (redirect to apps if already authenticated)
 const PublicRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
 
@@ -63,7 +67,7 @@ const PublicRoute = ({ children }) => {
     );
   }
 
-  return !isAuthenticated ? children : <Navigate to="/mails" replace />;
+  return !isAuthenticated ? children : <Navigate to="/apps" replace />;
 };
 
 function AppRoutes() {
@@ -87,22 +91,42 @@ function AppRoutes() {
       />
 
       <Route path="/change-password" element={<ChangePasswordPage />} />
+      <Route
+        path="/apps"
+        element={
+          <ProtectedRoute>
+            <AppSelectorPage />
+          </ProtectedRoute>
+        }
+      />
 
       <Route
-        path="/"
+        path="/mails"
         element={
           <ProtectedRoute>
             <MainLayout />
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/mails" replace />} />
-        <Route path="mails" element={<MailListPage />} />
-        <Route path="mails/create" element={<CreateMailPage />} />
-        <Route path="mails/:id" element={<MailDetailPage />} />
+        <Route index element={<MailListPage />} />
+        <Route path="create" element={<CreateMailPage />} />
+        <Route path=":id" element={<MailDetailPage />} />
       </Route>
 
-      <Route path="*" element={<Navigate to="/mails" replace />} />
+      <Route
+        path="/returns"
+        element={
+          <ProtectedRoute>
+            <ReturnsLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<ReturnsDashboardPage />} />
+        <Route path="history" element={<ReturnsHistoryPage />} />
+      </Route>
+
+      <Route path="/" element={<Navigate to="/apps" replace />} />
+      <Route path="*" element={<Navigate to="/apps" replace />} />
     </Routes>
   );
 }

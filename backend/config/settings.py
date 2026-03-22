@@ -79,6 +79,7 @@ INSTALLED_APPS = [
     'sections',
     'records',
     'audit',
+    'returns',
 ]
 
 USE_R2_FOR_PDFS = env_bool('USE_R2', 'False')

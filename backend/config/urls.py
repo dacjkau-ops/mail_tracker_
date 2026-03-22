@@ -29,6 +29,7 @@ from users.views import (
 from sections.views import SectionViewSet, SubsectionViewSet
 from records.views import MailRecordViewSet, MailAssignmentViewSet
 from audit.views import AuditTrailViewSet
+from returns.views import ReturnEntryViewSet
 from .views import health_check
 
 # Create router
@@ -39,6 +40,7 @@ router.register(r'subsections', SubsectionViewSet, basename='subsection')
 router.register(r'records', MailRecordViewSet, basename='mailrecord')
 router.register(r'assignments', MailAssignmentViewSet, basename='assignment')
 router.register(r'audit', AuditTrailViewSet, basename='audit')
+router.register(r'returns', ReturnEntryViewSet, basename='return-entry')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
