@@ -1,6 +1,5 @@
 import csv
 import json
-import os
 from io import TextIOWrapper
 from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
@@ -122,15 +121,26 @@ class UserAdmin(BaseUserAdmin):
                 'return_applicabilities': ReturnApplicability.objects.count(),
                 'return_period_entries': ReturnPeriodEntry.objects.count(),
                 'return_status_logs': ReturnStatusLog.objects.count(),
+                'signup_requests': SignupRequest.objects.count(),
+                'user_import_jobs': UserImportJob.objects.count(),
                 'sections': Section.objects.count(),
                 'subsections': Subsection.objects.count(),
                 'users': User.objects.filter(is_superuser=False).count(),
             }
 
-            attachment_paths = []
+            attachment_blobs = []
             for attachment in RecordAttachment.objects.only('file'):
                 if attachment.file and attachment.file.name:
-                    attachment_paths.append(attachment.file.path)
+                    attachment_blobs.append((attachment.file.storage, attachment.file.name))
+
+            cleanup_failures = []
+
+            def cleanup_attachment_blobs():
+                for storage, file_name in attachment_blobs:
+                    try:
+                        storage.delete(file_name)
+                    except Exception:
+                        cleanup_failures.append(file_name)
 
             with transaction.atomic():
                 AssignmentRemark.objects.all().delete()
@@ -142,16 +152,12 @@ class UserAdmin(BaseUserAdmin):
                 ReturnPeriodEntry.objects.all().delete()
                 ReturnApplicability.objects.all().delete()
                 ReturnDefinition.objects.all().delete()
+                SignupRequest.objects.all().delete()
+                UserImportJob.objects.all().delete()
                 User.objects.filter(is_superuser=False).delete()
                 Subsection.objects.all().delete()
                 Section.objects.all().delete()
-
-            for path in attachment_paths:
-                try:
-                    if os.path.isfile(path):
-                        os.remove(path)
-                except Exception:
-                    pass
+                transaction.on_commit(cleanup_attachment_blobs)
 
             messages.success(
                 request,
@@ -166,11 +172,18 @@ class UserAdmin(BaseUserAdmin):
                     f"{summary['return_applicabilities']} return mappings, "
                     f"{summary['return_period_entries']} return period entries, "
                     f"{summary['return_status_logs']} return status logs, "
+                    f"{summary['signup_requests']} signup requests, "
+                    f"{summary['user_import_jobs']} user import jobs, "
                     f"{summary['sections']} sections, "
                     f"{summary['subsections']} subsections, "
                     f"{summary['users']} non-superuser users."
                 )
             )
+            if cleanup_failures:
+                messages.warning(
+                    request,
+                    f'Database reset completed, but {len(cleanup_failures)} attachment file(s) could not be removed from storage.'
+                )
             return redirect('admin:users_user_changelist')
 
         context = {

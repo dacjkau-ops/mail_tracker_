@@ -1,0 +1,39 @@
+report_code,report_name,frequency,section_name,due_day,applicable_months,active
+ITA,ITA Report,monthly,ALL,5,,TRUE
+SMU,SMU Report,monthly,ALL,5,,TRUE
+GOVSTAT,Government Status Digest,monthly,ALL,15,,TRUE
+COMPLY,Compliance Snapshot,monthly,ALL,20,,TRUE
+ADM31,Admin Month End Return,monthly,Admin,31,,TRUE
+ADMREG,Admin Registry Review,monthly,Admin,8,,TRUE
+ADMEST,Admin Establishment Return,monthly,Admin,12,,TRUE
+AIR,AIR Report,monthly,"AMG-I,AMG-II,AMG-III,PSU,LGA",5,,TRUE
+FINREV,Finance Revenue Watch,monthly,ITA,14,,TRUE
+FINBUD,Finance Budget Movement,monthly,ITA,18,,TRUE
+HRMON,HR Monthly Position Statement,monthly,"AMG-I,AMG-II,AMG-III,PSU,LGA",11,,TRUE
+HRPAY,HR Payroll Reconciliation,monthly,"AMG-I,AMG-II,AMG-III,PSU,LGA",16,,TRUE
+ITMON,IT System Health Return,monthly,"AMG-I,AMG-II,AMG-III,PSU,LGA",6,,TRUE
+ITSUP,IT Support Performance,monthly,"AMG-I,AMG-II,AMG-III,PSU,LGA",13,,TRUE
+LEGALM,Legal Case Movement,monthly,"AMG-I,AMG-II,AMG-III,PSU,LGA",17,,TRUE
+LEGALP,Legal Pending Matters,monthly,"AMG-I,AMG-II,AMG-III,PSU,LGA",23,,TRUE
+PROC,Procurement Register,monthly,"AMG-I,AMG-II,AMG-III,PSU,LGA",12,,TRUE
+PROCV,Procurement Vendor Review,monthly,"AMG-I,AMG-II,AMG-III,PSU,LGA",19,,TRUE
+OPSMON,Operations Monthly Review,monthly,"AMG-I,AMG-II,AMG-III,PSU,LGA",10,,TRUE
+OPSFLD,Operations Field Summary,monthly,"AMG-I,AMG-II,AMG-III,PSU,LGA",22,,TRUE
+FINQ,Finance Quarterly Compliance,quarterly,"AMG-I,AMG-II,AMG-III,PSU,LGA",15,"3,6,9,12",TRUE
+HRQ,HR Quarterly Staffing Review,quarterly,"AMG-I,AMG-II,AMG-III,PSU,LGA",18,"3,6,9,12",TRUE
+OPSQ,Operations Quarterly Review,quarterly,"AMG-I,AMG-II,AMG-III,PSU,LGA",21,"3,6,9,12",TRUE
+ITQ,IT Quarterly Security Review,quarterly,SMU,20,"3,6,9,12",TRUE
+LEGQ,Legal Quarterly Litigation Review,quarterly,SMU,24,"3,6,9,12",TRUE
+PROCQ,Procurement Quarterly Tender Review,quarterly,SMU,26,"3,6,9,12",TRUE
+ADMQ,Admin Quarterly Governance Review,quarterly,SMU,14,"3,6,9,12",TRUE
+ALLQ,All Section Quarterly Digest,quarterly,SMU,28,"3,6,9,12",TRUE
+LEGA,Legal Annual Summary,annual,SMU,20,4,TRUE
+ITAUD,IT Annual Infrastructure Audit,annual,SMU,30,4,TRUE
+FINY,Finance Annual Accounts Pack,annual,SMU,25,4,TRUE
+HRAY,HR Annual Workforce Statement,annual,SMU,18,4,TRUE
+PROCA,Procurement Annual Contract Review,annual,SMU,22,4,TRUE
+OPSA,Operations Annual Performance Book,annual,SMU,24,4,TRUE
+ADMA,Admin Annual Office Report,annual,SMU,16,4,TRUE
+DECANN,Year End Consolidated Return,annual,Reports,31,12,TRUE
+INACT,Inactive Test Return,monthly,Reports,9,,FALSE
+ITQOLD,Legacy IT Quarterly Return,quarterly,Reports,27,"3,6,9,12",FALSE

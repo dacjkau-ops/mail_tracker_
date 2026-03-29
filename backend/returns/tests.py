@@ -66,6 +66,13 @@ class ReturnsAPITests(APITestCase):
             active=True,
         )
         ReturnApplicability.objects.create(
+            return_definition=monthly,
+            section=self.other_section,
+            due_day=10,
+            applicable_months=[],
+            active=True,
+        )
+        ReturnApplicability.objects.create(
             return_definition=quarterly,
             section=self.section,
             due_day=15,
@@ -114,4 +121,18 @@ class ReturnsAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         section_names = {item['section_name'] for item in response.data['section_overview']}
         self.assertIn('AMG-I', section_names)
+        self.assertIn('IR', section_names)
 
+    def test_dashboard_scopes_section_overview_to_selected_section(self):
+        self.client.force_authenticate(self.dag)
+        response = self.client.get(
+            reverse('return-entry-list'),
+            {'year': 2026, 'month': 3, 'section': self.other_section.id},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item['section_name'] for item in response.data['section_overview']],
+            ['IR'],
+        )
+        self.assertTrue(all(entry['section_name'] == 'IR' for entry in response.data['entries']))

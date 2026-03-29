@@ -28,16 +28,58 @@ import { OverdueBadge } from '../components/StatusIndicator';
 import { useAuth } from '../context/AuthContext';
 import { PALETTE } from '../utils/constants';
 
-const getCurrentPeriodValue = () => {
+const RETURNS_START_YEAR = 2026;
+const RETURNS_START_MONTH = 1;
+
+const formatPeriodValue = (year, month) => {
+  const paddedMonth = String(month).padStart(2, '0');
+  return `${year}-${paddedMonth}`;
+};
+
+const formatPeriodLabel = (year, month) =>
+  new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(year, month - 1, 1));
+
+const getCurrentPeriod = () => {
   const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  return `${now.getFullYear()}-${month}`;
+  return { year: now.getFullYear(), month: now.getMonth() + 1 };
+};
+
+const getPreviousPeriod = ({ year, month }) => {
+  if (month === 1) {
+    return { year: year - 1, month: 12 };
+  }
+  return { year, month: month - 1 };
+};
+
+const isBeforeReturnsStart = ({ year, month }) =>
+  year < RETURNS_START_YEAR || (year === RETURNS_START_YEAR && month < RETURNS_START_MONTH);
+
+const getPendingPeriodOptions = () => {
+  const currentPeriod = getCurrentPeriod();
+  const options = [currentPeriod];
+  const previousPeriod = getPreviousPeriod(currentPeriod);
+
+  if (!isBeforeReturnsStart(previousPeriod)) {
+    options.push(previousPeriod);
+  }
+
+  return options.map(({ year, month }) => ({
+    value: formatPeriodValue(year, month),
+    label: formatPeriodLabel(year, month),
+  }));
 };
 
 const parsePeriod = (value) => {
   const [year, month] = value.split('-').map(Number);
   return { year, month };
 };
+
+const pendingPeriodOptions = getPendingPeriodOptions();
+const defaultPeriodValue =
+  pendingPeriodOptions[0]?.value || formatPeriodValue(RETURNS_START_YEAR, RETURNS_START_MONTH);
 
 const summaryCards = [
   { key: 'total_count', label: 'Total Due', color: PALETTE.textPrimary },
@@ -64,14 +106,16 @@ const DotLabel = ({ label, dotColor, textColor, fontWeight = 400 }) => (
 const ReturnsDashboardPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [period, setPeriod] = useState(getCurrentPeriodValue);
+  const [period, setPeriod] = useState(defaultPeriodValue);
   const [selectedSection, setSelectedSection] = useState('');
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submittingId, setSubmittingId] = useState(null);
 
+  const isAgUser = user?.role === 'AG';
   const isSectionSelectable = user?.role === 'AG' || user?.role === 'DAG';
+  const shouldShowPendingDetails = !isAgUser || Boolean(selectedSection);
   const { year, month } = useMemo(() => parsePeriod(period), [period]);
 
   useEffect(() => {
@@ -88,7 +132,7 @@ const ReturnsDashboardPage = () => {
         });
         if (!active) return;
         setDashboard(data);
-      } catch (loadError) {
+      } catch {
         if (!active) return;
         setError('Failed to load the current returns dashboard.');
       } finally {
@@ -165,25 +209,18 @@ const ReturnsDashboardPage = () => {
       >
         <Box sx={{ display: 'flex', gap: 1.25, flexWrap: 'wrap', alignItems: 'center' }}>
           <FormControl size="small" sx={{ minWidth: 180 }}>
-            <InputLabel shrink htmlFor="returns-period">
-              Month
-            </InputLabel>
-            <Box
-              component="input"
-              id="returns-period"
-              type="month"
+            <InputLabel>Month</InputLabel>
+            <Select
               value={period}
+              label="Month"
               onChange={(event) => setPeriod(event.target.value)}
-              sx={{
-                height: 40,
-                px: 1.5,
-                borderRadius: `${PALETTE.radiusButton}px`,
-                border: `1px solid ${PALETTE.border}`,
-                font: 'inherit',
-                color: PALETTE.textPrimary,
-                backgroundColor: PALETTE.paper,
-              }}
-            />
+            >
+              {pendingPeriodOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </Select>
           </FormControl>
 
           {isSectionSelectable && (
@@ -287,139 +324,145 @@ const ReturnsDashboardPage = () => {
             </Box>
           )}
 
-          <Paper
-            elevation={0}
-            sx={{
-              p: 2,
-              border: `1px solid ${PALETTE.border}`,
-              boxShadow: PALETTE.shadow,
-            }}
-          >
-            <Box
+          {shouldShowPendingDetails ? (
+            <Paper
+              elevation={0}
               sx={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 2,
-                flexWrap: 'wrap',
-                mb: 2,
+                p: 2,
+                border: `1px solid ${PALETTE.border}`,
+                boxShadow: PALETTE.shadow,
               }}
             >
-              <Box>
-                <Typography sx={{ fontSize: '14px', fontWeight: 500, color: PALETTE.textPrimary }}>
-                  Pending Returns
-                </Typography>
-                <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
-                  {dashboard?.month_label}
-                </Typography>
-              </Box>
-              {dashboard?.selected_section && (
-                <Box
-                  sx={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    minHeight: 28,
-                    px: 1,
-                    border: `1px solid ${PALETTE.border}`,
-                    borderRadius: `${PALETTE.radiusButton}px`,
-                    color: PALETTE.textSecondary,
-                    fontSize: '0.75rem',
-                    fontWeight: 500,
-                  }}
-                >
-                  {dashboard.selected_section.name}
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 2,
+                  flexWrap: 'wrap',
+                  mb: 2,
+                }}
+              >
+                <Box>
+                  <Typography sx={{ fontSize: '14px', fontWeight: 500, color: PALETTE.textPrimary }}>
+                    Pending Returns
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
+                    {dashboard?.month_label}
+                  </Typography>
                 </Box>
-              )}
-            </Box>
+                {dashboard?.selected_section && (
+                  <Box
+                    sx={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      minHeight: 28,
+                      px: 1,
+                      border: `1px solid ${PALETTE.border}`,
+                      borderRadius: `${PALETTE.radiusButton}px`,
+                      color: PALETTE.textSecondary,
+                      fontSize: '0.75rem',
+                      fontWeight: 500,
+                    }}
+                  >
+                    {dashboard.selected_section.name}
+                  </Box>
+                )}
+              </Box>
 
-            {(dashboard?.entries?.length || 0) === 0 ? (
-              dashboard?.summary?.total_count ? (
-                <Alert severity="success" icon={<CheckCircleOutlineIcon fontSize="inherit" />}>
-                  All returns for {dashboard.month_label} have been submitted. Use history to review
-                  processed dates and delays.
-                </Alert>
+              {(dashboard?.entries?.length || 0) === 0 ? (
+                dashboard?.summary?.total_count ? (
+                  <Alert severity="success" icon={<CheckCircleOutlineIcon fontSize="inherit" />}>
+                    All returns for {dashboard.month_label} have been submitted. Use history to review
+                    processed dates and delays.
+                  </Alert>
+                ) : (
+                  <Alert severity="info">
+                    No return definitions are scheduled for this month in the selected section scope.
+                  </Alert>
+                )
               ) : (
-                <Alert severity="info">
-                  No return definitions are scheduled for this month in the selected section scope.
-                </Alert>
-              )
-            ) : (
-              <TableContainer>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Report</TableCell>
-                      <TableCell>Frequency</TableCell>
-                      {isSectionSelectable && !selectedSection && <TableCell>Section</TableCell>}
-                      <TableCell>Due Date</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell align="right">Action</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {dashboard.entries.map((entry) => (
-                      <TableRow key={entry.id} hover>
-                        <TableCell>
-                          <Typography variant="subtitle2">{entry.report_name_snapshot}</Typography>
-                          <Typography variant="caption" sx={{ color: PALETTE.textSecondary }}>
-                            {entry.report_code_snapshot}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" sx={{ color: frequencyText[entry.frequency_snapshot] || PALETTE.textSecondary }}>
-                            {entry.frequency_snapshot}
-                          </Typography>
-                        </TableCell>
-                        {isSectionSelectable && !selectedSection && <TableCell>{entry.section_name}</TableCell>}
-                        <TableCell>
-                          <Typography variant="body2">{formatDate(entry.due_date)}</Typography>
-                          {entry.is_overdue && <OverdueBadge>Overdue</OverdueBadge>}
-                        </TableCell>
-                        <TableCell>
-                          {entry.is_overdue ? (
-                            <DotLabel
-                              label="Overdue"
-                              dotColor={PALETTE.dotRed}
-                              textColor={PALETTE.overdueText}
-                              fontWeight={500}
-                            />
-                          ) : (
-                            <DotLabel
-                              label={entry.status}
-                              dotColor={PALETTE.amber}
-                              textColor={PALETTE.amber}
-                            />
-                          )}
-                        </TableCell>
-                        <TableCell align="right">
-                          {entry.can_submit ? (
-                            <Button
-                              variant="contained"
-                              size="small"
-                              onClick={() => handleSubmit(entry.id)}
-                              disabled={submittingId === entry.id}
-                              sx={{
-                                backgroundColor: PALETTE.burgundy,
-                                '&:hover': {
-                                  backgroundColor: PALETTE.burgundyDark,
-                                },
-                              }}
-                            >
-                              {submittingId === entry.id ? 'Submitting...' : 'Mark Submitted'}
-                            </Button>
-                          ) : (
-                            <Typography variant="caption" sx={{ color: PALETTE.textSecondary }}>
-                              View only
-                            </Typography>
-                          )}
-                        </TableCell>
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Report</TableCell>
+                        <TableCell>Frequency</TableCell>
+                        {isSectionSelectable && !selectedSection && <TableCell>Section</TableCell>}
+                        <TableCell>Due Date</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell align="right">Action</TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-          </Paper>
+                    </TableHead>
+                    <TableBody>
+                      {dashboard.entries.map((entry) => (
+                        <TableRow key={entry.id} hover>
+                          <TableCell>
+                            <Typography variant="subtitle2">{entry.report_name_snapshot}</Typography>
+                            <Typography variant="caption" sx={{ color: PALETTE.textSecondary }}>
+                              {entry.report_code_snapshot}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ color: frequencyText[entry.frequency_snapshot] || PALETTE.textSecondary }}>
+                              {entry.frequency_snapshot}
+                            </Typography>
+                          </TableCell>
+                          {isSectionSelectable && !selectedSection && <TableCell>{entry.section_name}</TableCell>}
+                          <TableCell>
+                            <Typography variant="body2">{formatDate(entry.due_date)}</Typography>
+                            {entry.is_overdue && <OverdueBadge>Overdue</OverdueBadge>}
+                          </TableCell>
+                          <TableCell>
+                            {entry.is_overdue ? (
+                              <DotLabel
+                                label="Overdue"
+                                dotColor={PALETTE.dotRed}
+                                textColor={PALETTE.overdueText}
+                                fontWeight={500}
+                              />
+                            ) : (
+                              <DotLabel
+                                label={entry.status}
+                                dotColor={PALETTE.amber}
+                                textColor={PALETTE.amber}
+                              />
+                            )}
+                          </TableCell>
+                          <TableCell align="right">
+                            {entry.can_submit ? (
+                              <Button
+                                variant="contained"
+                                size="small"
+                                onClick={() => handleSubmit(entry.id)}
+                                disabled={submittingId === entry.id}
+                                sx={{
+                                  backgroundColor: PALETTE.burgundy,
+                                  '&:hover': {
+                                    backgroundColor: PALETTE.burgundyDark,
+                                  },
+                                }}
+                              >
+                                {submittingId === entry.id ? 'Submitting...' : 'Mark Submitted'}
+                              </Button>
+                            ) : (
+                              <Typography variant="caption" sx={{ color: PALETTE.textSecondary }}>
+                                View only
+                              </Typography>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Paper>
+          ) : (
+            <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
+              Select a section to open the detailed pending return list.
+            </Typography>
+          )}
         </>
       )}
     </Box>

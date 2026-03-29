@@ -284,7 +284,14 @@ class MailRecordViewSet(viewsets.ModelViewSet):
 
         section_filter = self.request.query_params.get('section', None)
         if section_filter:
-            queryset = queryset.filter(section_id=section_filter)
+            queryset = queryset.filter(
+                Q(section_id=section_filter) |
+                Q(section__isnull=True, subsection__section_id=section_filter)
+            ).distinct()
+
+        subsection_filter = self.request.query_params.get('subsection', None)
+        if subsection_filter:
+            queryset = queryset.filter(subsection_id=subsection_filter)
 
         overdue_filter = self.request.query_params.get('overdue', None)
         if overdue_filter == 'true':

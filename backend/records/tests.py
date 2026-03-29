@@ -155,6 +155,137 @@ class MailRecordWorkflowTests(APITestCase):
         self.assertIn(closed_mail.id, closed_ids)
 
 
+class MailRecordListFilteringTests(APITestCase):
+    @staticmethod
+    def _rows(response):
+        data = response.data
+        return data.get('results', data) if isinstance(data, dict) else data
+
+    def setUp(self):
+        self.section_alpha = Section.objects.create(name='Filter Alpha')
+        self.section_beta = Section.objects.create(name='Filter Beta')
+        self.sub_alpha_1 = Subsection.objects.create(section=self.section_alpha, name='Alpha-1')
+        self.sub_alpha_2 = Subsection.objects.create(section=self.section_alpha, name='Alpha-2')
+        self.sub_beta_1 = Subsection.objects.create(section=self.section_beta, name='Beta-1')
+
+        self.ag = self._mk_user('ag_filter', 'AG', None)
+        self.dag_alpha = self._mk_user('dag_filter_alpha', 'DAG', None)
+        self.dag_alpha.sections.set([self.section_alpha])
+        self.alpha_aao = self._mk_user('aao_filter_alpha', 'AAO', self.sub_alpha_1)
+        self.alpha_peer = self._mk_user('aao_filter_peer', 'AAO', self.sub_alpha_2)
+        self.beta_aao = self._mk_user('aao_filter_beta', 'AAO', self.sub_beta_1)
+
+    def _mk_user(self, username, role, subsection):
+        return User.objects.create_user(
+            username=username,
+            password='pass12345',
+            email=f'{username}@example.com',
+            full_name=username.replace('_', ' ').title(),
+            role=role,
+            subsection=subsection,
+        )
+
+    def _create_mail(self, letter_no, subject, assignee, section, subsection):
+        return MailRecord.objects.create(
+            letter_no=letter_no,
+            date_received=timezone.now().date(),
+            mail_reference_subject=subject,
+            from_office='HQ',
+            action_required='Review',
+            assigned_to=assignee,
+            current_handler=assignee,
+            monitoring_officer=assignee.get_dag(),
+            section=section,
+            subsection=subsection,
+            due_date=timezone.now().date() + timedelta(days=5),
+            status='Assigned',
+            created_by=self.ag,
+        )
+
+    def test_ag_subsection_filter_is_applied_before_pagination(self):
+        for idx in range(26):
+            self._create_mail(
+                letter_no=f'ALPHA-TARGET-{idx}',
+                subject=f'Target subsection {idx}',
+                assignee=self.alpha_aao,
+                section=self.section_alpha,
+                subsection=self.sub_alpha_1,
+            )
+
+        for idx in range(6):
+            self._create_mail(
+                letter_no=f'ALPHA-OTHER-{idx}',
+                subject=f'Other subsection {idx}',
+                assignee=self.alpha_peer,
+                section=self.section_alpha,
+                subsection=self.sub_alpha_2,
+            )
+
+        for idx in range(4):
+            self._create_mail(
+                letter_no=f'BETA-{idx}',
+                subject=f'Beta subsection {idx}',
+                assignee=self.beta_aao,
+                section=self.section_beta,
+                subsection=self.sub_beta_1,
+            )
+
+        self.client.force_authenticate(self.ag)
+
+        page_one = self.client.get(
+            reverse('mailrecord-list'),
+            {'subsection': self.sub_alpha_1.id, 'page_size': 25},
+        )
+        self.assertEqual(page_one.status_code, status.HTTP_200_OK)
+        self.assertEqual(page_one.data['count'], 26)
+        self.assertEqual(len(self._rows(page_one)), 25)
+        self.assertTrue(all(row['subsection'] == self.sub_alpha_1.id for row in self._rows(page_one)))
+
+        page_two = self.client.get(
+            reverse('mailrecord-list'),
+            {'subsection': self.sub_alpha_1.id, 'page': 2, 'page_size': 25},
+        )
+        self.assertEqual(page_two.status_code, status.HTTP_200_OK)
+        self.assertEqual(page_two.data['count'], 26)
+        self.assertEqual(len(self._rows(page_two)), 1)
+        self.assertTrue(all(row['subsection'] == self.sub_alpha_1.id for row in self._rows(page_two)))
+
+    def test_dag_section_filter_keeps_null_section_records_scoped_by_subsection(self):
+        explicit_mail = self._create_mail(
+            letter_no='FILTER/EXPLICIT',
+            subject='Explicit section record',
+            assignee=self.alpha_aao,
+            section=self.section_alpha,
+            subsection=self.sub_alpha_1,
+        )
+        fallback_mail = self._create_mail(
+            letter_no='FILTER/FALLBACK',
+            subject='Null section but subsection scoped',
+            assignee=self.alpha_peer,
+            section=None,
+            subsection=self.sub_alpha_2,
+        )
+        self._create_mail(
+            letter_no='FILTER/OUTSIDE',
+            subject='Outside DAG scope',
+            assignee=self.beta_aao,
+            section=self.section_beta,
+            subsection=self.sub_beta_1,
+        )
+
+        self.client.force_authenticate(self.dag_alpha)
+        response = self.client.get(
+            reverse('mailrecord-list'),
+            {'section': self.section_alpha.id, 'page_size': 100},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = {row['id'] for row in self._rows(response)}
+        self.assertEqual(response.data['count'], 2)
+        self.assertIn(explicit_mail.id, ids)
+        self.assertIn(fallback_mail.id, ids)
+
+
 class MailRecordE2EAndPermissionMatrixTests(APITestCase):
     def setUp(self):
         self.section_alpha = Section.objects.create(name='Section Alpha')

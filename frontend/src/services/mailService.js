@@ -11,6 +11,7 @@ const mailService = {
 
     if (filters.status) params.append('status', filters.status);
     if (filters.section) params.append('section', filters.section);
+    if (filters.subsection) params.append('subsection', filters.subsection);
     if (filters.assigned_to) params.append('assigned_to', filters.assigned_to);
     if (filters.search) params.append('search', filters.search);
     params.append('page', page);

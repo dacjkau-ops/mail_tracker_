@@ -80,12 +80,13 @@ class ReturnEntryViewSet(viewsets.ViewSet):
 
         section_overview = []
         if request.user.role in {'AG', 'DAG'}:
+            overview_sections = [selected_section] if selected_section else visible_sections
             section_queryset = ReturnPeriodEntry.objects.filter(
-                section_id__in=visible_section_ids,
+                section_id__in=[section.id for section in overview_sections],
                 year=year,
                 month=month,
             )
-            for section in visible_sections:
+            for section in overview_sections:
                 section_rows = section_queryset.filter(section=section)
                 total_count = section_rows.count()
                 if total_count == 0:

@@ -242,24 +242,8 @@ const MailListPage = () => {
     );
   }, [filters.section, sectionOptions, user]);
 
-  const visibleMails = useMemo(() => {
-    let filtered = [...mails];
-
-    if (filters.section) {
-      const sectionId = Number(filters.section);
-      filtered = filtered.filter((mail) => Number(mail.section) === sectionId);
-    }
-
-    if (filters.subsection) {
-      const subsectionId = Number(filters.subsection);
-      filtered = filtered.filter((mail) => Number(mail.subsection) === subsectionId);
-    }
-
-    return filtered;
-  }, [mails, filters.section, filters.subsection]);
-
   const sortedMails = useMemo(() => {
-    return [...visibleMails].sort((a, b) => {
+    return [...mails].sort((a, b) => {
       const getValue = (mail) => {
         switch (orderBy) {
           case 'sl_no':
@@ -283,7 +267,7 @@ const MailListPage = () => {
 
       return compareValues(getValue(a), getValue(b), order);
     });
-  }, [visibleMails, orderBy, order]);
+  }, [mails, orderBy, order]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const showingFrom = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
@@ -543,9 +527,7 @@ const MailListPage = () => {
                 <TableCell sx={{ ...tableHeaderCellSx, width: 110, minWidth: 110 }}>
                   Status
                 </TableCell>
-                <TableCell sx={{ ...tableHeaderCellSx, width: 120, minWidth: 110 }}>
-                  Time in Stage
-                </TableCell>
+                
                 <TableCell sx={{ ...tableHeaderCellSx, width: 100, minWidth: 90 }}>
                   <TableSortLabel
                     active={orderBy === 'date_of_completion'}
