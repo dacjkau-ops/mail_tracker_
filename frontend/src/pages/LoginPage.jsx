@@ -96,7 +96,7 @@ const LoginPage = () => {
               variant="h1"
               sx={{
                 fontSize: '1.5rem',
-                fontWeight: 600,
+                fontWeight: 500,
                 color: PALETTE.textPrimary,
                 letterSpacing: '-0.02em',
                 mb: 1,

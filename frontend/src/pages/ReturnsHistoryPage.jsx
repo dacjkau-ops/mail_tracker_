@@ -4,7 +4,6 @@ import {
   Alert,
   Box,
   Button,
-  Chip,
   CircularProgress,
   FormControl,
   InputLabel,
@@ -23,6 +22,7 @@ import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
 import returnsService from '../services/returnsService';
 import { formatDate, formatDateTime } from '../utils/dateHelpers';
 import { useAuth } from '../context/AuthContext';
+import { PALETTE } from '../utils/constants';
 
 const currentPeriodValue = () => {
   const now = new Date();
@@ -33,6 +33,15 @@ const parsePeriod = (value) => {
   const [year, month] = value.split('-').map(Number);
   return { year, month };
 };
+
+const DotLabel = ({ label, dotColor, textColor, fontWeight = 400 }) => (
+  <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+    <Box sx={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: dotColor }} />
+    <Typography sx={{ fontSize: 12, color: textColor, fontWeight }}>
+      {label}
+    </Typography>
+  </Box>
+);
 
 const ReturnsHistoryPage = () => {
   const navigate = useNavigate();
@@ -75,7 +84,7 @@ const ReturnsHistoryPage = () => {
         if (!active) return;
         setHistoryData(historyResponse);
         setDelaySummary(delayResponse);
-      } catch (err) {
+      } catch (loadError) {
         if (!active) return;
         setError('Failed to load returns history.');
       } finally {
@@ -98,13 +107,21 @@ const ReturnsHistoryPage = () => {
       </Button>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
           {error}
         </Alert>
       )}
 
-      <Paper sx={{ p: 2, mb: 3, borderRadius: 3 }}>
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+      <Paper
+        elevation={0}
+        sx={{
+          p: 1.5,
+          mb: 2,
+          border: `1px solid ${PALETTE.border}`,
+          boxShadow: PALETTE.shadow,
+        }}
+      >
+        <Box sx={{ display: 'flex', gap: 1.25, flexWrap: 'wrap', alignItems: 'center' }}>
           <FormControl size="small" sx={{ minWidth: 180 }}>
             <InputLabel shrink htmlFor="returns-history-period">
               Month
@@ -117,13 +134,12 @@ const ReturnsHistoryPage = () => {
               onChange={(event) => setPeriod(event.target.value)}
               sx={{
                 height: 40,
-                px: 1.75,
-                borderRadius: 1,
-                border: '1px solid',
-                borderColor: 'divider',
+                px: 1.5,
+                borderRadius: `${PALETTE.radiusButton}px`,
+                border: `1px solid ${PALETTE.border}`,
                 font: 'inherit',
-                color: 'text.primary',
-                backgroundColor: 'background.paper',
+                color: PALETTE.textPrimary,
+                backgroundColor: PALETTE.paper,
               }}
             />
           </FormControl>
@@ -146,7 +162,7 @@ const ReturnsHistoryPage = () => {
             </FormControl>
           )}
 
-          <FormControl size="small" sx={{ minWidth: 160 }}>
+          <FormControl size="small" sx={{ minWidth: 170 }}>
             <InputLabel>Delay Window</InputLabel>
             <Select
               value={delayMonths}
@@ -162,8 +178,8 @@ const ReturnsHistoryPage = () => {
       </Paper>
 
       {loading ? (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="280px">
-          <CircularProgress />
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="240px">
+          <CircularProgress color="primary" />
         </Box>
       ) : (
         <>
@@ -172,41 +188,41 @@ const ReturnsHistoryPage = () => {
               display: 'grid',
               gridTemplateColumns: { xs: '1fr', md: 'repeat(4, minmax(0, 1fr))' },
               gap: 2,
-              mb: 3,
+              mb: 2,
             }}
           >
-            <Paper sx={{ p: 2.5, borderRadius: 3 }}>
-              <Typography variant="body2" color="text.secondary">
+            <Paper elevation={0} sx={{ p: 2, border: `1px solid ${PALETTE.border}`, boxShadow: PALETTE.shadow }}>
+              <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
                 Archived Entries
               </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700 }}>
+              <Typography variant="h4" sx={{ fontWeight: 500 }}>
                 {historyData?.summary?.total_count ?? 0}
               </Typography>
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{ color: PALETTE.textMuted }}>
                 {historyData?.month_label}
               </Typography>
             </Paper>
-            <Paper sx={{ p: 2.5, borderRadius: 3 }}>
-              <Typography variant="body2" color="text.secondary">
+            <Paper elevation={0} sx={{ p: 2, border: `1px solid ${PALETTE.border}`, boxShadow: PALETTE.shadow }}>
+              <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
                 Submitted
               </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: '#2f6f47' }}>
+              <Typography variant="h4" sx={{ fontWeight: 500, color: PALETTE.green }}>
                 {historyData?.summary?.submitted_count ?? 0}
               </Typography>
             </Paper>
-            <Paper sx={{ p: 2.5, borderRadius: 3 }}>
-              <Typography variant="body2" color="text.secondary">
+            <Paper elevation={0} sx={{ p: 2, border: `1px solid ${PALETTE.border}`, boxShadow: PALETTE.shadow }}>
+              <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
                 Still Pending
               </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: '#8c3b45' }}>
+              <Typography variant="h4" sx={{ fontWeight: 500, color: PALETTE.amber }}>
                 {historyData?.summary?.pending_count ?? 0}
               </Typography>
             </Paper>
-            <Paper sx={{ p: 2.5, borderRadius: 3 }}>
-              <Typography variant="body2" color="text.secondary">
+            <Paper elevation={0} sx={{ p: 2, border: `1px solid ${PALETTE.border}`, boxShadow: PALETTE.shadow }}>
+              <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
                 Delayed This Month
               </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: '#9b3d2e' }}>
+              <Typography variant="h4" sx={{ fontWeight: 500, color: PALETTE.dotRed }}>
                 {delayedThisMonth}
               </Typography>
             </Paper>
@@ -216,11 +232,18 @@ const ReturnsHistoryPage = () => {
             sx={{
               display: 'grid',
               gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' },
-              gap: 3,
+              gap: 2,
             }}
           >
-            <Paper sx={{ p: 2.5, borderRadius: 3 }}>
-              <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                border: `1px solid ${PALETTE.border}`,
+                boxShadow: PALETTE.shadow,
+              }}
+            >
+              <Typography sx={{ fontSize: '14px', fontWeight: 500, mb: 1.5, color: PALETTE.textPrimary }}>
                 Historical Archive
               </Typography>
 
@@ -242,8 +265,8 @@ const ReturnsHistoryPage = () => {
                       <TableRow key={entry.id}>
                         <TableCell>
                           <Typography variant="subtitle2">{entry.report_name_snapshot}</Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {entry.report_code_snapshot} · {entry.frequency_snapshot}
+                          <Typography variant="caption" sx={{ color: PALETTE.textSecondary }}>
+                            {`${entry.report_code_snapshot} | ${entry.frequency_snapshot}`}
                           </Typography>
                         </TableCell>
                         {isSectionSelectable && !selectedSection && <TableCell>{entry.section_name}</TableCell>}
@@ -252,12 +275,11 @@ const ReturnsHistoryPage = () => {
                         <TableCell>{entry.submitted_by_name || '-'}</TableCell>
                         <TableCell>{entry.delay_days ? `${entry.delay_days} day(s)` : '-'}</TableCell>
                         <TableCell>
-                          <Chip
-                            size="small"
-                            label={entry.status}
-                            color={entry.status === 'submitted' ? 'success' : 'warning'}
-                            variant={entry.status === 'submitted' ? 'filled' : 'outlined'}
-                          />
+                          {entry.status === 'submitted' ? (
+                            <DotLabel label="Submitted" dotColor={PALETTE.green} textColor={PALETTE.green} />
+                          ) : (
+                            <DotLabel label="Pending" dotColor={PALETTE.amber} textColor={PALETTE.amber} />
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -266,24 +288,40 @@ const ReturnsHistoryPage = () => {
               </TableContainer>
             </Paper>
 
-            <Paper sx={{ p: 2.5, borderRadius: 3 }}>
-              <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                border: `1px solid ${PALETTE.border}`,
+                boxShadow: PALETTE.shadow,
+              }}
+            >
+              <Typography sx={{ fontSize: '14px', fontWeight: 500, mb: 1.5, color: PALETTE.textPrimary }}>
                 Delay Summary
               </Typography>
 
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              <Typography variant="body2" sx={{ mb: 2, color: PALETTE.textSecondary }}>
                 Last {delaySummary?.months_requested || delayMonths} months ending in{' '}
                 {delaySummary?.end_period?.label || historyData?.month_label}.
               </Typography>
 
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
                 {(delaySummary?.points || []).map((point) => (
-                  <Paper key={point.label} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                  <Paper
+                    key={point.label}
+                    elevation={0}
+                    sx={{
+                      p: 1.5,
+                      border: `1px solid ${PALETTE.border}`,
+                      boxShadow: 'none',
+                      backgroundColor: PALETTE.paper,
+                    }}
+                  >
                     <Typography variant="subtitle2">{point.label}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Delayed: {point.delayed_count} · Pending: {point.pending_count}
+                    <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
+                      Delayed: {point.delayed_count} | Pending: {point.pending_count}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" sx={{ color: PALETTE.textMuted }}>
                       Avg delay: {point.average_delay_days} day(s)
                     </Typography>
                   </Paper>
@@ -298,4 +336,3 @@ const ReturnsHistoryPage = () => {
 };
 
 export default ReturnsHistoryPage;
-

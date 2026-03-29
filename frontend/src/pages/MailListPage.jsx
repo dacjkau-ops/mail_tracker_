@@ -1,8 +1,16 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  Alert,
   Box,
+  Button,
+  CircularProgress,
+  FormControl,
+  InputAdornment,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
   Table,
   TableBody,
   TableCell,
@@ -10,31 +18,115 @@ import {
   TableHead,
   TableRow,
   TableSortLabel,
-  Typography,
   TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Button,
-  CircularProgress,
-  Alert,
-  Tooltip,
+  Typography,
   IconButton,
-  Pagination as MuiPagination,
-  Divider,
 } from '@mui/material';
 import {
-  Visibility as VisibilityIcon,
-  PictureAsPdf as PdfIcon,
   Search as SearchIcon,
+  VisibilityOutlined as VisibilityIcon,
 } from '@mui/icons-material';
 import mailService from '../services/mailService';
 import StatusIndicator, { OverdueBadge } from '../components/StatusIndicator';
-import { ACTION_STATUS_COLORS, PALETTE } from '../utils/constants';
+import { PALETTE } from '../utils/constants';
 import { formatDate, calculateTimeInStage, isOverdue } from '../utils/dateHelpers';
 import { exportMailListToPDF } from '../utils/pdfExport';
 import { useAuth } from '../context/AuthContext';
+
+const tableHeaderCellSx = {
+  backgroundColor: PALETTE.headerBackground,
+  color: PALETTE.textMuted,
+  fontSize: '10.5px',
+  fontWeight: 500,
+  letterSpacing: '0.5px',
+  textTransform: 'uppercase',
+  py: 1.25,
+  borderBottom: `1px solid ${PALETTE.borderLight}`,
+};
+
+const wrappingCellSx = {
+  whiteSpace: 'normal',
+  wordBreak: 'break-word',
+  color: PALETTE.textPrimary,
+  verticalAlign: 'top',
+};
+
+const subjectCellSx = {
+  ...wrappingCellSx,
+  minWidth: 180,
+  lineHeight: 1.45,
+  fontWeight: 500,
+  overflow: 'visible',
+  textOverflow: 'unset',
+};
+
+const actionChipBaseSx = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  minHeight: 22,
+  px: '7px',
+  py: '2px',
+  borderRadius: '3px',
+  border: `1px solid ${PALETTE.border}`,
+  fontSize: '11px',
+  lineHeight: 1.2,
+  whiteSpace: 'nowrap',
+};
+
+const getCurrentActionChip = (value) => {
+  if (!value) {
+    return {
+      label: 'Not set',
+      sx: {
+        ...actionChipBaseSx,
+        backgroundColor: '#F5F5F5',
+        color: '#9A9A9A',
+        border: '1px solid #E0E0E0',
+      },
+    };
+  }
+
+  if (value === 'Completed') {
+    return {
+      label: value,
+      sx: {
+        ...actionChipBaseSx,
+        backgroundColor: '#EDF7EE',
+        color: '#1B5E20',
+        border: '1px solid #A5D6A7',
+      },
+    };
+  }
+
+  return {
+    label: value,
+    sx: {
+      ...actionChipBaseSx,
+      backgroundColor: '#FAFAF8',
+      color: PALETTE.textSecondary,
+      border: `1px solid ${PALETTE.border}`,
+    },
+  };
+};
+
+const compareValues = (aValue, bValue, order) => {
+  if (aValue == null && bValue == null) return 0;
+  if (aValue == null) return order === 'asc' ? -1 : 1;
+  if (bValue == null) return order === 'asc' ? 1 : -1;
+
+  if (typeof aValue === 'number' && typeof bValue === 'number') {
+    return order === 'asc' ? aValue - bValue : bValue - aValue;
+  }
+
+  if (aValue instanceof Date && bValue instanceof Date) {
+    return order === 'asc' ? aValue - bValue : bValue - aValue;
+  }
+
+  const left = String(aValue).toLowerCase();
+  const right = String(bValue).toLowerCase();
+  const result = left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
+  return order === 'asc' ? result : result * -1;
+};
 
 const MailListPage = () => {
   const navigate = useNavigate();
@@ -52,19 +144,18 @@ const MailListPage = () => {
   const [searchInput, setSearchInput] = useState('');
   const [orderBy, setOrderBy] = useState('created_at');
   const [order, setOrder] = useState('desc');
-
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
       if (searchInput !== filters.search) {
         setCurrentPage(1);
-        setFilters(prev => ({ ...prev, search: searchInput }));
+        setFilters((prev) => ({ ...prev, search: searchInput }));
       }
     }, 400);
+
     return () => clearTimeout(timer);
   }, [searchInput, filters.search]);
 
@@ -78,23 +169,25 @@ const MailListPage = () => {
       try {
         const sectionsData = await mailService.getSections();
         setSections(sectionsData);
-      } catch (err) {
-        console.error('Error loading sections:', err);
+      } catch (loadError) {
+        console.error('Error loading sections:', loadError);
       }
     };
+
     loadSections();
   }, [user]);
 
   const loadMails = async () => {
     setLoading(true);
     setError('');
+
     try {
       const data = await mailService.getAllMails(filters, currentPage, pageSize);
       setMails(data.results || []);
       setTotalCount(data.count || 0);
-    } catch (err) {
+    } catch (loadError) {
       setError('Failed to load mails. Please try again.');
-      console.error('Error loading mails:', err);
+      console.error('Error loading mails:', loadError);
     } finally {
       setLoading(false);
     }
@@ -109,29 +202,15 @@ const MailListPage = () => {
   const handleFilterChange = (field, value) => {
     setCurrentPage(1);
     if (field === 'section') {
-      setFilters({ ...filters, section: value, subsection: '' });
+      setFilters((prev) => ({ ...prev, section: value, subsection: '' }));
       return;
     }
-    setFilters({ ...filters, [field]: value });
+    setFilters((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleRowClick = useCallback((mailId) => {
-    navigate(`/mails/${mailId}`);
-  }, [navigate]);
-
-  const handleViewPdf = useCallback(async (mailId, stage = 'created') => {
-    try {
-      const blob = await mailService.viewPdf(mailId, stage);
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
-    } catch (err) {
-      console.error('Error viewing PDF:', err);
-    }
-  }, []);
-
-  const handlePageChange = useCallback((event, page) => {
-    setCurrentPage(page);
+  const handlePageChange = useCallback((nextPage) => {
+    if (nextPage < 1) return;
+    setCurrentPage(nextPage);
     const tableEl = document.querySelector('[data-testid="mail-table-container"]');
     if (tableEl) {
       tableEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -154,104 +233,84 @@ const MailListPage = () => {
     if (user.role === 'AG' && filters.section) {
       baseSections = sectionOptions.filter((section) => section.id === Number(filters.section));
     }
+
     return baseSections.flatMap((section) =>
       (section.subsections || []).map((subsection) => ({
         ...subsection,
         section_name: section.name,
-      }))
+      })),
     );
-  }, [sectionOptions, filters.section, user]);
+  }, [filters.section, sectionOptions, user]);
 
   const visibleMails = useMemo(() => {
     let filtered = [...mails];
+
     if (filters.section) {
       const sectionId = Number(filters.section);
       filtered = filtered.filter((mail) => Number(mail.section) === sectionId);
     }
+
     if (filters.subsection) {
       const subsectionId = Number(filters.subsection);
       filtered = filtered.filter((mail) => Number(mail.subsection) === subsectionId);
     }
+
     return filtered;
   }, [mails, filters.section, filters.subsection]);
 
   const sortedMails = useMemo(() => {
     return [...visibleMails].sort((a, b) => {
-      let aValue = a[orderBy];
-      let bValue = b[orderBy];
-      if (orderBy === 'assigned_to') {
-        aValue = a.assigned_to_name || a.assigned_to?.full_name || '';
-        bValue = b.assigned_to_name || b.assigned_to?.full_name || '';
-      }
-      if (orderBy === 'current_handler') {
-        aValue = a.current_handler_name || a.current_handler?.full_name || '';
-        bValue = b.current_handler_name || b.current_handler?.full_name || '';
-      }
-      if (order === 'asc') return aValue > bValue ? 1 : -1;
-      return aValue < bValue ? 1 : -1;
+      const getValue = (mail) => {
+        switch (orderBy) {
+          case 'sl_no':
+            return Number(mail.sl_no);
+          case 'assigned_to':
+            return mail.is_multi_assigned
+              ? (mail.assignees_display || []).join(', ')
+              : mail.assigned_to_name || mail.assigned_to?.full_name || '';
+          case 'current_handler':
+            return mail.is_multi_assigned
+              ? (mail.current_handlers_display || []).join(', ')
+              : mail.current_handler_name || mail.current_handler?.full_name || '';
+          case 'due_date':
+            return mail.due_date ? new Date(mail.due_date) : null;
+          case 'date_of_completion':
+            return mail.date_of_completion ? new Date(mail.date_of_completion) : null;
+          default:
+            return mail[orderBy];
+        }
+      };
+
+      return compareValues(getValue(a), getValue(b), order);
     });
   }, [visibleMails, orderBy, order]);
 
-  const totalPages = Math.ceil(totalCount / pageSize);
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const showingFrom = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const showingTo = Math.min(currentPage * pageSize, totalCount);
 
   return (
     <Box>
-      {/* Header */}
-      <Box
+      <Typography
+        component="h1"
         sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          mb: 3,
+          mb: 1.5,
+          fontSize: '16px',
+          fontWeight: 500,
+          color: '#1A1A1A',
         }}
       >
-        <Box>
-          <Typography
-            variant="h1"
-            sx={{
-              fontSize: '1.75rem',
-              fontWeight: 600,
-              color: PALETTE.textPrimary,
-              letterSpacing: '-0.02em',
-              mb: 0.5,
-            }}
-          >
-            Mail Records
-          </Typography>
-          <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
-            {totalCount > 0 && `Showing ${showingFrom}-${showingTo} of ${totalCount} records`}
-          </Typography>
-        </Box>
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<PdfIcon sx={{ fontSize: 18 }} />}
-          onClick={() => exportMailListToPDF(sortedMails, filters)}
-          sx={{
-            borderColor: PALETTE.borderDark,
-            color: PALETTE.textSecondary,
-            textTransform: 'none',
-            fontWeight: 500,
-            '&:hover': {
-              borderColor: PALETTE.textSecondary,
-              backgroundColor: PALETTE.subtle,
-            },
-          }}
-        >
-          Export PDF
-        </Button>
-      </Box>
+        Mail Records
+      </Typography>
 
       {error && (
         <Alert
           severity="error"
           sx={{
-            mb: 3,
+            mb: 2,
             border: `1px solid ${PALETTE.dotRed}`,
-            backgroundColor: 'rgba(139, 42, 42, 0.05)',
-            color: PALETTE.dotRed,
+            backgroundColor: 'rgba(198, 40, 40, 0.05)',
+            color: PALETTE.textPrimary,
             '& .MuiAlert-icon': { color: PALETTE.dotRed },
           }}
         >
@@ -259,183 +318,259 @@ const MailListPage = () => {
         </Alert>
       )}
 
-      {/* Filter Bar */}
-      <Paper
-        elevation={0}
+      <Box
         sx={{
-          p: 2,
-          mb: 3,
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: 1.25,
+          mb: 2,
+          p: 1.5,
           border: `1px solid ${PALETTE.border}`,
+          borderRadius: `${PALETTE.radiusCard}px`,
           backgroundColor: PALETTE.paper,
-          borderRadius: 1,
         }}
       >
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-          <TextField
-            placeholder="Search SL No, Letter No, Subject..."
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            size="small"
-            sx={{
-              flexGrow: 1,
-              minWidth: 280,
-              maxWidth: 400,
-              '& .MuiOutlinedInput-root': {
-                backgroundColor: PALETTE.cream,
-              },
-            }}
-            InputProps={{
-              startAdornment: <SearchIcon sx={{ fontSize: 18, color: PALETTE.textMuted, mr: 1 }} />,
-            }}
-          />
+        <FormControl size="small" sx={{ minWidth: 140 }}>
+          <InputLabel>Status</InputLabel>
+          <Select
+            value={filters.status}
+            label="Status"
+            onChange={(event) => handleFilterChange('status', event.target.value)}
+          >
+            <MenuItem value="all">All Status</MenuItem>
+            <MenuItem value="assigned">Assigned to me</MenuItem>
+            <MenuItem value="created_by_me">Created by me</MenuItem>
+            <MenuItem value="closed">Closed</MenuItem>
+          </Select>
+        </FormControl>
 
-          <FormControl size="small" sx={{ minWidth: 140 }}>
-            <InputLabel sx={{ color: PALETTE.textSecondary }}>Status</InputLabel>
+        {user?.role === 'AG' && (
+          <FormControl size="small" sx={{ minWidth: 170 }}>
+            <InputLabel>Section</InputLabel>
             <Select
-              value={filters.status}
-              label="Status"
-              onChange={(e) => handleFilterChange('status', e.target.value)}
-              sx={{ backgroundColor: PALETTE.paper }}
+              value={filters.section}
+              label="Section"
+              onChange={(event) => handleFilterChange('section', event.target.value)}
             >
-              <MenuItem value="all">All Status</MenuItem>
-              <MenuItem value="assigned">Assigned to me</MenuItem>
-              <MenuItem value="created_by_me">Created by me</MenuItem>
-              <MenuItem value="closed">Closed</MenuItem>
+              <MenuItem value="">All Sections</MenuItem>
+              {sectionOptions.map((section) => (
+                <MenuItem key={section.id} value={section.id}>
+                  {section.name}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
+        )}
 
-          {user?.role === 'AG' && (
-            <FormControl size="small" sx={{ minWidth: 180 }}>
-              <InputLabel>Section</InputLabel>
-              <Select
-                value={filters.section}
-                label="Section"
-                onChange={(e) => handleFilterChange('section', e.target.value)}
-                sx={{ backgroundColor: PALETTE.paper }}
-              >
-                <MenuItem value="">All Sections</MenuItem>
-                {sectionOptions.map((section) => (
-                  <MenuItem key={section.id} value={section.id}>
-                    {section.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
-
-          {(user?.role === 'AG' || user?.role === 'DAG') && (
-            <FormControl size="small" sx={{ minWidth: 220 }}>
-              <InputLabel>Subsection</InputLabel>
-              <Select
-                value={filters.subsection}
-                label="Subsection"
-                onChange={(e) => handleFilterChange('subsection', e.target.value)}
-                sx={{ backgroundColor: PALETTE.paper }}
-              >
-                <MenuItem value="">All Subsections</MenuItem>
-                {subsectionOptions.map((subsection) => (
-                  <MenuItem key={subsection.id} value={subsection.id}>
-                    {`${subsection.section_name} - ${subsection.name}`}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
-
-          <FormControl size="small" sx={{ minWidth: 100 }}>
-            <InputLabel>Per Page</InputLabel>
+        {(user?.role === 'AG' || user?.role === 'DAG') && (
+          <FormControl size="small" sx={{ minWidth: 220 }}>
+            <InputLabel>Subsection</InputLabel>
             <Select
-              value={pageSize}
-              label="Per Page"
-              onChange={(e) => {
-                setPageSize(e.target.value);
-                setCurrentPage(1);
-              }}
-              sx={{ backgroundColor: PALETTE.paper }}
+              value={filters.subsection}
+              label="Subsection"
+              onChange={(event) => handleFilterChange('subsection', event.target.value)}
             >
-              <MenuItem value={25}>25</MenuItem>
-              <MenuItem value={50}>50</MenuItem>
-              <MenuItem value={100}>100</MenuItem>
+              <MenuItem value="">All Subsections</MenuItem>
+              {subsectionOptions.map((subsection) => (
+                <MenuItem key={subsection.id} value={subsection.id}>
+                  {`${subsection.section_name} - ${subsection.name}`}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
-        </Box>
-      </Paper>
+        )}
 
-      {/* Table Container */}
-      <Box sx={{ position: 'relative' }} data-testid="mail-table-container">
+        <FormControl size="small" sx={{ minWidth: 110 }}>
+          <InputLabel>Per Page</InputLabel>
+          <Select
+            value={pageSize}
+            label="Per Page"
+            onChange={(event) => {
+              setPageSize(Number(event.target.value));
+              setCurrentPage(1);
+            }}
+          >
+            <MenuItem value={25}>25</MenuItem>
+            <MenuItem value={50}>50</MenuItem>
+            <MenuItem value={100}>100</MenuItem>
+          </Select>
+        </FormControl>
+
+        <TextField
+          size="small"
+          placeholder="Search SL No, Letter No, Subject..."
+          value={searchInput}
+          onChange={(event) => setSearchInput(event.target.value)}
+          sx={{
+            flex: '1 1 260px',
+            minWidth: 240,
+            '& .MuiOutlinedInput-root': {
+              backgroundColor: PALETTE.paper,
+            },
+          }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon sx={{ fontSize: 17, color: PALETTE.textMuted }} />
+              </InputAdornment>
+            ),
+          }}
+        />
+
+        <Button
+          variant="outlined"
+          onClick={() => exportMailListToPDF(sortedMails, filters)}
+          sx={{
+            ml: 'auto',
+            border: '1px solid #E0E0E0',
+            color: PALETTE.textSecondary,
+            backgroundColor: '#FFFFFF',
+            '&:hover': {
+              borderColor: PALETTE.burgundy,
+              color: PALETTE.burgundy,
+              backgroundColor: '#FFFFFF',
+            },
+          }}
+        >
+          Export PDF
+        </Button>
+      </Box>
+
+      <Paper
+        elevation={0}
+        data-testid="mail-table-container"
+        sx={{
+          position: 'relative',
+          backgroundColor: PALETTE.paper,
+          border: `1px solid ${PALETTE.border}`,
+          borderRadius: `${PALETTE.radiusCard}px`,
+          boxShadow: PALETTE.shadow,
+          overflow: 'hidden',
+        }}
+      >
         {loading && (
           <Box
             sx={{
               position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              bgcolor: 'rgba(250, 250, 248, 0.8)',
+              inset: 0,
+              zIndex: 2,
               display: 'flex',
-              justifyContent: 'center',
               alignItems: 'center',
-              zIndex: 10,
+              justifyContent: 'center',
+              backgroundColor: 'rgba(250, 250, 248, 0.82)',
             }}
           >
-            <CircularProgress size={32} thickness={3} sx={{ color: PALETTE.burgundy }} />
+            <CircularProgress size={30} thickness={3.2} sx={{ color: PALETTE.burgundy }} />
           </Box>
         )}
 
-        <TableContainer
-          component={Paper}
-          elevation={0}
-          sx={{
-            border: `1px solid ${PALETTE.border}`,
-            borderRadius: 1,
-            overflow: 'hidden',
-            backgroundColor: PALETTE.paper,
-          }}
-        >
-          <Table sx={{ tableLayout: 'fixed', minWidth: 1100 }}>
+        <TableContainer sx={{ backgroundColor: PALETTE.paper }}>
+          <Table sx={{ tableLayout: 'auto', minWidth: 1460 }}>
             <TableHead>
-              <TableRow sx={{ backgroundColor: PALETTE.subtle }}>
-                <TableCell sx={{ width: '6%', fontWeight: 600, py: 1.5 }}>
+              <TableRow>
+                <TableCell padding="none" sx={{ ...tableHeaderCellSx, width: 4, minWidth: 4, px: 0, py: 0 }} />
+                <TableCell sx={{ ...tableHeaderCellSx, width: 90, minWidth: 90 }}>
                   <TableSortLabel
                     active={orderBy === 'sl_no'}
                     direction={orderBy === 'sl_no' ? order : 'asc'}
                     onClick={() => handleSort('sl_no')}
-                    sx={{ '& .MuiTableSortLabel-icon': { color: PALETTE.textSecondary } }}
+                    sx={{
+                      color: `${PALETTE.textMuted} !important`,
+                      '& .MuiTableSortLabel-icon': {
+                        color: `${PALETTE.textMuted} !important`,
+                      },
+                    }}
                   >
                     SL No
                   </TableSortLabel>
                 </TableCell>
-                <TableCell sx={{ width: '11%', fontWeight: 600 }}>Letter No</TableCell>
-                <TableCell sx={{ width: '15%', fontWeight: 600 }}>Subject</TableCell>
-                <TableCell sx={{ width: '10%', fontWeight: 600 }}>From</TableCell>
-                <TableCell sx={{ width: '10%', fontWeight: 600 }}>
+                <TableCell sx={{ ...tableHeaderCellSx, width: 100, minWidth: 100 }}>
+                  Letter No
+                </TableCell>
+                <TableCell sx={tableHeaderCellSx}>Subject</TableCell>
+                <TableCell sx={{ ...tableHeaderCellSx, width: 150, minWidth: 130 }}>
+                  From Office
+                </TableCell>
+                <TableCell sx={{ ...tableHeaderCellSx, width: 150, minWidth: 130 }}>
                   <TableSortLabel
                     active={orderBy === 'assigned_to'}
                     direction={orderBy === 'assigned_to' ? order : 'asc'}
                     onClick={() => handleSort('assigned_to')}
+                    sx={{
+                      color: `${PALETTE.textMuted} !important`,
+                      '& .MuiTableSortLabel-icon': {
+                        color: `${PALETTE.textMuted} !important`,
+                      },
+                    }}
                   >
-                    Assigned
+                    Assigned To
                   </TableSortLabel>
                 </TableCell>
-                <TableCell sx={{ width: '10%', fontWeight: 600 }}>Handler</TableCell>
-                <TableCell sx={{ width: '10%', fontWeight: 600 }}>Action</TableCell>
-                <TableCell sx={{ width: '9%', fontWeight: 600 }}>
+                <TableCell sx={{ ...tableHeaderCellSx, width: 150, minWidth: 130 }}>
+                  <TableSortLabel
+                    active={orderBy === 'current_handler'}
+                    direction={orderBy === 'current_handler' ? order : 'asc'}
+                    onClick={() => handleSort('current_handler')}
+                    sx={{
+                      color: `${PALETTE.textMuted} !important`,
+                      '& .MuiTableSortLabel-icon': {
+                        color: `${PALETTE.textMuted} !important`,
+                      },
+                    }}
+                  >
+                    Current Handler
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ ...tableHeaderCellSx, width: 110, minWidth: 110 }}>
+                  Current Action
+                </TableCell>
+                <TableCell sx={{ ...tableHeaderCellSx, width: 100, minWidth: 100 }}>
                   <TableSortLabel
                     active={orderBy === 'due_date'}
                     direction={orderBy === 'due_date' ? order : 'asc'}
                     onClick={() => handleSort('due_date')}
+                    sx={{
+                      color: `${PALETTE.textMuted} !important`,
+                      '& .MuiTableSortLabel-icon': {
+                        color: `${PALETTE.textMuted} !important`,
+                      },
+                    }}
                   >
                     Due Date
                   </TableSortLabel>
                 </TableCell>
-                <TableCell sx={{ width: '9%', fontWeight: 600 }}>Status</TableCell>
-                <TableCell sx={{ width: '10%', fontWeight: 600 }}>Time</TableCell>
+                <TableCell sx={{ ...tableHeaderCellSx, width: 110, minWidth: 110 }}>
+                  Status
+                </TableCell>
+                <TableCell sx={{ ...tableHeaderCellSx, width: 120, minWidth: 110 }}>
+                  Time in Stage
+                </TableCell>
+                <TableCell sx={{ ...tableHeaderCellSx, width: 100, minWidth: 90 }}>
+                  <TableSortLabel
+                    active={orderBy === 'date_of_completion'}
+                    direction={orderBy === 'date_of_completion' ? order : 'asc'}
+                    onClick={() => handleSort('date_of_completion')}
+                    sx={{
+                      color: `${PALETTE.textMuted} !important`,
+                      '& .MuiTableSortLabel-icon': {
+                        color: `${PALETTE.textMuted} !important`,
+                      },
+                    }}
+                  >
+                    Completion Date
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ ...tableHeaderCellSx, width: 40, minWidth: 40, textAlign: 'center' }}>
+                  Actions
+                </TableCell>
               </TableRow>
             </TableHead>
+
             <TableBody>
               {sortedMails.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={13} align="center" sx={{ py: 6 }}>
                     <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
                       No records found matching your criteria
                     </Typography>
@@ -444,220 +579,132 @@ const MailListPage = () => {
               ) : (
                 sortedMails.map((mail) => {
                   const overdue = isOverdue(mail.due_date, mail.status);
+                  const currentAction = getCurrentActionChip(mail.current_action_status);
+                  const assignedTo = mail.is_multi_assigned
+                    ? (mail.assignees_display || []).join(', ') || 'N/A'
+                    : mail.assigned_to_name || mail.assigned_to?.full_name || 'N/A';
+                  const currentHandler = mail.is_multi_assigned
+                    ? (mail.current_handlers_display || []).join(', ') || 'N/A'
+                    : mail.current_handler_name || mail.current_handler?.full_name || 'N/A';
 
                   return (
                     <TableRow
                       key={mail.id}
-                      onClick={() => handleRowClick(mail.id)}
+                      hover
+                      onClick={() => navigate(`/mails/${mail.id}`)}
                       sx={{
                         cursor: 'pointer',
-                        transition: 'background-color 0.15s ease',
-                        backgroundColor: overdue ? 'rgba(139, 42, 42, 0.04)' : 'inherit',
+                        backgroundColor: PALETTE.paper,
                         '&:hover': {
-                          backgroundColor: overdue ? 'rgba(139, 42, 42, 0.08)' : PALETTE.cream,
+                          backgroundColor: PALETTE.hover,
                         },
-                        '&:last-child .MuiTableCell-root': {
-                          borderBottom: 'none',
+                        '& .MuiTableCell-root': {
+                          borderBottom: `1px solid ${PALETTE.borderLight}`,
                         },
                       }}
                     >
                       <TableCell
+                        padding="none"
+                        sx={{ width: 4, minWidth: 4, px: 0, py: 0, position: 'relative' }}
+                      >
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            inset: 0,
+                            backgroundColor: overdue ? PALETTE.dotRed : 'transparent',
+                          }}
+                        />
+                      </TableCell>
+
+                      <TableCell
                         sx={{
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
+                          verticalAlign: 'top',
                           fontVariantNumeric: 'tabular-nums',
-                          fontWeight: 500,
-                          color: overdue ? PALETTE.burgundy : PALETTE.textPrimary,
+                          color: PALETTE.textPrimary,
                         }}
                       >
                         {mail.sl_no}
                       </TableCell>
-                      <TableCell
-                        sx={{
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          color: PALETTE.textPrimary,
-                        }}
-                      >
-                        {mail.letter_no}
+
+                      <TableCell sx={{ verticalAlign: 'top', color: PALETTE.textPrimary }}>
+                        {mail.letter_no || '-'}
                       </TableCell>
-                      <TableCell sx={{ py: 1.5 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography
-                            variant="body2"
-                            noWrap
-                            sx={{
-                              flex: 1,
-                              color: PALETTE.textPrimary,
-                              fontWeight: 400,
-                            }}
-                          >
-                            {mail.mail_reference_subject?.length > 45
-                              ? `${mail.mail_reference_subject.substring(0, 45)}...`
-                              : mail.mail_reference_subject}
-                          </Typography>
-                          <Box sx={{ display: 'flex', gap: 0.5 }}>
-                            {mail.attachment_metadata?.by_stage?.created && (
-                              <Tooltip title="View created PDF">
-                                <IconButton
-                                  size="small"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleViewPdf(mail.id, 'created');
-                                  }}
-                                  sx={{
-                                    p: 0.5,
-                                    color: PALETTE.textSecondary,
-                                    '&:hover': { color: PALETTE.burgundy },
-                                  }}
-                                >
-                                  <VisibilityIcon sx={{ fontSize: 16 }} />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                            {mail.attachment_metadata?.by_stage?.closed && (
-                              <Tooltip title="View closing PDF">
-                                <IconButton
-                                  size="small"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleViewPdf(mail.id, 'closed');
-                                  }}
-                                  sx={{
-                                    p: 0.5,
-                                    color: PALETTE.green,
-                                    '&:hover': { color: PALETTE.textPrimary },
-                                  }}
-                                >
-                                  <VisibilityIcon sx={{ fontSize: 16 }} />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                          </Box>
+
+                      <TableCell sx={{ verticalAlign: 'top' }}>
+                        <Typography variant="body2" sx={subjectCellSx}>
+                          {mail.mail_reference_subject || '-'}
+                        </Typography>
+                      </TableCell>
+
+                      <TableCell sx={wrappingCellSx}>{mail.from_office || '-'}</TableCell>
+                      <TableCell sx={wrappingCellSx}>{assignedTo}</TableCell>
+                      <TableCell sx={wrappingCellSx}>{currentHandler}</TableCell>
+
+                      <TableCell sx={{ verticalAlign: 'top' }}>
+                        <Box component="span" sx={currentAction.sx}>
+                          {currentAction.label}
                         </Box>
                       </TableCell>
-                      <TableCell
-                        sx={{
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          color: PALETTE.textSecondary,
-                        }}
-                      >
-                        {mail.from_office}
-                      </TableCell>
-                      <TableCell>
-                        {mail.is_multi_assigned && mail.assignees_display?.length > 0 ? (
-                          <Box>
-                            <Typography
-                              variant="body2"
-                              noWrap
-                              sx={{ color: PALETTE.textPrimary }}
-                            >
-                              {mail.assignees_display[0]}
-                              {mail.assignees_display.length > 1 && (
-                                <Typography
-                                  component="span"
-                                  variant="caption"
-                                  sx={{ color: PALETTE.textSecondary, ml: 0.5 }}
-                                >
-                                  +{mail.assignees_display.length - 1}
-                                </Typography>
-                              )}
-                            </Typography>
-                          </Box>
-                        ) : (
-                          <Typography
-                            variant="body2"
-                            noWrap
-                            sx={{ color: PALETTE.textPrimary }}
-                          >
-                            {mail.assigned_to_name || mail.assigned_to?.full_name || 'N/A'}
-                          </Typography>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {mail.is_multi_assigned && mail.current_handlers_display?.length > 0 ? (
-                          <Typography
-                            variant="body2"
-                            noWrap
-                            sx={{ color: PALETTE.textPrimary }}
-                          >
-                            {mail.current_handlers_display[0]}
-                            {mail.current_handlers_display.length > 1 && (
-                              <Typography
-                                component="span"
-                                variant="caption"
-                                sx={{ color: PALETTE.textSecondary, ml: 0.5 }}
-                              >
-                                +{mail.current_handlers_display.length - 1}
-                              </Typography>
-                            )}
-                          </Typography>
-                        ) : (
-                          <Typography
-                            variant="body2"
-                            noWrap
-                            sx={{ color: PALETTE.textPrimary }}
-                          >
-                            {mail.current_handler_name || mail.current_handler?.full_name || 'N/A'}
-                          </Typography>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {mail.current_action_status ? (
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              color: mail.current_action_status === 'Completed'
-                                ? PALETTE.green
-                                : PALETTE.textSecondary,
-                              fontWeight: mail.current_action_status === 'Completed' ? 500 : 400,
-                            }}
-                          >
-                            {mail.current_action_status}
-                          </Typography>
-                        ) : (
-                          <Typography variant="body2" sx={{ color: PALETTE.textMuted }}>
-                            —
-                          </Typography>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Box>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              color: overdue ? PALETTE.burgundy : PALETTE.textPrimary,
-                              fontWeight: overdue ? 500 : 400,
-                            }}
-                          >
-                            {formatDate(mail.due_date)}
-                          </Typography>
-                          {overdue && (
-                            <OverdueBadge>Overdue</OverdueBadge>
-                          )}
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <StatusIndicator
-                          status={mail.status}
-                          overdue={overdue}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell>
+
+                      <TableCell sx={{ verticalAlign: 'top' }}>
                         <Typography
                           variant="body2"
                           sx={{
-                            color: PALETTE.textSecondary,
+                            color: PALETTE.textPrimary,
                             fontVariantNumeric: 'tabular-nums',
                           }}
                         >
-                          {mail.time_in_stage || calculateTimeInStage(mail.last_status_change, mail.date_of_completion)}
+                          {formatDate(mail.due_date)}
                         </Typography>
+                        {overdue && <OverdueBadge>Overdue</OverdueBadge>}
+                      </TableCell>
+
+                      <TableCell sx={{ verticalAlign: 'top' }}>
+                        <StatusIndicator status={mail.status} size="small" />
+                      </TableCell>
+
+                      <TableCell
+                        sx={{
+                          verticalAlign: 'top',
+                          color: PALETTE.textSecondary,
+                          fontVariantNumeric: 'tabular-nums',
+                        }}
+                      >
+                        {mail.time_in_stage || calculateTimeInStage(mail.last_status_change, mail.date_of_completion)}
+                      </TableCell>
+
+                      <TableCell
+                        sx={{
+                          verticalAlign: 'top',
+                          color: PALETTE.textSecondary,
+                          fontVariantNumeric: 'tabular-nums',
+                        }}
+                      >
+                        {mail.date_of_completion ? formatDate(mail.date_of_completion) : '-'}
+                      </TableCell>
+
+                      <TableCell sx={{ verticalAlign: 'top', textAlign: 'center' }}>
+                        <IconButton
+                          size="small"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            navigate(`/mails/${mail.id}`);
+                          }}
+                          sx={{
+                            width: 26,
+                            height: 26,
+                            border: `1px solid ${PALETTE.border}`,
+                            borderRadius: '4px',
+                            color: PALETTE.textSecondary,
+                            '&:hover': {
+                              borderColor: PALETTE.burgundy,
+                              color: PALETTE.burgundy,
+                              backgroundColor: '#FFFFFF',
+                            },
+                          }}
+                        >
+                          <VisibilityIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
                       </TableCell>
                     </TableRow>
                   );
@@ -667,46 +714,68 @@ const MailListPage = () => {
           </Table>
         </TableContainer>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <Paper
-            elevation={0}
-            sx={{
-              mt: 2,
-              py: 1.5,
-              px: 2,
-              border: `1px solid ${PALETTE.border}`,
-              borderRadius: 1,
-              display: 'flex',
-              justifyContent: 'center',
-            }}
-          >
-            <MuiPagination
-              count={totalPages}
-              page={currentPage}
-              onChange={handlePageChange}
-              color="primary"
-              size="small"
-              showFirstButton
-              showLastButton
-              siblingCount={1}
-              boundaryCount={1}
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 1.5,
+            flexWrap: 'wrap',
+            px: 2,
+            py: 1.5,
+            borderTop: `1px solid ${PALETTE.borderLight}`,
+            backgroundColor: PALETTE.paper,
+          }}
+        >
+          <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
+            {`Showing ${showingFrom}-${showingTo} of ${totalCount} records`}
+          </Typography>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="caption" sx={{ color: PALETTE.textMuted }}>
+              {`Page ${Math.min(currentPage, totalPages)} of ${totalPages}`}
+            </Typography>
+            <Button
+              variant="outlined"
+              disabled={currentPage <= 1}
+              onClick={() => handlePageChange(currentPage - 1)}
               sx={{
-                '& .MuiPaginationItem-root': {
-                  color: PALETTE.textSecondary,
-                },
-                '& .Mui-selected': {
-                  backgroundColor: `${PALETTE.burgundy} !important`,
-                  color: '#fff',
-                  '&:hover': {
-                    backgroundColor: PALETTE.burgundyDark,
-                  },
+                minWidth: 70,
+                border: '1px solid #E0E0E0',
+                borderRadius: '4px',
+                backgroundColor: '#FFFFFF',
+                color: PALETTE.textSecondary,
+                '&:hover': {
+                  borderColor: PALETTE.burgundy,
+                  color: PALETTE.burgundy,
+                  backgroundColor: '#FFFFFF',
                 },
               }}
-            />
-          </Paper>
-        )}
-      </Box>
+            >
+              Prev
+            </Button>
+            <Button
+              variant="outlined"
+              disabled={currentPage >= totalPages || totalCount === 0}
+              onClick={() => handlePageChange(currentPage + 1)}
+              sx={{
+                minWidth: 70,
+                border: '1px solid #E0E0E0',
+                borderRadius: '4px',
+                backgroundColor: '#FFFFFF',
+                color: PALETTE.textSecondary,
+                '&:hover': {
+                  borderColor: PALETTE.burgundy,
+                  color: PALETTE.burgundy,
+                  backgroundColor: '#FFFFFF',
+                },
+              }}
+            >
+              Next
+            </Button>
+          </Box>
+        </Box>
+      </Paper>
     </Box>
   );
 };

@@ -5,7 +5,6 @@ import {
   Button,
   Card,
   CardActionArea,
-  Chip,
   Container,
   Stack,
   Typography,
@@ -16,6 +15,7 @@ import {
   MailOutline as MailOutlineIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
+import { PALETTE } from '../utils/constants';
 
 const appCards = [
   {
@@ -24,17 +24,32 @@ const appCards = [
     description: 'Track inward mail, assignments, remarks, closures, and audit history.',
     icon: MailOutlineIcon,
     path: '/mails',
-    accent: 'linear-gradient(135deg, #0f4c81 0%, #4678a5 100%)',
+    accentColor: PALETTE.burgundy,
+    accentBackground: 'rgba(107, 26, 26, 0.08)',
   },
   {
     key: 'returns',
     title: 'Calendar of Returns',
-    description: 'View month-wise pending returns, submission history, and delay summaries by section.',
+    description: 'Review pending returns, historical submissions, and delay summaries by section.',
     icon: CalendarMonthIcon,
     path: '/returns',
-    accent: 'linear-gradient(135deg, #6b2c3f 0%, #b45b57 100%)',
+    accentColor: PALETTE.amber,
+    accentBackground: 'rgba(146, 101, 10, 0.09)',
   },
 ];
+
+const tagSx = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  minHeight: 28,
+  px: 1,
+  border: `1px solid ${PALETTE.border}`,
+  borderRadius: `${PALETTE.radiusButton}px`,
+  color: PALETTE.textSecondary,
+  fontSize: '0.75rem',
+  fontWeight: 500,
+  backgroundColor: PALETTE.paper,
+};
 
 const AppSelectorPage = () => {
   const navigate = useNavigate();
@@ -43,43 +58,35 @@ const AppSelectorPage = () => {
   const sectionLabels = user?.sections_list?.map((section) => section.name) || [];
 
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        py: 6,
-        background:
-          'radial-gradient(circle at top left, rgba(107,44,63,0.14), transparent 35%), linear-gradient(180deg, #f7f2ec 0%, #eef2f5 100%)',
-      }}
-    >
+    <Box sx={{ minHeight: '100vh', py: { xs: 4, sm: 6 }, backgroundColor: PALETTE.cream }}>
       <Container maxWidth="lg">
         <Box
           sx={{
             display: 'flex',
             justifyContent: 'space-between',
+            alignItems: 'flex-start',
             gap: 2,
             flexWrap: 'wrap',
-            mb: 5,
+            mb: 4,
           }}
         >
-          <Box>
-            <Typography variant="overline" color="text.secondary">
-              Shared Sign In
+          <Box sx={{ maxWidth: 760 }}>
+            <Typography variant="overline" sx={{ color: PALETTE.textMuted }}>
+              Workflow Suite
             </Typography>
-            <Typography variant="h3" component="h1" sx={{ fontWeight: 700, mb: 1 }}>
+            <Typography component="h1" sx={{ fontSize: '1.25rem', fontWeight: 500, mb: 1 }}>
               Office Workflow Portal
             </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 720 }}>
-              Choose the module you want to work in. Mail tracking and returns share the same
-              login, user roles, and office sections, but run independently.
+            <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
+              Choose the module you want to work in. Mail tracking and returns share the same login,
+              user roles, and office sections, with a single restrained design system across both.
             </Typography>
           </Box>
 
-          <Stack direction="row" spacing={1} alignItems="flex-start">
-            <Chip
-              label={user?.actual_role || user?.role || 'User'}
-              color="secondary"
-              sx={{ fontWeight: 600 }}
-            />
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Box sx={{ ...tagSx, color: PALETTE.burgundy, borderColor: PALETTE.border }}>
+              {user?.actual_role || user?.role || 'User'}
+            </Box>
             <Button variant="outlined" startIcon={<LogoutIcon />} onClick={logout}>
               Logout
             </Button>
@@ -87,13 +94,15 @@ const AppSelectorPage = () => {
         </Box>
 
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 4 }}>
-          <Chip label={user?.full_name || user?.username || 'User'} variant="outlined" />
+          <Box sx={tagSx}>{user?.full_name || user?.username || 'User'}</Box>
           {sectionLabels.length > 0 ? (
             sectionLabels.map((label) => (
-              <Chip key={label} label={label} variant="outlined" color="primary" />
+              <Box key={label} sx={tagSx}>
+                {label}
+              </Box>
             ))
           ) : (
-            <Chip label="No section restriction" variant="outlined" color="default" />
+            <Box sx={tagSx}>No section restriction</Box>
           )}
         </Box>
 
@@ -101,57 +110,57 @@ const AppSelectorPage = () => {
           sx={{
             display: 'grid',
             gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' },
-            gap: 3,
+            gap: 2.5,
           }}
         >
           {appCards.map((card) => {
             const Icon = card.icon;
+
             return (
               <Card
                 key={card.key}
                 sx={{
-                  borderRadius: 4,
-                  overflow: 'hidden',
-                  minHeight: 260,
-                  boxShadow: '0 24px 60px rgba(35, 40, 47, 0.08)',
+                  borderRadius: `${PALETTE.radiusCard}px`,
+                  border: `1px solid ${PALETTE.border}`,
+                  boxShadow: PALETTE.shadow,
+                  backgroundColor: PALETTE.paper,
                 }}
               >
                 <CardActionArea
                   onClick={() => navigate(card.path)}
                   sx={{
                     height: '100%',
-                    p: 4,
+                    p: 3,
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'flex-start',
-                    justifyContent: 'space-between',
-                    background: `linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.98) 100%), ${card.accent}`,
+                    gap: 5,
                   }}
                 >
                   <Box
                     sx={{
-                      width: 72,
-                      height: 72,
-                      borderRadius: 3,
+                      width: 50,
+                      height: 50,
+                      borderRadius: `${PALETTE.radiusCard}px`,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: 'white',
-                      background: card.accent,
-                      boxShadow: '0 16px 30px rgba(0,0,0,0.12)',
+                      color: card.accentColor,
+                      backgroundColor: card.accentBackground,
+                      border: `1px solid ${PALETTE.border}`,
                     }}
                   >
-                    <Icon sx={{ fontSize: 36 }} />
+                    <Icon sx={{ fontSize: 26 }} />
                   </Box>
 
                   <Box>
-                    <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
+                    <Typography variant="h4" sx={{ mb: 1, fontWeight: 500 }}>
                       {card.title}
                     </Typography>
-                    <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+                    <Typography variant="body2" sx={{ mb: 2, color: PALETTE.textSecondary }}>
                       {card.description}
                     </Typography>
-                    <Typography variant="button" color="primary">
+                    <Typography variant="body2" sx={{ color: PALETTE.burgundy, fontWeight: 500 }}>
                       Open module
                     </Typography>
                   </Box>
@@ -166,4 +175,3 @@ const AppSelectorPage = () => {
 };
 
 export default AppSelectorPage;
-

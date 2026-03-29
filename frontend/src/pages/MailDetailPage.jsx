@@ -4,7 +4,6 @@ import {
   Box,
   Paper,
   Typography,
-  Chip,
   Button,
   Divider,
   CircularProgress,
@@ -28,30 +27,18 @@ import {
   Replay as ReopenIcon,
   GroupAdd as MultiAssignIcon,
   PictureAsPdf as PdfIcon,
-  WarningAmber as WarningIcon,
   Visibility as ViewIcon,
 } from '@mui/icons-material';
 import mailService from '../services/mailService';
 import { useAuth } from '../context/AuthContext';
+import StatusIndicator from '../components/StatusIndicator';
 import { formatDate, formatDateTime, calculateTimeInStage, isOverdue } from '../utils/dateHelpers';
-import { DETAIL_STATUS_CHIP } from '../utils/constants';
+import { PALETTE } from '../utils/constants';
 import ReassignDialog from '../components/ReassignDialog';
 import CloseMailDialog from '../components/CloseMailDialog';
 import ReopenDialog from '../components/ReopenDialog';
 import MultiAssignDialog from '../components/MultiAssignDialog';
 import UpdateCurrentActionDialog from '../components/UpdateCurrentActionDialog';
-
-// Palette aligned with reference mock (test_2.jpg)
-const GREEN_BORDER = '#6ea55d';
-const HEADER_BLUE = 'linear-gradient(180deg, #8faec8 0%, #6f8ea9 100%)';
-const HEADER_BLUE_DARK = 'linear-gradient(180deg, #7f9fbb 0%, #6282a0 100%)';
-const BUTTON_PEACH = 'linear-gradient(180deg, #f2b8a2 0%, #e39d84 100%)';
-const BUTTON_PEACH_HOVER = 'linear-gradient(180deg, #e8a98f 0%, #d7896f 100%)';
-const BUTTON_TEXT = '#2a2a2a';
-const STATUS_GREEN = '#9ab496';
-const STATUS_GREEN_BORDER = '#6b8f6b';
-const ROW_LIGHT = '#d7e5d8';
-const HEAD_LIGHT = '#edf0f2';
 
 const MailDetailPage = () => {
   const { id } = useParams();
@@ -257,7 +244,7 @@ const MailDetailPage = () => {
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress />
+        <CircularProgress size={32} sx={{ color: PALETTE.burgundy }} />
       </Box>
     );
   }
@@ -265,35 +252,133 @@ const MailDetailPage = () => {
   if (error || !mail) {
     return (
       <Box>
-        <Alert severity="error">{error || 'Mail not found'}</Alert>
-        <Button onClick={() => navigate('/mails')} sx={{ mt: 2 }}>Back to Mail List</Button>
+        <Alert
+          severity="error"
+          sx={{
+            border: `1px solid ${PALETTE.dotRed}`,
+            backgroundColor: 'rgba(139, 42, 42, 0.05)',
+            color: PALETTE.textPrimary,
+            '& .MuiAlert-icon': { color: PALETTE.dotRed },
+          }}
+        >
+          {error || 'Mail not found'}
+        </Alert>
+        <Button
+          onClick={() => navigate('/mails')}
+          sx={{
+            mt: 2,
+            color: PALETTE.textSecondary,
+            textTransform: 'none',
+          }}
+          startIcon={<ArrowBack sx={{ fontSize: 18 }} />}
+        >
+          Back to Mail List
+        </Button>
       </Box>
     );
   }
 
   const overdue = isOverdue(mail.due_date, mail.status);
 
-  // Sort audit trail newest-first
   const sortedAuditTrail = [...auditTrail].sort(
     (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
   );
 
-  // Get creator from audit trail (oldest CREATE entry)
   const createEntry = auditTrail.find(e => e.action === 'CREATE');
   const createdByName = createEntry?.performed_by_details?.full_name || '—';
   const createdAt = createEntry?.timestamp;
 
-  // Handler view = user is the current handler
   const isHandler = canEditRemarks();
+  const hasActions = canReassignMail() || canCloseMail() || canMultiAssign() || canReopenMail();
 
-  // Assignments list (included in mail API response)
-  const mailAssignments = mail.assignments || [];
-  const topLevelAssignments = mailAssignments.filter(
-    (a) => Number(a.assigned_by) === Number(mail.created_by)
+  // Action buttons component
+  const ActionButtons = ({ fullWidth = false }) => (
+    <Stack spacing={1} direction={fullWidth ? 'column' : 'row'} flexWrap="wrap">
+      {canCloseMail() && (
+        <Button
+          variant="contained"
+          startIcon={<CloseIcon sx={{ fontSize: 18 }} />}
+          onClick={() => setCloseDialogOpen(true)}
+          fullWidth={fullWidth}
+          sx={{
+            backgroundColor: PALETTE.burgundy,
+            color: '#fff',
+            textTransform: 'none',
+            fontWeight: 500,
+            boxShadow: 'none',
+            '&:hover': {
+              backgroundColor: PALETTE.burgundyDark,
+              boxShadow: 'none',
+            },
+          }}
+        >
+          Complete Task
+        </Button>
+      )}
+      {canReassignMail() && (
+        <Button
+          variant="outlined"
+          startIcon={<ReassignIcon sx={{ fontSize: 18 }} />}
+          onClick={() => setReassignDialogOpen(true)}
+          fullWidth={fullWidth}
+          sx={{
+            borderColor: PALETTE.borderDark,
+            color: PALETTE.textPrimary,
+            textTransform: 'none',
+            fontWeight: 500,
+            '&:hover': {
+              borderColor: PALETTE.textSecondary,
+              backgroundColor: PALETTE.subtle,
+            },
+          }}
+        >
+          Reassign
+        </Button>
+      )}
+      {canMultiAssign() && (
+        <Button
+          variant="outlined"
+          startIcon={<MultiAssignIcon sx={{ fontSize: 18 }} />}
+          onClick={() => setMultiAssignDialogOpen(true)}
+          fullWidth={fullWidth}
+          sx={{
+            borderColor: PALETTE.borderDark,
+            color: PALETTE.textPrimary,
+            textTransform: 'none',
+            fontWeight: 500,
+            '&:hover': {
+              borderColor: PALETTE.textSecondary,
+              backgroundColor: PALETTE.subtle,
+            },
+          }}
+        >
+          Multi Assign
+        </Button>
+      )}
+      {canReopenMail() && (
+        <Button
+          variant="outlined"
+          startIcon={<ReopenIcon sx={{ fontSize: 18 }} />}
+          onClick={() => setReopenDialogOpen(true)}
+          fullWidth={fullWidth}
+          sx={{
+            borderColor: PALETTE.dotRed,
+            color: PALETTE.dotRed,
+            textTransform: 'none',
+            fontWeight: 500,
+            '&:hover': {
+              borderColor: PALETTE.burgundy,
+              backgroundColor: 'rgba(107, 26, 26, 0.04)',
+            },
+          }}
+        >
+          Reopen
+        </Button>
+      )}
+    </Stack>
   );
-  const childAssignments = mailAssignments.filter(
-    (a) => Number(a.assigned_by) !== Number(mail.created_by)
-  );
+
+  // Build assignment branch rows
   const buildAssignmentBranchRows = (assignment) => {
     const rows = [];
     const timeline = [...(assignment.remarks_timeline || [])].sort(
@@ -322,7 +407,6 @@ const MailDetailPage = () => {
         return;
       }
 
-      // Keep every non-reassignment remark as an explicit history row (append-only visibility).
       rows.push({
         officerId: remark.created_by || null,
         officer: createdBy || currentOfficer,
@@ -355,6 +439,7 @@ const MailDetailPage = () => {
 
     return rows;
   };
+
   const renderBranchTable = (assignment, isChild = false) => {
     const branchRows = buildAssignmentBranchRows(assignment);
     return (
@@ -362,42 +447,62 @@ const MailDetailPage = () => {
         key={`${isChild ? 'child' : 'root'}-${assignment.id}`}
         elevation={0}
         sx={{
-          border: '1px solid',
-          borderColor: GREEN_BORDER,
-          borderRadius: 2,
+          border: `1px solid ${PALETTE.border}`,
+          borderRadius: 1,
           mb: 2,
           ml: isChild ? 4 : 0,
           overflow: 'hidden',
+          backgroundColor: PALETTE.paper,
         }}
       >
-        <Box sx={{ p: 1.5, bgcolor: ROW_LIGHT, borderBottom: '1px solid', borderColor: GREEN_BORDER }}>
-          <Typography variant="body1" fontWeight={700}>
+        <Box
+          sx={{
+            p: 1.5,
+            backgroundColor: PALETTE.subtle,
+            borderBottom: `1px solid ${PALETTE.border}`,
+          }}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 500, color: PALETTE.textPrimary }}>
             Assigned to {assignment.assigned_to_details?.full_name || '-'} by {assignment.assigned_by_details?.full_name || createdByName}
           </Typography>
         </Box>
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: HEAD_LIGHT }}>
-              <TableCell sx={{ fontWeight: 700, width: '30%' }}>Officer</TableCell>
-              <TableCell sx={{ fontWeight: 700, width: '35%' }}>Remarks</TableCell>
-              <TableCell sx={{ fontWeight: 700, width: '20%' }}>Reassigned to</TableCell>
-              <TableCell sx={{ fontWeight: 700, width: '15%' }}>On</TableCell>
+            <TableRow sx={{ backgroundColor: PALETTE.cream }}>
+              <TableCell sx={{ fontWeight: 500, width: '30%', color: PALETTE.textPrimary }}>Officer</TableCell>
+              <TableCell sx={{ fontWeight: 500, width: '35%', color: PALETTE.textPrimary }}>Remarks</TableCell>
+              <TableCell sx={{ fontWeight: 500, width: '20%', color: PALETTE.textPrimary }}>Reassigned to</TableCell>
+              <TableCell sx={{ fontWeight: 500, width: '15%', color: PALETTE.textPrimary }}>On</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {branchRows.map((row, rowIdx) => (
-              <TableRow key={`${assignment.id}-row-${rowIdx}`} sx={{ bgcolor: rowIdx % 2 === 0 ? 'inherit' : ROW_LIGHT }}>
+              <TableRow
+                key={`${assignment.id}-row-${rowIdx}`}
+                sx={{
+                  backgroundColor: rowIdx % 2 === 0 ? 'inherit' : PALETTE.cream,
+                  '&:hover': { backgroundColor: PALETTE.cream },
+                }}
+              >
                 <TableCell>
-                  <Typography variant="body2" fontWeight={600}>{row.officer}</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 500, color: PALETTE.textPrimary }}>
+                    {row.officer}
+                  </Typography>
                 </TableCell>
                 <TableCell>
-                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{row.remarks}</Typography>
+                  <Typography variant="body2" sx={{ color: PALETTE.textSecondary, whiteSpace: 'pre-wrap' }}>
+                    {row.remarks}
+                  </Typography>
                 </TableCell>
                 <TableCell>
-                  <Typography variant="body2">{row.reassignedTo}</Typography>
+                  <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
+                    {row.reassignedTo}
+                  </Typography>
                 </TableCell>
                 <TableCell>
-                  <Typography variant="body2" noWrap>{row.on ? formatDateTime(row.on) : '-'}</Typography>
+                  <Typography variant="body2" sx={{ color: PALETTE.textSecondary }} noWrap>
+                    {row.on ? formatDateTime(row.on) : '-'}
+                  </Typography>
                 </TableCell>
               </TableRow>
             ))}
@@ -407,237 +512,255 @@ const MailDetailPage = () => {
     );
   };
 
-  // Action buttons — shown in right column for handler, beside section header for watcher
-  const hasActions = canReassignMail() || canCloseMail() || canMultiAssign() || canReopenMail();
-
-  const ActionButtons = ({ fullWidth = false }) => (
-    <Stack spacing={1} direction={fullWidth ? 'column' : 'row'} flexWrap="wrap">
-      {canCloseMail() && (
-        <Button
-          variant="contained"
-          startIcon={<CloseIcon />}
-          onClick={() => setCloseDialogOpen(true)}
-          fullWidth={fullWidth}
-          sx={{
-            background: BUTTON_PEACH,
-            color: BUTTON_TEXT,
-            border: '1px solid #cf8c74',
-            '&:hover': { background: BUTTON_PEACH_HOVER },
-          }}
-        >
-          Task Completed
-        </Button>
-      )}
-      {canReassignMail() && (
-        <Button
-          variant="contained"
-          startIcon={<ReassignIcon />}
-          onClick={() => setReassignDialogOpen(true)}
-          fullWidth={fullWidth}
-          sx={{
-            background: BUTTON_PEACH,
-            color: BUTTON_TEXT,
-            border: '1px solid #cf8c74',
-            '&:hover': { background: BUTTON_PEACH_HOVER },
-          }}
-        >
-          Reassign
-        </Button>
-      )}
-      {canMultiAssign() && (
-        <Button
-          variant="outlined"
-          startIcon={<MultiAssignIcon />}
-          onClick={() => setMultiAssignDialogOpen(true)}
-          fullWidth={fullWidth}
-          sx={{
-            borderColor: GREEN_BORDER,
-            color: '#2f4a31',
-            '&:hover': { borderColor: '#5a8c4d', bgcolor: '#f2f7f0' },
-          }}
-        >
-          Assign to Multiple
-        </Button>
-      )}
-      {canReopenMail() && (
-        <Button
-          variant="outlined"
-          color="error"
-          startIcon={<ReopenIcon />}
-          onClick={() => setReopenDialogOpen(true)}
-          fullWidth={fullWidth}
-        >
-          Reopen
-        </Button>
-      )}
-    </Stack>
+  const mailAssignments = mail.assignments || [];
+  const topLevelAssignments = mailAssignments.filter(
+    (a) => Number(a.assigned_by) === Number(mail.created_by)
+  );
+  const childAssignments = mailAssignments.filter(
+    (a) => Number(a.assigned_by) !== Number(mail.created_by)
   );
 
   return (
     <Box>
-      <Button startIcon={<ArrowBack />} onClick={() => navigate('/mails')} sx={{ mb: 2 }}>
+      {/* Back Button */}
+      <Button
+        startIcon={<ArrowBack sx={{ fontSize: 18 }} />}
+        onClick={() => navigate('/mails')}
+        sx={{
+          mb: 2,
+          color: PALETTE.textSecondary,
+          textTransform: 'none',
+          fontWeight: 500,
+          '&:hover': { color: PALETTE.textPrimary },
+        }}
+      >
         Back to Mail List
       </Button>
 
+      {/* Alerts */}
       {pdfUploadWarning && (
-        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setPdfUploadWarning(false)}>
+        <Alert
+          severity="warning"
+          sx={{
+            mb: 2,
+            border: `1px solid ${PALETTE.amber}`,
+            backgroundColor: 'rgba(184, 134, 11, 0.05)',
+            '& .MuiAlert-icon': { color: PALETTE.amber },
+          }}
+          onClose={() => setPdfUploadWarning(false)}
+        >
           Mail was created successfully, but the PDF attachment could not be uploaded.
         </Alert>
       )}
       {closePdfUploadWarning && (
-        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setClosePdfUploadWarning(false)}>
+        <Alert
+          severity="warning"
+          sx={{
+            mb: 2,
+            border: `1px solid ${PALETTE.amber}`,
+            backgroundColor: 'rgba(184, 134, 11, 0.05)',
+            '& .MuiAlert-icon': { color: PALETTE.amber },
+          }}
+          onClose={() => setClosePdfUploadWarning(false)}
+        >
           Mail was closed successfully, but the closing PDF could not be uploaded.
         </Alert>
       )}
 
-      {/* ── HEADER CARD ─────────────────────────────────────────────────── */}
+      {/* Header Card */}
       <Paper
-        sx={{
-          border: '2px solid',
-          borderColor: GREEN_BORDER,
-          borderRadius: 2,
-          p: { xs: 1.5, sm: 2 },
-          mb: 3,
-        }}
         elevation={0}
+        sx={{
+          border: `1px solid ${PALETTE.border}`,
+          borderRadius: 1,
+          p: { xs: 2, sm: 2.5 },
+          mb: 3,
+          backgroundColor: PALETTE.paper,
+        }}
       >
-        {/* Row 1: SL No | Letter label + No | Subject | Status chip */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-          <Typography variant="h5" fontWeight={700} sx={{ minWidth: 90, lineHeight: 1 }}>
+        {/* Row 1: SL No, Letter No, Subject, Status */}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            flexWrap: 'wrap',
+          }}
+        >
+          <Typography
+            variant="h5"
+            sx={{
+              fontWeight: 500,
+              color: PALETTE.burgundy,
+              fontVariantNumeric: 'tabular-nums',
+              minWidth: 90,
+            }}
+          >
             {mail.sl_no}
           </Typography>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', flex: 1, gap: 1, minWidth: 0 }}>
-            {/* "Letter No." label box */}
-            <Box
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography
+              variant="body2"
               sx={{
-                border: '1px solid',
-                borderColor: GREEN_BORDER,
-                borderRadius: 0.5,
-                px: 1,
-                py: 0.5,
-                whiteSpace: 'nowrap',
+                color: PALETTE.textSecondary,
+                fontSize: '0.75rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                mb: 0.25,
               }}
             >
-              
-            </Box>
-
-            {/* Letter number value */}
-            <Box
-              sx={{
-                bgcolor: 'grey.200',
-                borderRadius: 0.5,
-                px: 1.5,
-                py: 0.5,
-                maxWidth: 200,
-                overflow: 'hidden',
-              }}
-            >
-              <Typography variant="body2" noWrap color="text.secondary">
-                {mail.letter_no}
-              </Typography>
-            </Box>
-
-            {/* Subject */}
+              Letter No: {mail.letter_no}
+            </Typography>
             <Typography
               variant="body1"
-              fontWeight={500}
-              sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              sx={{
+                fontWeight: 500,
+                color: PALETTE.textPrimary,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
             >
               {mail.mail_reference_subject}
             </Typography>
           </Box>
 
-          {/* Status chip */}
-          <Chip
-            label={DETAIL_STATUS_CHIP[mail.status]?.label || mail.status}
-            color={DETAIL_STATUS_CHIP[mail.status]?.color || 'default'}
-            sx={{
-              fontWeight: 700,
-              flexShrink: 0,
-              bgcolor: STATUS_GREEN,
-              color: '#243526',
-              border: `1px solid ${STATUS_GREEN_BORDER}`,
-            }}
-          />
+          <Box sx={{ flexShrink: 0 }}>
+            <StatusIndicator status={mail.status} overdue={overdue} />
+          </Box>
         </Box>
 
-        <Divider sx={{ my: 1 }} />
+        <Divider sx={{ my: 2, borderColor: PALETTE.border }} />
 
-        {/* Row 2: Created by (left) | Currently with (right) */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
-          <Typography variant="caption" color="text.secondary">
+        {/* Row 2: Created by, Currently with */}
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 1,
+          }}
+        >
+          <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
             Created by{' '}
-            <Box component="span" fontWeight={700} color="text.primary">
+            <Box component="span" sx={{ fontWeight: 500, color: PALETTE.textPrimary }}>
               {createdByName}
             </Box>
-            {createdAt ? ` on ${formatDate(createdAt)}` : ''}
+            {createdAt && ` on ${formatDate(createdAt)}`}
           </Typography>
 
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
             Currently with{' '}
-            <Box component="span" fontWeight={700} color="text.primary">
+            <Box component="span" sx={{ fontWeight: 500, color: PALETTE.textPrimary }}>
               {mail.is_multi_assigned
                 ? (mail.current_handlers_display?.length
                     ? mail.current_handlers_display.join(', ')
                     : '-')
                 : mail.current_handler_details?.full_name || '—'}
             </Box>
-            {' '}from {calculateTimeInStage(mail.last_status_change, mail.date_of_completion)}
+            {' '}<Box component="span" sx={{ color: PALETTE.textMuted }}>
+              from {calculateTimeInStage(mail.last_status_change, mail.date_of_completion)}
+            </Box>
           </Typography>
         </Box>
 
         {/* Overdue banner */}
         {overdue && (
-          <Alert severity="error" icon={<WarningIcon fontSize="small" />} sx={{ mt: 1.5 }}>
-            Overdue by {Math.floor((new Date() - new Date(mail.due_date)) / (1000 * 60 * 60 * 24))} days
-          </Alert>
+          <Box
+            sx={{
+              mt: 2,
+              p: 1.5,
+              backgroundColor: 'rgba(139, 42, 42, 0.05)',
+              border: `1px solid ${PALETTE.dotRed}`,
+              borderRadius: 1,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+            }}
+          >
+            <Typography
+              variant="body2"
+              sx={{
+                color: PALETTE.burgundy,
+                fontWeight: 500,
+              }}
+            >
+              Overdue by {Math.floor((new Date() - new Date(mail.due_date)) / (1000 * 60 * 60 * 24))} days
+            </Typography>
+          </Box>
         )}
       </Paper>
 
-      {/* ── MAIN TWO-COLUMN CONTENT ──────────────────────────────────────── */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', mb: 3 }}>
-
-        {/* LEFT COLUMN */}
-        <Box sx={{ width: '100%', minWidth: 0 }}>
-
+      {/* Main Content - Two Column */}
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', lg: 'row' },
+          gap: 3,
+          mb: 3,
+        }}
+      >
+        {/* Left Column */}
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           {/* About Info */}
           {mail.initial_instructions && (
-            <Box
+            <Paper
+              elevation={0}
               sx={{
-                background: HEADER_BLUE,
-                color: '#17222c',
-                border: '1px solid #5f7e99',
-                borderRadius: 1.5,
+                border: `1px solid ${PALETTE.border}`,
+                borderRadius: 1,
                 p: 2.5,
                 mb: 2,
+                backgroundColor: PALETTE.subtle,
               }}
             >
               <Typography
                 variant="overline"
-                sx={{ opacity: 0.75, display: 'block', mb: 0.5, letterSpacing: 1 }}
+                sx={{
+                  display: 'block',
+                  mb: 1,
+                  color: PALETTE.textSecondary,
+                  letterSpacing: '0.08em',
+                  fontWeight: 500,
+                }}
               >
                 About Info
               </Typography>
-              <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+              <Typography
+                variant="body1"
+                sx={{
+                  color: PALETTE.textPrimary,
+                  whiteSpace: 'pre-wrap',
+                  lineHeight: 1.7,
+                }}
+              >
                 {mail.initial_instructions}
               </Typography>
-            </Box>
+            </Paper>
           )}
 
-          {/* Handler Remarks — shown for current handler */}
+          {/* Handler Remarks */}
           {isHandler && (
-            <Box
+            <Paper
+              elevation={0}
               sx={{
-                background: HEADER_BLUE_DARK,
-                color: 'white',
-                borderRadius: 1.5,
+                border: `1px solid ${PALETTE.border}`,
+                borderRadius: 1,
                 p: 2.5,
                 mb: 2,
+                backgroundColor: PALETTE.burgundy,
               }}
             >
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
-                <Typography variant="overline" sx={{ opacity: 0.75, letterSpacing: 1 }}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+                <Typography
+                  variant="overline"
+                  sx={{
+                    color: 'rgba(255,255,255,0.8)',
+                    letterSpacing: '0.08em',
+                    fontWeight: 500,
+                  }}
+                >
                   {mail.current_action_remarks ? 'Handler Remarks' : 'Add Remarks'}
                 </Typography>
                 {!remarksEditing && mail.status !== 'Closed' && (
@@ -647,8 +770,10 @@ const MailDetailPage = () => {
                       setRemarksValue(mail.current_action_remarks || '');
                       setRemarksEditing(true);
                     }}
-                    sx={{ color: 'rgba(255,255,255,0.75)' }}
-                    title="Edit remarks"
+                    sx={{
+                      color: 'rgba(255,255,255,0.7)',
+                      '&:hover': { color: '#fff' },
+                    }}
                   >
                     <EditIcon fontSize="small" />
                   </IconButton>
@@ -668,34 +793,49 @@ const MailDetailPage = () => {
                     size="small"
                     autoFocus
                     sx={{
-                      '& .MuiOutlinedInput-root': { color: 'white' },
-                      '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.35)' },
-                      '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': {
-                        borderColor: 'rgba(255,255,255,0.6)',
+                      '& .MuiOutlinedInput-root': {
+                        color: '#fff',
+                        backgroundColor: 'rgba(255,255,255,0.1)',
                       },
-                      '& textarea::placeholder': { color: 'rgba(255,255,255,0.5)' },
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: 'rgba(255,255,255,0.3)',
+                      },
+                      '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': {
+                        borderColor: 'rgba(255,255,255,0.5)',
+                      },
+                      '& textarea::placeholder': {
+                        color: 'rgba(255,255,255,0.5)',
+                      },
                     }}
                   />
-                  <Box display="flex" gap={1} mt={1} justifyContent="flex-end">
+                  <Box display="flex" gap={1} mt={1.5} justifyContent="flex-end">
                     <Button
                       size="small"
-                      startIcon={<CancelIcon />}
+                      startIcon={<CancelIcon sx={{ fontSize: 16 }} />}
                       onClick={() => setRemarksEditing(false)}
                       disabled={remarksSaving}
-                      sx={{ color: 'rgba(255,255,255,0.8)' }}
+                      sx={{
+                        color: 'rgba(255,255,255,0.8)',
+                        textTransform: 'none',
+                        '&:hover': { color: '#fff' },
+                      }}
                     >
                       Cancel
                     </Button>
                     <Button
                       size="small"
                       variant="outlined"
-                      startIcon={<SaveIcon />}
+                      startIcon={<SaveIcon sx={{ fontSize: 16 }} />}
                       onClick={handleSaveRemarks}
                       disabled={remarksSaving}
                       sx={{
-                        color: 'white',
+                        color: '#fff',
                         borderColor: 'rgba(255,255,255,0.5)',
-                        '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' },
+                        textTransform: 'none',
+                        '&:hover': {
+                          borderColor: '#fff',
+                          backgroundColor: 'rgba(255,255,255,0.1)',
+                        },
                       }}
                     >
                       {remarksSaving ? 'Saving...' : 'Save'}
@@ -706,142 +846,224 @@ const MailDetailPage = () => {
                 <Typography
                   variant="body2"
                   sx={{
-                    fontStyle: mail.current_action_remarks ? 'normal' : 'italic',
-                    opacity: mail.current_action_remarks ? 1 : 0.6,
+                    color: mail.current_action_remarks ? '#fff' : 'rgba(255,255,255,0.6)',
                     whiteSpace: 'pre-wrap',
+                    fontStyle: mail.current_action_remarks ? 'normal' : 'italic',
+                    lineHeight: 1.7,
                   }}
                 >
                   {mail.current_action_remarks ||
                     'Remarks of the assigned officer — click the edit icon to fill in.'}
                 </Typography>
               )}
-            </Box>
+            </Paper>
           )}
 
-          {/* PDF Attachment */}
+          {/* PDF Attachments */}
           {mail?.attachment_metadata?.has_attachment && (
-            <Box
+            <Paper
+              elevation={0}
               sx={{
-                border: '1px solid',
-                borderColor: GREEN_BORDER,
-                borderRadius: 1.5,
+                border: `1px solid ${PALETTE.border}`,
+                borderRadius: 1,
                 p: 2,
-                mb: 2,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2,
-                flexWrap: 'wrap',
+                backgroundColor: PALETTE.paper,
               }}
             >
-              <PdfIcon color="error" />
-              <Box flex={1}>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                <PdfIcon sx={{ color: PALETTE.burgundy, fontSize: 20 }} />
+                <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 500 }}>
                   PDF Attachments
                 </Typography>
-                <Stack spacing={1}>
-                  {(mail.attachment_metadata.attachments || []).map((attachment) => (
-                    <Box
-                      key={attachment.id}
-                      sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}
-                    >
-                      <Chip
-                        size="small"
-                        label={attachment.upload_stage === 'closed' ? 'Closing PDF' : 'Created PDF'}
-                        color={attachment.upload_stage === 'closed' ? 'success' : 'default'}
-                      />
-                      <Box sx={{ flex: 1, minWidth: 180 }}>
-                        <Typography variant="body2">
-                          {attachment.original_filename || 'attachment.pdf'}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {[attachment.file_size_human, attachment.uploaded_at ? formatDateTime(attachment.uploaded_at) : null]
-                            .filter(Boolean)
-                            .join(' • ')}
-                        </Typography>
-                      </Box>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<ViewIcon />}
-                        onClick={() => handleViewPdf(attachment.upload_stage)}
-                      >
-                        View
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        onClick={() => handleDownloadPdf(attachment.upload_stage)}
-                      >
-                        Download
-                      </Button>
-                    </Box>
-                  ))}
-                </Stack>
               </Box>
-            </Box>
-          )}
 
+              <Stack spacing={1.5}>
+                {(mail.attachment_metadata.attachments || []).map((attachment) => (
+                  <Box
+                    key={attachment.id}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1.5,
+                      p: 1.5,
+                      backgroundColor: PALETTE.cream,
+                      borderRadius: 1,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        px: 1,
+                        py: 0.25,
+                        backgroundColor:
+                          attachment.upload_stage === 'closed' ? PALETTE.green : PALETTE.subtle,
+                        borderRadius: 0.5,
+                      }}
+                    >
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          fontWeight: 500,
+                          color: attachment.upload_stage === 'closed' ? '#fff' : PALETTE.textSecondary,
+                          fontSize: '0.6875rem',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.02em',
+                        }}
+                      >
+                        {attachment.upload_stage === 'closed' ? 'Closing' : 'Created'}
+                      </Typography>
+                    </Box>
+
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: PALETTE.textPrimary,
+                          fontWeight: 500,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {attachment.original_filename || 'attachment.pdf'}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{ color: PALETTE.textMuted }}
+                      >
+                        {[attachment.file_size_human, attachment.uploaded_at ? formatDateTime(attachment.uploaded_at) : null]
+                          .filter(Boolean)
+                          .join(' • ')}
+                      </Typography>
+                    </Box>
+
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<ViewIcon sx={{ fontSize: 16 }} />}
+                      onClick={() => handleViewPdf(attachment.upload_stage)}
+                      sx={{
+                        borderColor: PALETTE.borderDark,
+                        color: PALETTE.textSecondary,
+                        textTransform: 'none',
+                        fontSize: '0.8125rem',
+                        '&:hover': {
+                          borderColor: PALETTE.textSecondary,
+                          backgroundColor: PALETTE.subtle,
+                        },
+                      }}
+                    >
+                      View
+                    </Button>
+
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => handleDownloadPdf(attachment.upload_stage)}
+                      sx={{
+                        borderColor: PALETTE.borderDark,
+                        color: PALETTE.textSecondary,
+                        textTransform: 'none',
+                        fontSize: '0.8125rem',
+                        '&:hover': {
+                          borderColor: PALETTE.textSecondary,
+                          backgroundColor: PALETTE.subtle,
+                        },
+                      }}
+                    >
+                      Download
+                    </Button>
+                  </Box>
+                ))}
+              </Stack>
+            </Paper>
+          )}
         </Box>
 
-        {/* RIGHT COLUMN — dashed left border acts as the divider */}
+        {/* Right Column */}
         <Box
           sx={{
-            width: '100%',
-            mt: 1,
-            pt: 2,
-            borderTop: '2px dashed',
-            borderColor: 'grey.300',
+            width: { xs: '100%', lg: 280 },
+            flexShrink: 0,
           }}
         >
           {/* Due Date */}
           {mail.due_date && (
-            <Box
+            <Paper
+              elevation={0}
               sx={{
-                border: '2px solid',
-                borderColor: GREEN_BORDER,
-                borderRadius: 1.5,
-                p: 1.5,
+                border: overdue ? `1px solid ${PALETTE.dotRed}` : `1px solid ${PALETTE.border}`,
+                borderRadius: 1,
+                p: 2,
                 mb: 2,
-                textAlign: 'center',
+                backgroundColor: overdue ? 'rgba(139, 42, 42, 0.04)' : PALETTE.paper,
               }}
             >
-              <Typography variant="caption" color="text.secondary" display="block" mb={0.25}>
+              <Typography
+                variant="caption"
+                sx={{
+                  display: 'block',
+                  color: overdue ? PALETTE.burgundy : PALETTE.textSecondary,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  fontWeight: 500,
+                  mb: 0.5,
+                }}
+              >
                 Due Date
               </Typography>
-              <Typography variant="h6" fontWeight={700} color={overdue ? 'error.main' : 'text.primary'}>
+              <Typography
+                variant="h5"
+                sx={{
+                  fontWeight: 500,
+                  color: overdue ? PALETTE.burgundy : PALETTE.textPrimary,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
                 {formatDate(mail.due_date)}
               </Typography>
               {overdue && (
-                <Typography variant="caption" color="error" fontWeight={600}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: PALETTE.burgundy,
+                    fontWeight: 500,
+                  }}
+                >
                   Overdue
                 </Typography>
               )}
-            </Box>
+            </Paper>
           )}
 
-          {/* Action buttons — in right column for handler view */}
-          {isHandler && hasActions && <ActionButtons fullWidth={false} />}
+          {/* Action buttons for handler */}
+          {isHandler && hasActions && <ActionButtons fullWidth />}
 
-          {/* Reopen only (for closed mails, non-handler) */}
+          {/* Reopen only for non-handler */}
           {!isHandler && canReopenMail() && (
             <Button
               variant="outlined"
-              color="error"
-              startIcon={<ReopenIcon />}
+              startIcon={<ReopenIcon sx={{ fontSize: 18 }} />}
               onClick={() => setReopenDialogOpen(true)}
               fullWidth
+              sx={{
+                borderColor: PALETTE.dotRed,
+                color: PALETTE.dotRed,
+                textTransform: 'none',
+                fontWeight: 500,
+                '&:hover': {
+                  borderColor: PALETTE.burgundy,
+                  backgroundColor: 'rgba(107, 26, 26, 0.04)',
+                },
+              }}
             >
               Reopen
             </Button>
           )}
         </Box>
-
       </Box>
 
-      {/* ── AUDIT TRAIL / ASSIGNMENT HISTORY ────────────────────────────── */}
-      <Box sx={{ mt: 1 }}>
-
-        {/* Section header row */}
+      {/* Audit Trail */}
+      <Box>
         <Box
           sx={{
             display: 'flex',
@@ -849,22 +1071,27 @@ const MailDetailPage = () => {
             alignItems: 'center',
             flexWrap: 'wrap',
             gap: 1,
-            mb: 1,
+            mb: 1.5,
           }}
         >
-          <Typography variant="h6" fontWeight={700}>
-            Audit Trail / Assignment History
+          <Typography
+            variant="h6"
+            sx={{
+              fontSize: '1.125rem',
+              fontWeight: 500,
+              color: PALETTE.textPrimary,
+            }}
+          >
+            Audit Trail
           </Typography>
 
-          {/* Watcher view: action buttons appear here (beside the heading) */}
-          {!isHandler && hasActions && !canReopenMail() && (
-            <ActionButtons fullWidth={false} />
-          )}
+          {/* Watcher view: action buttons */}
+          {!isHandler && hasActions && !canReopenMail() && <ActionButtons />}
         </Box>
 
-        <Divider sx={{ borderStyle: 'dashed', mb: 2 }} />
+        <Divider sx={{ mb: 2, borderColor: PALETTE.border }} />
 
-        {/* Assignment table (multi-assigned mails only) */}
+        {/* Assignment tables for multi-assigned */}
         {mail.is_multi_assigned && mailAssignments.length > 0 && (
           <Box sx={{ mb: 2 }}>
             {(topLevelAssignments.length > 0 ? topLevelAssignments : mailAssignments).map((assignment) => {
@@ -880,49 +1107,72 @@ const MailDetailPage = () => {
           </Box>
         )}
 
+        {/* Main audit table */}
         <Paper
           elevation={0}
           sx={{
-            border: '1px solid',
-            borderColor: GREEN_BORDER,
-            borderRadius: 2,
+            border: `1px solid ${PALETTE.border}`,
+            borderRadius: 1,
             overflow: 'hidden',
+            backgroundColor: PALETTE.paper,
           }}
         >
           {sortedAuditTrail.length === 0 ? (
             <Box sx={{ p: 3 }}>
-              <Typography variant="body2" color="text.secondary">No history available</Typography>
+              <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
+                No history available
+              </Typography>
             </Box>
           ) : (
             <Table size="small">
               <TableHead>
-                <TableRow sx={{ bgcolor: HEAD_LIGHT }}>
-                  <TableCell sx={{ fontWeight: 700, width: '18%' }}>By</TableCell>
-                  <TableCell sx={{ fontWeight: 700, width: '15%' }}>Action</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Remarks</TableCell>
-                  <TableCell sx={{ fontWeight: 700, width: '18%' }}>When</TableCell>
+                <TableRow sx={{ backgroundColor: PALETTE.subtle }}>
+                  <TableCell sx={{ fontWeight: 500, width: '18%', color: PALETTE.textPrimary }}>By</TableCell>
+                  <TableCell sx={{ fontWeight: 500, width: '15%', color: PALETTE.textPrimary }}>Action</TableCell>
+                  <TableCell sx={{ fontWeight: 500, color: PALETTE.textPrimary }}>Remarks</TableCell>
+                  <TableCell sx={{ fontWeight: 500, width: '18%', color: PALETTE.textPrimary }}>When</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {sortedAuditTrail.map((entry, idx) => (
-                  <TableRow key={idx} sx={{ bgcolor: idx % 2 === 0 ? ROW_LIGHT : 'inherit' }}>
+                  <TableRow
+                    key={idx}
+                    sx={{
+                      backgroundColor: idx % 2 === 0 ? 'inherit' : PALETTE.cream,
+                      '&:hover': { backgroundColor: PALETTE.cream },
+                      '&:last-child .MuiTableCell-root': { borderBottom: 'none' },
+                    }}
+                  >
                     <TableCell>
-                      <Typography variant="body2">
+                      <Typography variant="body2" sx={{ color: PALETTE.textPrimary }}>
                         {entry.performed_by_details?.full_name || '-'}
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2">
+                      <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
                         {entry.action_display || entry.action}
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: PALETTE.textSecondary,
+                          whiteSpace: 'pre-wrap',
+                        }}
+                      >
                         {entry.remarks || '-'}
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" noWrap>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: PALETTE.textMuted,
+                          fontVariantNumeric: 'tabular-nums',
+                        }}
+                        noWrap
+                      >
                         {formatDateTime(entry.timestamp)}
                       </Typography>
                     </TableCell>
@@ -932,10 +1182,9 @@ const MailDetailPage = () => {
             </Table>
           )}
         </Paper>
-
       </Box>
 
-      {/* ── DIALOGS (unchanged) ──────────────────────────────────────────── */}
+      {/* Dialogs */}
       <ReassignDialog
         open={reassignDialogOpen}
         onClose={() => setReassignDialogOpen(false)}

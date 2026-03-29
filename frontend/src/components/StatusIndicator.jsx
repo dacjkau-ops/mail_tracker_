@@ -2,46 +2,40 @@ import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { STATUS_INDICATOR, PALETTE } from '../utils/constants';
 
-/**
- * StatusIndicator - Minimal dot + text status display
- * Institutional, data-product aesthetic
- */
 const StatusIndicator = ({
   status,
-  size = 'default',        // 'small' | 'default'
+  size = 'default',
   showDot = true,
   customLabel,
   customColor,
-  overdue = false,
+  overdue: _overdue = false,
   sx = {},
 }) => {
-  // Get status config or fallback to gray
   const config = STATUS_INDICATOR[status] || {
     dotColor: PALETTE.dotGray,
     label: status || 'Unknown',
     textColor: PALETTE.textSecondary,
+    fontWeight: 400,
   };
 
-  // Override for overdue items
-  const dotColor = overdue ? PALETTE.dotRed : (customColor || config.dotColor);
-  const label = customLabel || (overdue ? `${config.label} (Overdue)` : config.label);
-  const textColor = overdue ? PALETTE.burgundy : (customColor || config.textColor);
-
-  // Size variants
   const sizeConfig = {
     small: {
-      dotSize: 5,
-      fontSize: '0.75rem',
-      gap: 0.75,
+      dotSize: 7,
+      fontSize: '12px',
+      gap: '5px',
     },
     default: {
-      dotSize: 6,
-      fontSize: '0.875rem',
-      gap: 1,
+      dotSize: 7,
+      fontSize: '12px',
+      gap: '5px',
     },
   };
 
   const { dotSize, fontSize, gap } = sizeConfig[size];
+  const dotColor = customColor || config.dotColor;
+  const label = customLabel || config.label;
+  const textColor = customColor || config.textColor;
+  const fontWeight = config.fontWeight || 400;
 
   return (
     <Box
@@ -66,9 +60,9 @@ const StatusIndicator = ({
       <Typography
         sx={{
           fontSize,
-          fontWeight: 500,
+          fontWeight,
           color: textColor,
-          lineHeight: 1.5,
+          lineHeight: 1.4,
         }}
       >
         {label}
@@ -77,25 +71,26 @@ const StatusIndicator = ({
   );
 };
 
-/**
- * OverdueBadge - Subtle indicator for overdue items
- */
 export const OverdueBadge = ({ children }) => (
   <Box
     sx={{
       display: 'inline-flex',
       alignItems: 'center',
-      px: 1,
-      py: 0.25,
-      backgroundColor: 'rgba(139, 42, 42, 0.08)',
-      borderRadius: 1,
+      mt: 0.5,
+      px: '5px',
+      py: '1px',
+      backgroundColor: PALETTE.overdueBg,
+      border: `1px solid ${PALETTE.overdueBorder}`,
+      borderRadius: '3px',
     }}
   >
     <Typography
       sx={{
-        fontSize: '0.75rem',
+        fontSize: '10px',
         fontWeight: 500,
-        color: PALETTE.burgundy,
+        color: PALETTE.overdueText,
+        lineHeight: 1.2,
+        textTransform: 'uppercase',
       }}
     >
       {children}
@@ -103,9 +98,6 @@ export const OverdueBadge = ({ children }) => (
   </Box>
 );
 
-/**
- * AssignmentStatusIndicator - For assignment-specific statuses
- */
 export const AssignmentStatusIndicator = ({ status }) => {
   const config = {
     Active: { dotColor: PALETTE.dotAmber, label: 'Active' },
@@ -118,13 +110,13 @@ export const AssignmentStatusIndicator = ({ status }) => {
       sx={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 1,
+        gap: '5px',
       }}
     >
       <Box
         sx={{
-          width: 5,
-          height: 5,
+          width: 7,
+          height: 7,
           borderRadius: '50%',
           backgroundColor: config.dotColor,
           flexShrink: 0,
@@ -132,8 +124,8 @@ export const AssignmentStatusIndicator = ({ status }) => {
       />
       <Typography
         sx={{
-          fontSize: '0.75rem',
-          fontWeight: 500,
+          fontSize: '12px',
+          fontWeight: 400,
           color: PALETTE.textSecondary,
         }}
       >

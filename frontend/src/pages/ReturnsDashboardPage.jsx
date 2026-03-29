@@ -4,7 +4,6 @@ import {
   Alert,
   Box,
   Button,
-  Chip,
   CircularProgress,
   FormControl,
   InputLabel,
@@ -25,7 +24,9 @@ import {
 } from '@mui/icons-material';
 import returnsService from '../services/returnsService';
 import { formatDate } from '../utils/dateHelpers';
+import { OverdueBadge } from '../components/StatusIndicator';
 import { useAuth } from '../context/AuthContext';
+import { PALETTE } from '../utils/constants';
 
 const getCurrentPeriodValue = () => {
   const now = new Date();
@@ -39,17 +40,26 @@ const parsePeriod = (value) => {
 };
 
 const summaryCards = [
-  { key: 'total_count', label: 'Total Due', color: '#294f75' },
-  { key: 'pending_count', label: 'Pending', color: '#8c3b45' },
-  { key: 'submitted_count', label: 'Submitted', color: '#3d7a53' },
-  { key: 'overdue_count', label: 'Overdue', color: '#9b3d2e' },
+  { key: 'total_count', label: 'Total Due', color: PALETTE.textPrimary },
+  { key: 'pending_count', label: 'Pending', color: PALETTE.amber },
+  { key: 'submitted_count', label: 'Submitted', color: PALETTE.green },
+  { key: 'overdue_count', label: 'Overdue', color: PALETTE.dotRed },
 ];
 
-const frequencyColor = {
-  monthly: 'primary',
-  quarterly: 'secondary',
-  annual: 'default',
+const frequencyText = {
+  monthly: PALETTE.textPrimary,
+  quarterly: PALETTE.amber,
+  annual: PALETTE.textSecondary,
 };
+
+const DotLabel = ({ label, dotColor, textColor, fontWeight = 400 }) => (
+  <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+    <Box sx={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: dotColor }} />
+    <Typography sx={{ fontSize: 12, color: textColor, fontWeight }}>
+      {label}
+    </Typography>
+  </Box>
+);
 
 const ReturnsDashboardPage = () => {
   const navigate = useNavigate();
@@ -78,7 +88,7 @@ const ReturnsDashboardPage = () => {
         });
         if (!active) return;
         setDashboard(data);
-      } catch (err) {
+      } catch (loadError) {
         if (!active) return;
         setError('Failed to load the current returns dashboard.');
       } finally {
@@ -102,8 +112,8 @@ const ReturnsDashboardPage = () => {
         section: selectedSection || undefined,
       });
       setDashboard(refreshed);
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to mark the return as submitted.');
+    } catch (submitError) {
+      setError(submitError.response?.data?.error || 'Failed to mark the return as submitted.');
     } finally {
       setSubmittingId(null);
     }
@@ -118,34 +128,42 @@ const ReturnsDashboardPage = () => {
   return (
     <Box>
       <Paper
+        elevation={0}
         sx={{
-          p: 3,
-          mb: 3,
-          borderRadius: 4,
-          color: 'white',
-          background: 'linear-gradient(135deg, #5b2538 0%, #ab594f 100%)',
+          p: 2.5,
+          mb: 2,
+          border: `1px solid ${PALETTE.border}`,
+          boxShadow: PALETTE.shadow,
         }}
       >
-        <Typography variant="overline" sx={{ opacity: 0.8 }}>
+        <Typography variant="overline" sx={{ color: PALETTE.textMuted }}>
           Current Filing Window
         </Typography>
-        <Typography variant="h4" component="h1" sx={{ fontWeight: 700, mb: 1 }}>
+        <Typography component="h1" sx={{ fontSize: '16px', fontWeight: 500, mb: 0.75 }}>
           Calendar of Returns
         </Typography>
-        <Typography variant="body1" sx={{ maxWidth: 760, opacity: 0.92 }}>
-          Track section-wise pending reports for the current month. Submitted items automatically
-          move to the historical archive with their processed date and user log.
+        <Typography variant="body2" sx={{ maxWidth: 760, color: PALETTE.textSecondary }}>
+          Track section-wise pending reports for the current month. Submitted items move into the
+          archive with their processed date and user log.
         </Typography>
       </Paper>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
           {error}
         </Alert>
       )}
 
-      <Paper sx={{ p: 2, mb: 3, borderRadius: 3 }}>
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+      <Paper
+        elevation={0}
+        sx={{
+          p: 1.5,
+          mb: 2,
+          border: `1px solid ${PALETTE.border}`,
+          boxShadow: PALETTE.shadow,
+        }}
+      >
+        <Box sx={{ display: 'flex', gap: 1.25, flexWrap: 'wrap', alignItems: 'center' }}>
           <FormControl size="small" sx={{ minWidth: 180 }}>
             <InputLabel shrink htmlFor="returns-period">
               Month
@@ -158,13 +176,12 @@ const ReturnsDashboardPage = () => {
               onChange={(event) => setPeriod(event.target.value)}
               sx={{
                 height: 40,
-                px: 1.75,
-                borderRadius: 1,
-                border: '1px solid',
-                borderColor: 'divider',
+                px: 1.5,
+                borderRadius: `${PALETTE.radiusButton}px`,
+                border: `1px solid ${PALETTE.border}`,
                 font: 'inherit',
-                color: 'text.primary',
-                backgroundColor: 'background.paper',
+                color: PALETTE.textPrimary,
+                backgroundColor: PALETTE.paper,
               }}
             />
           </FormControl>
@@ -187,15 +204,15 @@ const ReturnsDashboardPage = () => {
             </FormControl>
           )}
 
-          <Button variant="outlined" startIcon={<HistoryIcon />} onClick={handleOpenHistory}>
+          <Button variant="outlined" startIcon={<HistoryIcon />} onClick={handleOpenHistory} sx={{ ml: 'auto' }}>
             Open History
           </Button>
         </Box>
       </Paper>
 
       {loading ? (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="280px">
-          <CircularProgress />
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="240px">
+          <CircularProgress color="primary" />
         </Box>
       ) : (
         <>
@@ -204,18 +221,26 @@ const ReturnsDashboardPage = () => {
               display: 'grid',
               gridTemplateColumns: { xs: '1fr', md: 'repeat(4, minmax(0, 1fr))' },
               gap: 2,
-              mb: 3,
+              mb: 2,
             }}
           >
             {summaryCards.map((card) => (
-              <Paper key={card.key} sx={{ p: 2.5, borderRadius: 3 }}>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
+              <Paper
+                key={card.key}
+                elevation={0}
+                sx={{
+                  p: 2,
+                  border: `1px solid ${PALETTE.border}`,
+                  boxShadow: PALETTE.shadow,
+                }}
+              >
+                <Typography variant="body2" sx={{ color: PALETTE.textSecondary, mb: 0.5 }}>
                   {card.label}
                 </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 700, color: card.color }}>
+                <Typography variant="h4" sx={{ fontWeight: 500, color: card.color }}>
                   {dashboard?.summary?.[card.key] ?? 0}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" sx={{ color: PALETTE.textMuted }}>
                   {dashboard?.month_label || ''}
                 </Typography>
               </Paper>
@@ -223,8 +248,8 @@ const ReturnsDashboardPage = () => {
           </Box>
 
           {isSectionSelectable && (dashboard?.section_overview?.length || 0) > 0 && (
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="h6" sx={{ mb: 1.5, fontWeight: 700 }}>
+            <Box sx={{ mb: 2 }}>
+              <Typography sx={{ mb: 1.25, fontSize: '14px', fontWeight: 500, color: PALETTE.textPrimary }}>
                 Section Overview
               </Typography>
               <Box
@@ -235,17 +260,25 @@ const ReturnsDashboardPage = () => {
                 }}
               >
                 {dashboard.section_overview.map((section) => (
-                  <Paper key={section.section} sx={{ p: 2, borderRadius: 3 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
+                  <Paper
+                    key={section.section}
+                    elevation={0}
+                    sx={{
+                      p: 2,
+                      border: `1px solid ${PALETTE.border}`,
+                      boxShadow: PALETTE.shadow,
+                    }}
+                  >
+                    <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 500 }}>
                       {section.section_name}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
                       Pending: {section.pending_count}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
                       Submitted: {section.submitted_count}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
                       Overdue: {section.overdue_count}
                     </Typography>
                   </Paper>
@@ -254,18 +287,48 @@ const ReturnsDashboardPage = () => {
             </Box>
           )}
 
-          <Paper sx={{ p: 2.5, borderRadius: 3 }}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} gap={2} flexWrap="wrap">
+          <Paper
+            elevation={0}
+            sx={{
+              p: 2,
+              border: `1px solid ${PALETTE.border}`,
+              boxShadow: PALETTE.shadow,
+            }}
+          >
+            <Box
+              sx={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 2,
+                flexWrap: 'wrap',
+                mb: 2,
+              }}
+            >
               <Box>
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                <Typography sx={{ fontSize: '14px', fontWeight: 500, color: PALETTE.textPrimary }}>
                   Pending Returns
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
                   {dashboard?.month_label}
                 </Typography>
               </Box>
               {dashboard?.selected_section && (
-                <Chip label={dashboard.selected_section.name} color="secondary" variant="outlined" />
+                <Box
+                  sx={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    minHeight: 28,
+                    px: 1,
+                    border: `1px solid ${PALETTE.border}`,
+                    borderRadius: `${PALETTE.radiusButton}px`,
+                    color: PALETTE.textSecondary,
+                    fontSize: '0.75rem',
+                    fontWeight: 500,
+                  }}
+                >
+                  {dashboard.selected_section.name}
+                </Box>
               )}
             </Box>
 
@@ -273,7 +336,7 @@ const ReturnsDashboardPage = () => {
               dashboard?.summary?.total_count ? (
                 <Alert severity="success" icon={<CheckCircleOutlineIcon fontSize="inherit" />}>
                   All returns for {dashboard.month_label} have been submitted. Use history to review
-                  the processed dates and delays.
+                  processed dates and delays.
                 </Alert>
               ) : (
                 <Alert severity="info">
@@ -298,33 +361,35 @@ const ReturnsDashboardPage = () => {
                       <TableRow key={entry.id} hover>
                         <TableCell>
                           <Typography variant="subtitle2">{entry.report_name_snapshot}</Typography>
-                          <Typography variant="caption" color="text.secondary">
+                          <Typography variant="caption" sx={{ color: PALETTE.textSecondary }}>
                             {entry.report_code_snapshot}
                           </Typography>
                         </TableCell>
                         <TableCell>
-                          <Chip
-                            size="small"
-                            label={entry.frequency_snapshot}
-                            color={frequencyColor[entry.frequency_snapshot] || 'default'}
-                          />
+                          <Typography variant="body2" sx={{ color: frequencyText[entry.frequency_snapshot] || PALETTE.textSecondary }}>
+                            {entry.frequency_snapshot}
+                          </Typography>
                         </TableCell>
                         {isSectionSelectable && !selectedSection && <TableCell>{entry.section_name}</TableCell>}
                         <TableCell>
                           <Typography variant="body2">{formatDate(entry.due_date)}</Typography>
-                          {entry.is_overdue && (
-                            <Typography variant="caption" color="error">
-                              Overdue
-                            </Typography>
-                          )}
+                          {entry.is_overdue && <OverdueBadge>Overdue</OverdueBadge>}
                         </TableCell>
                         <TableCell>
-                          <Chip
-                            size="small"
-                            label={entry.status}
-                            color={entry.is_overdue ? 'error' : 'warning'}
-                            variant={entry.is_overdue ? 'filled' : 'outlined'}
-                          />
+                          {entry.is_overdue ? (
+                            <DotLabel
+                              label="Overdue"
+                              dotColor={PALETTE.dotRed}
+                              textColor={PALETTE.overdueText}
+                              fontWeight={500}
+                            />
+                          ) : (
+                            <DotLabel
+                              label={entry.status}
+                              dotColor={PALETTE.amber}
+                              textColor={PALETTE.amber}
+                            />
+                          )}
                         </TableCell>
                         <TableCell align="right">
                           {entry.can_submit ? (
@@ -333,11 +398,17 @@ const ReturnsDashboardPage = () => {
                               size="small"
                               onClick={() => handleSubmit(entry.id)}
                               disabled={submittingId === entry.id}
+                              sx={{
+                                backgroundColor: PALETTE.burgundy,
+                                '&:hover': {
+                                  backgroundColor: PALETTE.burgundyDark,
+                                },
+                              }}
                             >
                               {submittingId === entry.id ? 'Submitting...' : 'Mark Submitted'}
                             </Button>
                           ) : (
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography variant="caption" sx={{ color: PALETTE.textSecondary }}>
                               View only
                             </Typography>
                           )}
@@ -356,4 +427,3 @@ const ReturnsDashboardPage = () => {
 };
 
 export default ReturnsDashboardPage;
-
