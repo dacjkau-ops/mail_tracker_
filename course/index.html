@@ -1,0 +1,1888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How the Mail Tracker Works — An Interactive Code Tour</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* ===== DESIGN SYSTEM ===== */
+    :root {
+      /* Backgrounds */
+      --color-bg: #FAF7F2;
+      --color-bg-warm: #F5F0E8;
+      --color-bg-code: #1E1E2E;
+      --color-text: #2C2A28;
+      --color-text-secondary: #6B6560;
+      --color-text-muted: #9E9790;
+      --color-border: #E5DFD6;
+      --color-border-light: #EEEBE5;
+      --color-surface: #FFFFFF;
+      --color-surface-warm: #FDF9F3;
+
+      /* Accent - teal for government/professional feel */
+      --color-accent: #2A7B9B;
+      --color-accent-hover: #236B87;
+      --color-accent-light: #E4F2F7;
+      --color-accent-muted: #5BA3C0;
+
+      /* Semantic */
+      --color-success: #2D8B55;
+      --color-success-light: #E8F5EE;
+      --color-error: #C93B3B;
+      --color-error-light: #FDE8E8;
+      --color-info: #6B5DD3;
+      --color-info-light: #EEEBF8;
+
+      /* Actor colors */
+      --color-actor-1: #2A7B9B;  /* Backend/API */
+      --color-actor-2: #D4A843;  /* Frontend */
+      --color-actor-3: #7B6DAA;  /* Database */
+      --color-actor-4: #2D8B55;  /* Auth/Security */
+      --color-actor-5: #D94F30;  /* User actions */
+
+      /* Typography */
+      --font-display: 'Bricolage Grotesque', Georgia, serif;
+      --font-body: 'DM Sans', -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+      --text-xs: 0.75rem;
+      --text-sm: 0.875rem;
+      --text-base: 1rem;
+      --text-lg: 1.125rem;
+      --text-xl: 1.25rem;
+      --text-2xl: 1.5rem;
+      --text-3xl: 1.875rem;
+      --text-4xl: 2.25rem;
+      --text-5xl: 3rem;
+      --text-6xl: 3.75rem;
+
+      --leading-tight: 1.15;
+      --leading-snug: 1.3;
+      --leading-normal: 1.6;
+
+      /* Spacing */
+      --space-1: 0.25rem;
+      --space-2: 0.5rem;
+      --space-3: 0.75rem;
+      --space-4: 1rem;
+      --space-5: 1.25rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+      --space-10: 2.5rem;
+      --space-12: 3rem;
+      --space-16: 4rem;
+      --space-20: 5rem;
+      --space-24: 6rem;
+
+      --content-width: 800px;
+      --content-width-wide: 1000px;
+      --nav-height: 50px;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-full: 9999px;
+
+      /* Shadows */
+      --shadow-sm: 0 1px 2px rgba(44, 42, 40, 0.05);
+      --shadow-md: 0 4px 12px rgba(44, 42, 40, 0.08);
+      --shadow-lg: 0 8px 24px rgba(44, 42, 40, 0.1);
+      --shadow-xl: 0 16px 48px rgba(44, 42, 40, 0.12);
+
+      /* Animations */
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+      --duration-fast: 150ms;
+      --duration-normal: 300ms;
+      --duration-slow: 500ms;
+      --stagger-delay: 120ms;
+    }
+
+    /* ===== RESET & BASE ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html {
+      scroll-behavior: smooth;
+      scroll-snap-type: y proximity;
+    }
+    body {
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      line-height: var(--leading-normal);
+      color: var(--color-text);
+      background: var(--color-bg);
+      background-image: radial-gradient(ellipse at 20% 50%, rgba(42, 123, 155, 0.03) 0%, transparent 50%);
+    }
+    pre, code { white-space: pre-wrap; word-break: break-word; overflow-x: hidden; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: var(--radius-full); }
+
+    /* ===== NAVIGATION ===== */
+    .nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--nav-height);
+      background: rgba(250, 247, 242, 0.95);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--color-border);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-6);
+    }
+    .progress-bar {
+      position: absolute;
+      bottom: 0; left: 0;
+      height: 2px;
+      background: var(--color-accent);
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: var(--content-width-wide);
+      margin: 0 auto;
+    }
+    .nav-title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: var(--text-base);
+      color: var(--color-text);
+    }
+    .nav-dots {
+      display: flex;
+      gap: var(--space-2);
+    }
+    .nav-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      border: 2px solid var(--color-text-muted);
+      background: transparent;
+      cursor: pointer;
+      transition: all var(--duration-fast);
+    }
+    .nav-dot:hover { border-color: var(--color-accent); }
+    .nav-dot.current { border-color: var(--color-accent); background: var(--color-accent); box-shadow: 0 0 0 2px var(--color-accent-light); }
+    .nav-dot.visited { background: var(--color-accent); border-color: var(--color-accent); }
+
+    /* ===== MODULES ===== */
+    .module {
+      min-height: 100vh;
+      min-height: 100dvh;
+      scroll-snap-align: start;
+      padding: var(--space-16) var(--space-6);
+      padding-top: calc(var(--nav-height) + var(--space-12));
+      position: relative;
+    }
+    .module:nth-child(even) { background: var(--color-bg); }
+    .module:nth-child(odd) { background: var(--color-bg-warm); }
+    .module-content {
+      max-width: var(--content-width);
+      margin: 0 auto;
+    }
+    .module-header { margin-bottom: var(--space-12); }
+    .module-number {
+      font-family: var(--font-display);
+      font-size: var(--text-6xl);
+      font-weight: 800;
+      color: var(--color-accent);
+      opacity: 0.15;
+      line-height: 1;
+      display: block;
+      margin-bottom: var(--space-4);
+    }
+    .module-title {
+      font-family: var(--font-display);
+      font-size: var(--text-4xl);
+      font-weight: 700;
+      line-height: var(--leading-tight);
+      margin-bottom: var(--space-4);
+    }
+    .module-subtitle {
+      font-size: var(--text-lg);
+      color: var(--color-text-secondary);
+      max-width: 600px;
+    }
+
+    /* ===== SCREENS ===== */
+    .screen { margin-bottom: var(--space-12); }
+    .screen-heading {
+      font-family: var(--font-display);
+      font-size: var(--text-2xl);
+      font-weight: 600;
+      margin-bottom: var(--space-4);
+      color: var(--color-text);
+    }
+    .screen > p {
+      margin-bottom: var(--space-4);
+      max-width: 680px;
+    }
+    .screen > p:last-child { margin-bottom: 0; }
+
+    /* ===== ANIMATION ===== */
+    .animate-in {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity var(--duration-slow) var(--ease-out), transform var(--duration-slow) var(--ease-out);
+    }
+    .animate-in.visible { opacity: 1; transform: translateY(0); }
+    .stagger-children > .animate-in { transition-delay: calc(var(--stagger-index, 0) * var(--stagger-delay)); }
+
+    /* ===== CODE TRANSLATION ===== */
+    .translation-block {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      box-shadow: var(--shadow-md);
+      margin: var(--space-8) 0;
+    }
+    .translation-code {
+      background: var(--color-bg-code);
+      color: #CDD6F4;
+      padding: var(--space-6);
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      line-height: 1.7;
+      position: relative;
+    }
+    .translation-english {
+      background: var(--color-surface-warm);
+      padding: var(--space-6);
+      font-size: var(--text-sm);
+      line-height: 1.7;
+      border-left: 3px solid var(--color-accent);
+    }
+    .translation-label {
+      position: absolute;
+      top: var(--space-2);
+      right: var(--space-3);
+      font-size: var(--text-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      opacity: 0.5;
+      font-family: var(--font-mono);
+    }
+    .translation-english .translation-label {
+      position: static;
+      display: block;
+      margin-bottom: var(--space-3);
+      color: var(--color-text-muted);
+      opacity: 1;
+    }
+    .translation-lines p { margin-bottom: var(--space-3); color: var(--color-text-secondary); }
+    .translation-lines p:last-child { margin-bottom: 0; }
+
+    /* Syntax highlighting */
+    .code-keyword { color: #CBA6F7; }
+    .code-string { color: #A6E3A1; }
+    .code-function { color: #89B4FA; }
+    .code-comment { color: #6C7086; }
+    .code-number { color: #FAB387; }
+    .code-property { color: #F9E2AF; }
+    .code-operator { color: #94E2D5; }
+    .code-tag { color: #F38BA8; }
+    .code-attr { color: #F9E2AF; }
+    .code-value { color: #A6E3A1; }
+
+    @media (max-width: 768px) {
+      .translation-block { grid-template-columns: 1fr; }
+      .translation-english { border-left: none; border-top: 3px solid var(--color-accent); }
+    }
+
+    /* ===== CALLOUTS ===== */
+    .callout {
+      display: flex;
+      gap: var(--space-4);
+      padding: var(--space-5);
+      border-radius: var(--radius-md);
+      margin: var(--space-6) 0;
+      background: var(--color-surface);
+      border-left: 4px solid var(--color-accent);
+    }
+    .callout-icon { font-size: 1.5rem; flex-shrink: 0; }
+    .callout-title { font-weight: 600; display: block; margin-bottom: var(--space-1); }
+    .callout-accent { border-left-color: var(--color-accent); background: var(--color-accent-light); }
+    .callout-info { border-left-color: var(--color-info); background: var(--color-info-light); }
+    .callout-warning { border-left-color: var(--color-error); background: var(--color-error-light); }
+
+    /* ===== PATTERN CARDS ===== */
+    .pattern-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: var(--space-4);
+      margin: var(--space-6) 0;
+    }
+    .pattern-card {
+      background: var(--color-surface);
+      border-radius: var(--radius-md);
+      padding: var(--space-6);
+      box-shadow: var(--shadow-sm);
+      transition: transform var(--duration-normal) var(--ease-out), box-shadow var(--duration-normal);
+      border-top: 3px solid var(--color-accent);
+    }
+    .pattern-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-md);
+    }
+    .pattern-icon {
+      width: 48px; height: 48px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.25rem; margin-bottom: var(--space-3);
+      background: var(--color-accent); color: white;
+    }
+    .pattern-title { font-weight: 600; margin-bottom: var(--space-2); }
+    .pattern-desc { font-size: var(--text-sm); color: var(--color-text-secondary); margin: 0; }
+
+    /* ===== ICON ROWS ===== */
+    .icon-rows { display: flex; flex-direction: column; gap: var(--space-4); margin: var(--space-6) 0; }
+    .icon-row {
+      display: flex; align-items: center; gap: var(--space-4);
+      padding: var(--space-4);
+      background: var(--color-surface);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-sm);
+    }
+    .icon-row p { margin: 0; color: var(--color-text-secondary); font-size: var(--text-sm); }
+    .icon-circle {
+      width: 48px; height: 48px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.25rem; flex-shrink: 0;
+    }
+
+    /* ===== FILE TREE ===== */
+    .file-tree { font-family: var(--font-mono); font-size: var(--text-sm); margin: var(--space-6) 0; }
+    .ft-folder, .ft-file {
+      padding: var(--space-2) var(--space-3);
+      border-left: 2px solid var(--color-border-light);
+      margin-left: var(--space-4);
+    }
+    .ft-folder > .ft-name { color: var(--color-accent); font-weight: 600; }
+    .ft-folder > .ft-name::before { content: '📁 '; }
+    .ft-file > .ft-name::before { content: '📄 '; }
+    .ft-desc {
+      color: var(--color-text-secondary);
+      font-family: var(--font-body);
+      margin-left: var(--space-2);
+      font-size: var(--text-xs);
+    }
+    .ft-children { margin-left: var(--space-4); }
+
+    /* ===== FLOW STEPS ===== */
+    .flow-steps {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-4);
+      margin: var(--space-8) 0;
+      flex-wrap: wrap;
+    }
+    .flow-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      max-width: 140px;
+    }
+    .flow-step-num {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: var(--color-accent);
+      color: white; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-display);
+      margin-bottom: var(--space-2);
+    }
+    .flow-arrow {
+      font-size: 1.5rem;
+      color: var(--color-text-muted);
+      font-weight: 300;
+    }
+    .flow-step p { font-size: var(--text-sm); color: var(--color-text-secondary); margin: 0; }
+    @media (max-width: 480px) {
+      .flow-steps { flex-direction: column; }
+      .flow-arrow { transform: rotate(90deg); }
+    }
+
+    /* ===== STEP CARDS ===== */
+    .step-cards { display: flex; flex-direction: column; gap: var(--space-3); margin: var(--space-6) 0; }
+    .step-card {
+      display: flex; align-items: flex-start; gap: var(--space-4);
+      padding: var(--space-4) var(--space-5);
+      background: var(--color-surface);
+      border-radius: var(--radius-md);
+      border-left: 3px solid var(--color-accent);
+      box-shadow: var(--shadow-sm);
+    }
+    .step-num {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--color-accent);
+      color: white; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-display);
+      flex-shrink: 0;
+    }
+    .step-body p { margin: var(--space-1) 0 0; color: var(--color-text-secondary); font-size: var(--text-sm); }
+
+    /* ===== QUIZ ===== */
+    .quiz-container { margin: var(--space-6) 0; }
+    .quiz-question-block { margin-bottom: var(--space-6); }
+    .quiz-question { font-weight: 600; margin-bottom: var(--space-4); }
+    .quiz-options { display: flex; flex-direction: column; gap: var(--space-2); }
+    .quiz-option {
+      display: flex; align-items: center; gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      border: 2px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-surface);
+      cursor: pointer;
+      transition: border-color var(--duration-fast), background var(--duration-fast);
+      text-align: left;
+      font-family: inherit;
+      font-size: var(--text-base);
+      width: 100%;
+    }
+    .quiz-option:hover { border-color: var(--color-accent-muted); }
+    .quiz-option.selected { border-color: var(--color-accent); background: var(--color-accent-light); }
+    .quiz-option.correct { border-color: var(--color-success); background: var(--color-success-light); }
+    .quiz-option.incorrect { border-color: var(--color-error); background: var(--color-error-light); }
+    .quiz-option-radio {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid var(--color-border);
+      flex-shrink: 0;
+    }
+    .quiz-option.selected .quiz-option-radio {
+      border-color: var(--color-accent);
+      background: var(--color-accent);
+      box-shadow: inset 0 0 0 3px white;
+    }
+    .quiz-feedback {
+      max-height: 0; overflow: hidden; opacity: 0;
+      transition: max-height var(--duration-normal), opacity var(--duration-normal);
+      margin-top: var(--space-2);
+      border-radius: var(--radius-sm);
+      padding: 0 var(--space-3);
+    }
+    .quiz-feedback.show { max-height: 200px; opacity: 1; padding: var(--space-3); }
+    .quiz-feedback.success { background: var(--color-success-light); color: var(--color-success); }
+    .quiz-feedback.error { background: var(--color-error-light); color: var(--color-error); }
+    .quiz-check-btn, .quiz-reset-btn {
+      padding: var(--space-3) var(--space-6);
+      border-radius: var(--radius-sm);
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      margin-right: var(--space-3);
+      font-family: inherit;
+    }
+    .quiz-check-btn { background: var(--color-accent); color: white; }
+    .quiz-check-btn:hover { background: var(--color-accent-hover); }
+    .quiz-reset-btn { background: var(--color-border); color: var(--color-text); }
+
+    /* ===== TOOLTIPS ===== */
+    .term {
+      border-bottom: 1.5px dashed var(--color-accent-muted);
+      cursor: pointer;
+      position: relative;
+    }
+    .term:hover, .term.active {
+      border-bottom-color: var(--color-accent);
+      color: var(--color-accent);
+    }
+    .term-tooltip {
+      position: fixed;
+      background: var(--color-bg-code);
+      color: #CDD6F4;
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-sm);
+      font-size: var(--text-sm);
+      font-family: var(--font-body);
+      line-height: var(--leading-normal);
+      width: max(200px, min(320px, 80vw));
+      box-shadow: var(--shadow-lg);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity var(--duration-fast);
+      z-index: 10000;
+    }
+    .term-tooltip::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 6px solid transparent;
+      border-top-color: var(--color-bg-code);
+    }
+    .term-tooltip.visible { opacity: 1; }
+    .term-tooltip.flip {
+      bottom: auto;
+      top: calc(100% + 8px);
+    }
+    .term-tooltip.flip::after {
+      top: auto;
+      bottom: 100%;
+      border-top-color: transparent;
+      border-bottom-color: var(--color-bg-code);
+    }
+
+    /* ===== BADGE LIST ===== */
+    .badge-list { display: flex; flex-direction: column; gap: var(--space-2); margin: var(--space-6) 0; }
+    .badge-item {
+      display: flex; align-items: center; gap: var(--space-4);
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--color-border-light);
+      border-radius: var(--radius-sm);
+      background: var(--color-surface);
+    }
+    .badge-code {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      background: var(--color-bg-code);
+      color: #CBA6F7;
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius-sm);
+      white-space: nowrap;
+    }
+    .badge-desc { font-size: var(--text-sm); color: var(--color-text-secondary); }
+
+    /* ===== ROLE CARDS ===== */
+    .role-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: var(--space-4);
+      margin: var(--space-6) 0;
+    }
+    .role-card {
+      background: var(--color-surface);
+      border-radius: var(--radius-md);
+      padding: var(--space-5);
+      box-shadow: var(--shadow-sm);
+      border-top: 3px solid;
+    }
+    .role-card.ag { border-color: #D94F30; }
+    .role-card.dag { border-color: #2A7B9B; }
+    .role-card.srao { border-color: #2D8B55; }
+    .role-card.clerk { border-color: #7B6DAA; }
+    .role-title { font-weight: 700; font-size: var(--text-lg); margin-bottom: var(--space-2); }
+    .role-perms { font-size: var(--text-sm); color: var(--color-text-secondary); }
+    .role-perms li { margin-bottom: var(--space-1); }
+
+    /* ===== STATUS BADGES ===== */
+    .status-badges { display: flex; flex-wrap: wrap; gap: var(--space-3); margin: var(--space-4) 0; }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--radius-sm);
+      font-size: var(--text-sm);
+      font-weight: 500;
+    }
+    .status-created { background: #E5E7EB; color: #4B5563; }
+    .status-assigned { background: #DBEAFE; color: #1E40AF; }
+    .status-progress { background: #FEF3C7; color: #92400E; }
+    .status-closed { background: #D1FAE5; color: #065F46; }
+
+    /* ===== ARCHITECTURE DIAGRAM ===== */
+    .arch-diagram {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-6);
+      margin: var(--space-8) 0;
+      padding: var(--space-6);
+      background: var(--color-surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-md);
+    }
+    .arch-zone { text-align: center; }
+    .arch-zone-label {
+      font-size: var(--text-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--color-text-muted);
+      margin-bottom: var(--space-4);
+    }
+    .arch-component {
+      background: var(--color-surface-warm);
+      border: 2px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-4);
+      margin-bottom: var(--space-3);
+      cursor: pointer;
+      transition: all var(--duration-fast);
+    }
+    .arch-component:hover {
+      border-color: var(--color-accent);
+      box-shadow: var(--shadow-md);
+    }
+    .arch-icon { font-size: 2rem; margin-bottom: var(--space-2); }
+    .arch-name { font-weight: 600; font-size: var(--text-sm); }
+    .arch-desc {
+      font-size: var(--text-xs);
+      color: var(--color-text-secondary);
+      margin-top: var(--space-2);
+      min-height: 40px;
+    }
+    @media (max-width: 768px) {
+      .arch-diagram { grid-template-columns: 1fr; }
+    }
+
+    /* ===== DATA FLOW ANIMATION ===== */
+    .data-flow-container {
+      position: relative;
+      padding: var(--space-8);
+      background: var(--color-surface);
+      border-radius: var(--radius-lg);
+      margin: var(--space-6) 0;
+    }
+    .data-flow-actors {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      position: relative;
+      z-index: 1;
+    }
+    .data-flow-actor {
+      text-align: center;
+      padding: var(--space-4);
+      background: var(--color-surface-warm);
+      border: 2px solid var(--color-border);
+      border-radius: var(--radius-md);
+      min-width: 120px;
+    }
+    .data-flow-actor.active {
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 3px var(--color-accent-light);
+    }
+    .data-flow-actor-icon { font-size: 2rem; margin-bottom: var(--space-2); }
+    .data-flow-actor-name { font-weight: 600; font-size: var(--text-sm); }
+    .data-flow-line {
+      position: absolute;
+      height: 2px;
+      background: var(--color-border);
+      top: 50%;
+      left: 15%;
+      right: 15%;
+      z-index: 0;
+    }
+    .data-flow-packet {
+      position: absolute;
+      width: 24px; height: 24px;
+      background: var(--color-accent);
+      border-radius: 50%;
+      top: 50%;
+      left: 15%;
+      transform: translate(-50%, -50%);
+      opacity: 0;
+      z-index: 2;
+    }
+    .data-flow-packet.moving {
+      opacity: 1;
+      transition: left 1s linear;
+    }
+    .data-flow-controls {
+      display: flex;
+      gap: var(--space-3);
+      justify-content: center;
+      margin-top: var(--space-6);
+    }
+    .data-flow-btn {
+      padding: var(--space-3) var(--space-5);
+      border-radius: var(--radius-sm);
+      border: none;
+      background: var(--color-accent);
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .data-flow-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .data-flow-step-label {
+      text-align: center;
+      margin-top: var(--space-4);
+      font-weight: 500;
+      color: var(--color-text-secondary);
+      min-height: 1.5em;
+    }
+
+    /* ===== HERO ===== */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: var(--space-16) var(--space-6);
+      background: linear-gradient(135deg, var(--color-bg) 0%, var(--color-bg-warm) 100%);
+    }
+    .hero-icon { font-size: 4rem; margin-bottom: var(--space-6); }
+    .hero-title {
+      font-family: var(--font-display);
+      font-size: var(--text-5xl);
+      font-weight: 800;
+      margin-bottom: var(--space-4);
+      max-width: 800px;
+    }
+    .hero-subtitle {
+      font-size: var(--text-xl);
+      color: var(--color-text-secondary);
+      max-width: 600px;
+      margin-bottom: var(--space-8);
+    }
+    .hero-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-4) var(--space-8);
+      background: var(--color-accent);
+      color: white;
+      text-decoration: none;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      transition: transform var(--duration-fast), box-shadow var(--duration-fast);
+    }
+    .hero-cta:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    @media (max-width: 480px) {
+      :root {
+        --text-4xl: 1.5rem;
+        --text-5xl: 1.875rem;
+        --text-6xl: 2.25rem;
+      }
+      .module { padding: var(--space-8) var(--space-4); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="progress-bar" id="progress-bar"></div>
+    <div class="nav-inner">
+      <span class="nav-title">📬 Mail Tracker Code Tour</span>
+      <div class="nav-dots">
+        <button class="nav-dot" data-target="hero" aria-label="Start"></button>
+        <button class="nav-dot" data-target="module-1" aria-label="Module 1"></button>
+        <button class="nav-dot" data-target="module-2" aria-label="Module 2"></button>
+        <button class="nav-dot" data-target="module-3" aria-label="Module 3"></button>
+        <button class="nav-dot" data-target="module-4" aria-label="Module 4"></button>
+        <button class="nav-dot" data-target="module-5" aria-label="Module 5"></button>
+        <button class="nav-dot" data-target="module-6" aria-label="Module 6"></button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero" id="hero">
+    <div class="hero-icon">📬</div>
+    <h1 class="hero-title">How the Mail Tracker Works</h1>
+    <p class="hero-subtitle">An interactive tour through a role-based workflow application built with Django and React. No coding knowledge required.</p>
+    <a href="#module-1" class="hero-cta">Start the Tour →</a>
+  </section>
+
+  <!-- Module 1: What This App Does -->
+  <section class="module" id="module-1">
+    <div class="module-content">
+      <header class="module-header animate-in">
+        <span class="module-number">01</span>
+        <h1 class="module-title">What This App Does</h1>
+        <p class="module-subtitle">A government office mail tracking system that knows exactly where every piece of mail is, who's handling it, and how long it's been sitting there.</p>
+      </header>
+
+      <div class="screen animate-in">
+        <h2 class="screen-heading">Imagine a Busy Government Office</h2>
+        <p>Papers arrive every day — letters, memos, requests, reports. They need to go to the right person, get processed, and move along. But without tracking, mail gets lost, delayed, or forgotten.</p>
+        <div class="callout callout-accent">
+          <div class="callout-icon">💡</div>
+          <div class="callout-content">
+            <strong class="callout-title">The Core Purpose</strong>
+            <p>This system answers one critical question: <strong>"Where is this mail right now, and who's responsible for it?"</strong> It tracks every handoff, every status change, and how long each step takes.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen animate-in">
+        <h2 class="screen-heading">Four Types of Users</h2>
+        <p>Not everyone can do everything. The system has a <span class="term" data-definition="Role-Based Access Control (RBAC) is like giving different keys to different employees — the CEO has a master key, managers have keys to their departments, and staff have keys to their own offices.">role-based permission system</span> that mirrors real office hierarchy.</p>
+        <div class="role-cards">
+          <div class="role-card ag">
+            <div class="role-title">👑 AG</div>
+            <div class="role-perms">
+              <strong>Accountant General</strong>
+              <ul>
+                <li>Create mail for any section</li>
+                <li>View everything</li>
+                <li>Reassign anyone</li>
+                <li>Close any mail</li>
+              </ul>
+            </div>
+          </div>
+          <div class="role-card dag">
+            <div class="role-title">📋 DAG</div>
+            <div class="role-perms">
+              <strong>Deputy AG</strong>
+              <ul>
+                <li>Create for their section</li>
+                <li>View section scope</li>
+                <li>Reassign within section</li>
+              </ul>
+            </div>
+          </div>
+          <div class="role-card srao">
+            <div class="role-title">📝 SrAO/AAO</div>
+            <div class="role-perms">
+              <strong>Staff Officers</strong>
+              <ul>
+                <li>Work on assigned mail</li>
+                <li>Update status</li>
+                <li>Close their own items</li>
+                <li>Own subsection scope</li>
+              </ul>
+            </div>
+          </div>
+          <div class="role-card clerk">
+            <div class="role-title">📎 Clerk/Auditor</div>
+            <div class="role-perms">
+              <strong>Support Staff</strong>
+              <ul>
+                <li>Create within scope</li>
+                <li>View assigned scope</li>
+                <li>Limited by subsection</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen animate-in">
+        <h2 class="screen-heading">The Four Stages of Mail</h2>
+        <p>Every piece of mail flows through these stages automatically. The system tracks time spent at each step — crucial for identifying bottlenecks.</p>
+        <div class="status-badges">
+          <span class="status-badge status-created">📥 Created</span>
+          <span class="status-badge status-assigned">👤 Assigned</span>
+          <span class="status-badge status-progress">⚡ In Progress</span>
+          <span class="status-badge status-closed">✅ Closed</span>
+        </div>
+        <div class="step-cards">
+          <div class="step-card">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <strong>Created</strong>
+              <p>Someone logs a new piece of mail with details: where it came from, what it's about, when it was received.</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <strong>Assigned</strong>
+              <p>The mail gets routed to an officer who becomes responsible. The system tracks who has it and when it was handed off.</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <strong>In Progress</strong>
+              <p>The assigned officer starts working. They can add remarks, upload PDFs, or reassign to someone else.</p>
+            </div>
+          </div>
+          <div class="step-card">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <strong>Closed</strong>
+              <p>Work complete! The mail is marked done with completion date and final remarks recorded.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Module 2: Meet the Database -->
+  <section class="module" id="module-2">
+    <div class="module-content">
+      <header class="module-header animate-in">
+        <span class="module-number">02</span>
+        <h1 class="module-title">Meet the Database</h1>
+        <p class="module-subtitle">Three core models that store everything: Users, Mail Records, and an Audit Trail that remembers every action.</p>
+      </header>
+
+      <div class="screen animate-in">
+        <h2 class="screen-heading">The User Model</h2>
+        <p>Every person in the system is a User with a role that determines what they can see and do. Think of it like employee badges with different clearance levels.</p>
+        <div class="translation-block">
+          <div class="translation-code">
+            <span class="translation-label">CODE</span>
+            <pre><code><span class="code-keyword">class</span> <span class="code-function">User</span>(AbstractUser):
+    <span class="code-property">role</span> = models.CharField(
+        choices=ROLE_CHOICES
+    )
+    <span class="code-property">sections</span> = models.ManyToManyField(
+        Section, <span class="code-property">blank</span>=<span class="code-keyword">True</span>
+    )
+    <span class="code-property">subsection</span> = models.ForeignKey(
+        Subsection,
+        <span class="code-property">null</span>=<span class="code-keyword">True</span>,
+        <span class="code-property">blank</span>=<span class="code-keyword">True</span>
+    )</code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">PLAIN ENGLISH</span>
+            <div class="translation-lines">
+              <p>Each user has a role (AG, DAG, SrAO, etc.) that determines their permissions.</p>
+              <p>DAGs can manage multiple sections — stored as a list they belong to.</p>
+              <p>SrAOs and AAOs belong to one specific subsection (like a team).</p>
+            </div>
+          </div>
+        </div>
+        <div class="callout callout-info">
+          <div class="callout-icon">🗝️</div>
+          <div class="callout-content">
+            <strong class="callout-title">Many-to-Many vs ForeignKey</strong>
+            <p>A DAG can manage <strong>many</strong> sections, and a section can have <strong>many</strong> DAGs — that's a <span class="term" data-definition="Many-to-Many means items can be connected in both directions — like students enrolled in multiple classes, and classes having multiple students.">many-to-many</span> relationship. But a SrAO belongs to <strong>one</strong> subsection — that's a <span class="term" data-definition="ForeignKey creates a parent-child relationship — like a book having one publisher, but a publisher having many books.">ForeignKey</span>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen animate-in">
+        <h2 class="screen-heading">The MailRecord Model</h2>
+        <p>This is the heart of the system. Every piece of tracked mail is a MailRecord with fields for tracking, assignment, and status.</p>
+        <div class="translation-block">
+          <div class="translation-code">
+            <span class="translation-label">CODE</span>
+            <pre><code><span class="code-keyword">class</span> <span class="code-function">MailRecord</span>(models.Model):
+    <span class="code-property">sl_no</span> = models.CharField(
+        max_length=<span class="code-number">10</span>,
+        unique=<span class="code-keyword">True</span>
+    )
+    <span class="code-property">letter_no</span> = models.CharField(
+        max_length=<span class="code-number">200</span>
+    )
+    <span class="code-property">assigned_to</span> = models.ForeignKey(
+        User,
+        related_name=<span class="code-string">'assigned_mails'</span>
+    )
+    <span class="code-property">current_handler</span> = models.ForeignKey(
+        User,
+        related_name=<span class="code-string">'current_mails'</span>
+    )
+    <span class="code-property">status</span> = models.CharField(
+        choices=STATUS_CHOICES
+    )</code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">PLAIN ENGLISH</span>
+            <div class="translation-lines">
+              <p><strong>sl_no</strong>: Serial number like "2026/001" — auto-generated each year.</p>
+              <p><strong>letter_no</strong>: The actual reference number from the physical letter.</p>
+              <p><strong>assigned_to</strong>: Who was originally given this mail.</p>
+              <p><strong>current_handler</strong>: Who has it RIGHT NOW (can change via reassignment).</p>
+              <p><strong>status</strong>: Created → Assigned → In Progress → Closed.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen animate-in">
+        <h2 class="screen-heading">The Audit Trail — Your Safety Net</h2>
+        <p>Every action gets logged. Who did what, when, and what changed. This creates accountability and makes it possible to reconstruct exactly what happened.</p>
+        <div class="translation-block">
+          <div class="translation-code">
+            <span class="translation-label">CODE</span>
+            <pre><code><span class="code-keyword">class</span> <span class="code-function">AuditTrail</span>(models.Model):
+    <span class="code-property">mail_record</span> = models.ForeignKey(
+        MailRecord
+    )
+    <span class="code-property">action</span> = models.CharField(
+        choices=ACTION_CHOICES
+    )
+    <span class="code-property">performed_by</span> = models.ForeignKey(
+        User
+    )
+    <span class="code-property">timestamp</span> = models.DateTimeField(
+        auto_now_add=<span class="code-keyword">True</span>
+    )
+    <span class="code-property">remarks</span> = models.TextField()
+    <span class="code-property">old_value</span> = models.JSONField()
+    <span class="code-property">new_value</span> = models.JSONField()</code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">PLAIN ENGLISH</span>
+            <div class="translation-lines">
+              <p>Links to the specific mail record being modified.</p>
+              <p>What happened: CREATE, ASSIGN, REASSIGN, CLOSE, etc.</p>
+              <p>Who performed the action — linked to their user account.</p>
+              <p>When it happened — automatically set by the system.</p>
+              <p>Any comments they added explaining their action.</p>
+              <p>Before/after values for tracking what actually changed.</p>
+            </div>
+          </div>
+        </div>
+        <div class="callout callout-accent">
+          <div class="callout-icon">📜</div>
+          <div class="callout-content">
+            <strong class="callout-title">Immutable Audit Logs</strong>
+            <p>Audit records can never be edited or deleted. This is crucial for accountability — like writing in pen instead of pencil. The system enforces this at the database level.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Module 3: API & Permissions -->
+  <section class="module" id="module-3">
+    <div class="module-content">
+      <header class="module-header animate-in">
+        <span class="module-number">03</span>
+        <h1 class="module-title">API & Permissions</h1>
+        <p class="module-subtitle">How the backend exposes data securely, checks permissions on every request, and uses JWT tokens to verify who's asking.</p>
+      </header>
+
+      <div class="screen animate-in">
+        <h2 class="screen-heading">The API Layer</h2>
+        <p>The frontend talks to the backend through an <span class="term" data-definition="An API (Application Programming Interface) is like a restaurant menu — it lists what you can order (request) and what you'll get back (response). The kitchen (backend) handles the actual work.">API</span>. Think of it as a menu of operations: create mail, get mail list, reassign, close, etc.</p>
+        <div class="icon-rows">
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-actor-1); color: white;">📡</div>
+            <div>
+              <strong>REST Endpoints</strong>
+              <p>Standard HTTP methods: POST to create, GET to read, PUT to update, DELETE to remove.</p>
+            </div>
+          </div>
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-actor-4); color: white;">🔐</div>
+            <div>
+              <strong>JWT Authentication</strong>
+              <p>JSON Web Tokens prove identity. Like a concert wristband that shows you're allowed in.</p>
+            </div>
+          </div>
+          <div class="icon-row">
+            <div class="icon-circle" style="background: var(--color-actor-5); color: white;">🛡️</div>
+            <div>
+              <strong>Permission Classes</strong>
+              <p>Every endpoint checks: "Is this user allowed to do this?" Role determines access.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen animate-in">
+        <h2 class="screen-heading">How JWT Authentication Works</h2>
+        <p>When you log in, the server gives you two tokens: an <strong>access token</strong> (short-lived, like a daily pass) and a <strong>refresh token</strong> (longer-lived, like a season pass).</p>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-step-num">1</div>
+            <p>User submits username + password</p>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step">
+            <div class="flow-step-num">2</div>
+            <p>Server validates credentials</p>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step">
+            <div class="flow-step-num">3</div>
+            <p>Returns access + refresh tokens</p>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-step">
+            <div class="flow-step-num">4</div>
+            <p>Client sends token with every request</p>
+          </div>
+        </div>
+        <div class="translation-block">
+          <div class="translation-code">
+            <span class="translation-label">CODE</span>
+            <pre><code><span class="code-comment"># Request interceptor adds token</span>
+api.interceptors.request.use(
+    (config) => {
+        <span class="code-keyword">const</span> token = localStorage
+            .getItem(<span class="code-string">'access_token'</span>);
+        <span class="code-keyword">if</span> (token) {
+            config.headers.Authorization =
+                <span class="code-string">`Bearer ${token}`</span>;
+        }
+        <span class="code-keyword">return</span> config;
+    }
+);</code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">PLAIN ENGLISH</span>
+            <div class="translation-lines">
+              <p>Before every API request, we automatically attach the stored token.</p>
+              <p>Get the token from browser storage where it was saved after login.</p>
+              <p>Add it as a Bearer token in the Authorization header — like showing your ID.</p>
+              <p>The server checks this token to verify who you are.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen animate-in">
+        <h2 class="screen-heading">Token Refresh: The Silent Renewal</h2>
+        <p>Access tokens expire after 24 hours. Instead of forcing you to log in again, the system silently refreshes them using the longer-lived refresh token.</p>
+        <div class="translation-block">
+          <div class="translation-code">
+            <span class="translation-label">CODE</span>
+            <pre><code><span class="code-keyword">if</span> (error.response?.status === <span class="code-number">401</span>
+    && !originalRequest._retry) {
+    <span class="code-keyword">if</span> (isRefreshing) {
+        <span class="code-comment"># Queue requests until refresh done</span>
+        <span class="code-keyword">return</span> <span class="code-keyword">new</span> <span class="code-function">Promise</span>((resolve) => {
+            failedQueue.push({ resolve });
+        });
+    }
+    originalRequest._retry = <span class="code-keyword">true</span>;
+    isRefreshing = <span class="code-keyword">true</span>;
+    <span class="code-keyword">const</span> newToken = <span class="code-keyword">await</span> <span class="code-function">refreshAccessToken</span>();
+    <span class="code-function">processQueue</span>(<span class="code-keyword">null</span>, newToken);
+}</code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">PLAIN ENGLISH</span>
+            <div class="translation-lines">
+              <p>If a request fails with 401 (unauthorized), the token might be expired.</p>
+              <p>If a refresh is already in progress, queue this request to retry after.</p>
+              <p>Mark this request as retrying so we don't loop infinitely.</p>
+              <p>Ask the server for a new access token using the refresh token.</p>
+              <p>Retry all queued requests with the new token.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Module 4: Frontend Architecture -->
+  <section class="module" id="module-4">
+    <div class="module-content">
+      <header class="module-header animate-in">
+        <span class="module-number">04</span>
+        <h1 class="module-title">Frontend Architecture</h1>
+        <p class="module-subtitle">How the React interface is organized: pages, components, services, and the auth context that remembers who you are.</p>
+      </header>
+
+      <div class="screen animate-in">
+        <h2 class="screen-heading">The Frontend Structure</h2>
+        <p>React breaks the UI into reusable pieces. Here's how the Mail Tracker organizes its code:</p>
+        <div class="file-tree">
+          <div class="ft-folder open">
+            <span class="ft-name">frontend/src/</span>
+            <div class="ft-children">
+              <div class="ft-folder">
+                <span class="ft-name">pages/</span>
+                <span class="ft-desc">Full-page components (Login, MailList, CreateMail)</span>
+              </div>
+              <div class="ft-folder">
+                <span class="ft-name">components/</span>
+                <span class="ft-desc">Reusable pieces (dialogs, buttons, forms)</span>
+              </div>
+              <div class="ft-folder">
+                <span class="ft-name">services/</span>
+                <span class="ft-desc">API calls organized by domain</span>
+              </div>
+              <div class="ft-folder">
+                <span class="ft-name">context/</span>
+                <span class="ft-desc">Global state (AuthContext)</span>
+              </div>
+              <div class="ft-folder">
+                <span class="ft-name">layouts/</span>
+                <span class="ft-desc">Page shells with navigation</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen animate-in">
+        <h2 class="screen-heading">AuthContext: The Memory Bank</h2>
+        <p>React's <span class="term" data-definition="Context API is React's way of sharing data between components without passing props through every level — like a company memo board everyone can read.">Context API</span> lets any component check "Who's logged in?" without passing that data through every intermediate component.</p>
+        <div class="translation-block">
+          <div class="translation-code">
+            <span class="translation-label">CODE</span>
+            <pre><code><span class="code-keyword">const</span> AuthContext = <span class="code-function">createContext</span>(<span class="code-keyword">null</span>);
+
+<span class="code-keyword">export const</span> <span class="code-function">AuthProvider</span> = ({ children }) => {
+    <span class="code-keyword">const</span> [user, setUser] = <span class="code-function">useState</span>(<span class="code-keyword">null</span>);
+
+    <span class="code-keyword">const</span> login = <span class="code-keyword">async</span> (username, password) => {
+        <span class="code-keyword">const</span> { user } = <span class="code-keyword">await</span>
+            authService.<span class="code-function">login</span>(username, password);
+        <span class="code-function">setUser</span>(user);
+    };
+
+    <span class="code-keyword">return</span> (
+        &lt;AuthContext.Provider value={{ user, login }}&gt;
+            {children}
+        &lt;/AuthContext.Provider&gt;
+    );
+};</code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">PLAIN ENGLISH</span>
+            <div class="translation-lines">
+              <p>Create a context container to hold authentication state.</p>
+              <p>The Provider wraps the app and manages the user data.</p>
+              <p>Store the current user in state — null means not logged in.</p>
+              <p>Login function calls the API and saves the user data.</p>
+              <p>Make user and login function available to all child components.</p>
+            </div>
+          </div>
+        </div>
+        <div class="callout callout-accent">
+          <div class="callout-icon">🧠</div>
+          <div class="callout-content">
+            <strong class="callout-title">State Management Pattern</strong>
+            <p>Instead of each page fetching user data, AuthContext fetches it once at startup and shares it everywhere. This prevents flickering and redundant API calls.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen animate-in">
+        <h2 class="screen-heading">Services: API Organization</h2>
+        <p>All API calls live in <code>services/</code> — one file per domain. This keeps components clean and makes API changes easy to find.</p>
+        <div class="pattern-cards">
+          <div class="pattern-card" style="border-color: var(--color-actor-1);">
+            <div class="pattern-icon" style="background: var(--color-actor-1);">📡</div>
+            <h4 class="pattern-title">authService</h4>
+            <p class="pattern-desc">Login, logout, password change, fetching current user profile.</p>
+          </div>
+          <div class="pattern-card" style="border-color: var(--color-actor-2);">
+            <div class="pattern-icon" style="background: var(--color-actor-2);">📬</div>
+            <h4 class="pattern-title">mailService</h4>
+            <p class="pattern-desc">Create, list, retrieve, reassign, close mail records.</p>
+          </div>
+          <div class="pattern-card" style="border-color: var(--color-actor-3);">
+            <div class="pattern-icon" style="background: var(--color-actor-3);">📊</div>
+            <h4 class="pattern-title">returnsService</h4>
+            <p class="pattern-desc">Calendar of returns functionality for tracking deadlines.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Module 5: Security Deep Dive -->
+  <section class="module" id="module-5">
+    <div class="module-content">
+      <header class="module-header animate-in">
+        <span class="module-number">05</span>
+        <h1 class="module-title">Security Deep Dive</h1>
+        <p class="module-subtitle">How the backend enforces role-based access. Permission classes, scoped queries, and why the UI is not the authority.</p>
+      </header>
+
+      <div class="screen animate-in">
+        <h2 class="screen-heading">Permission Classes</h2>
+        <p>Every API endpoint has a <strong>permission class</strong> that runs before the main logic. If permission check fails, the request is rejected immediately.</p>
+        <div class="translation-block">
+          <div class="translation-code">
+            <span class="translation-label">CODE</span>
+            <pre><code><span class="code-keyword">class</span> <span class="code-function">IsAGOrDAG</span>(BasePermission):
+    <span class="code-keyword">def</span> <span class="code-function">has_permission</span>(self, request, view):
+        user = request.user
+        <span class="code-keyword">return</span> user.is_authenticated and (
+            user.is_ag() <span class="code-keyword">or</span>
+            user.is_dag()
+        )
+
+<span class="code-keyword">class</span> <span class="code-function">MailRecordViewSet</span>(ModelViewSet):
+    permission_classes = [IsAGOrDAG]
+
+    <span class="code-keyword">def</span> <span class="code-function">create</span>(self, request):
+        <span class="code-comment"># Only runs if IsAGOrDAG passes</span></code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">PLAIN ENGLISH</span>
+            <div class="translation-lines">
+              <p>Define a custom permission rule: user must be AG or DAG.</p>
+              <p>Get the user from the request (set by JWT authentication).</p>
+              <p>Return True only if authenticated AND has AG or DAG role.</p>
+              <p>Apply this permission to the entire MailRecord viewset.</p>
+              <p>Create action only runs if permission check passed.</p>
+            </div>
+          </div>
+        </div>
+        <div class="callout callout-warning">
+          <div class="callout-icon">⚠️</div>
+          <div class="callout-content">
+            <strong class="callout-title">Backend is the Authority</strong>
+            <p>The frontend can hide buttons, but the backend must enforce. A malicious user could craft API requests directly. Never trust the frontend alone — always verify permissions server-side.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen animate-in">
+        <h2 class="screen-heading">Scoped Queries: What You See</h2>
+        <p>Different users see different records. AG sees everything. DAG sees their sections. SrAO sees only their subsection.</p>
+        <div class="translation-block">
+          <div class="translation-code">
+            <span class="translation-label">CODE</span>
+            <pre><code><span class="code-keyword">def</span> <span class="code-function">get_queryset</span>(self):
+    user = self.request.user
+
+    <span class="code-keyword">if</span> user.is_ag():
+        <span class="code-keyword">return</span> MailRecord.objects.<span class="code-function">all</span>()
+
+    <span class="code-keyword">elif</span> user.is_dag():
+        section_ids = user.sections.values_list(
+            <span class="code-string">'id'</span>, flat=<span class="code-keyword">True</span>)
+        <span class="code-keyword">return</span> MailRecord.objects.filter(
+            section_id__in=section_ids)
+
+    <span class="code-keyword">else</span>:
+        <span class="code-keyword">return</span> MailRecord.objects.filter(
+            subsection=user.subsection)</code></pre>
+          </div>
+          <div class="translation-english">
+            <span class="translation-label">PLAIN ENGLISH</span>
+            <div class="translation-lines">
+              <p>Get the currently logged-in user from the request.</p>
+              <p>If user is AG: return ALL mail records, no filtering.</p>
+              <p>If DAG: get their managed section IDs.</p>
+              <p>Return only mail records in those sections.</p>
+              <p>For everyone else: return only mail in their subsection.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen animate-in">
+        <h2 class="screen-heading">Security Checklist</h2>
+        <div class="badge-list">
+          <div class="badge-item">
+            <code class="badge-code">CSRF</code>
+            <span class="badge-desc">Cross-Site Request Forgery protection enabled for state-changing operations</span>
+          </div>
+          <div class="badge-item">
+            <code class="badge-code">CORS</code>
+            <span class="badge-desc">Cross-Origin Resource Sharing configured to only allow trusted frontend domains</span>
+          </div>
+          <div class="badge-item">
+            <code class="badge-code">SQL Injection</code>
+            <span class="badge-desc">Protected by Django ORM — queries are parameterized, never concatenated</span>
+          </div>
+          <div class="badge-item">
+            <code class="badge-code">XSS</code>
+            <span class="badge-desc">Cross-Site Scripting protection via Django's auto-escaping templates</span>
+          </div>
+          <div class="badge-item">
+            <code class="badge-code">Password Hashing</code>
+            <span class="badge-desc">Passwords hashed with PBKDF2 — never stored in plain text</span>
+          </div>
+          <div class="badge-item">
+            <code class="badge-code">JWT Expiry</code>
+            <span class="badge-desc">Access tokens expire after 24 hours, refresh tokens after 7 days</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Module 6: Tracing a Workflow -->
+  <section class="module" id="module-6">
+    <div class="module-content">
+      <header class="module-header animate-in">
+        <span class="module-number">06</span>
+        <h1 class="module-title">Tracing a Complete Workflow</h1>
+        <p class="module-subtitle">Follow a piece of mail from creation through assignment to closure. See how data flows between frontend, backend, and database.</p>
+      </header>
+
+      <div class="screen animate-in">
+        <h2 class="screen-heading">The Journey of a Mail Record</h2>
+        <p>Let's trace what happens when an AG creates a new mail and assigns it to a DAG.</p>
+        <div class="data-flow-container">
+          <div class="data-flow-line"></div>
+          <div class="data-flow-packet" id="flow-packet"></div>
+          <div class="data-flow-actors">
+            <div class="data-flow-actor" id="actor-user">
+              <div class="data-flow-actor-icon">👤</div>
+              <div class="data-flow-actor-name">AG User</div>
+            </div>
+            <div class="data-flow-actor" id="actor-frontend">
+              <div class="data-flow-actor-icon">💻</div>
+              <div class="data-flow-actor-name">React Frontend</div>
+            </div>
+            <div class="data-flow-actor" id="actor-api">
+              <div class="data-flow-actor-icon">⚡</div>
+              <div class="data-flow-actor-name">Django API</div>
+            </div>
+            <div class="data-flow-actor" id="actor-database">
+              <div class="data-flow-actor-icon">🗄️</div>
+              <div class="data-flow-actor-name">PostgreSQL</div>
+            </div>
+          </div>
+          <div class="data-flow-step-label" id="flow-label">Click "Next Step" to start</div>
+          <div class="data-flow-controls">
+            <button class="data-flow-btn" id="flow-next" onclick="flowNext()">Next Step →</button>
+            <button class="data-flow-btn" onclick="flowReset()" style="background: var(--color-text-muted);">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen animate-in">
+        <h2 class="screen-heading">Step-by-Step Breakdown</h2>
+        <div class="step-cards" id="flow-steps-detail">
+          <div class="step-card" data-step="0">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <strong>User Fills Form</strong>
+              <p>AG enters letter number, subject, source office, selects assignee, sets due date.</p>
+            </div>
+          </div>
+          <div class="step-card" data-step="1">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <strong>Frontend Validates</strong>
+              <p>React Hook Form checks required fields, validates date format, ensures assignee selected.</p>
+            </div>
+          </div>
+          <div class="step-card" data-step="2">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <strong>API Call with JWT</strong>
+              <p>POST to /api/records/ with Bearer token. Axios interceptor attaches access_token from localStorage.</p>
+            </div>
+          </div>
+          <div class="step-card" data-step="3">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <strong>Permission Check</strong>
+              <p>Django verifies: Is user AG? (Yes) → Allow. Generate serial number (2026/001).</p>
+            </div>
+          </div>
+          <div class="step-card" data-step="4">
+            <div class="step-num">5</div>
+            <div class="step-body">
+              <strong>Database Writes</strong>
+              <p>Create MailRecord row. Create initial AuditTrail entry with 'CREATE' action.</p>
+            </div>
+          </div>
+          <div class="step-card" data-step="5">
+            <div class="step-num">6</div>
+            <div class="step-body">
+              <strong>Response & Redirect</strong>
+              <p>API returns new record. Frontend redirects to detail page showing the created mail.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen animate-in">
+        <h2 class="screen-heading">The Audit Trail Builds</h2>
+        <p>Every action appends to the audit trail. This creates a complete history that can be viewed on the mail detail page.</p>
+        <div class="pattern-cards">
+          <div class="pattern-card" style="border-color: var(--color-actor-1);">
+            <div class="pattern-icon" style="background: var(--color-actor-1);">➕</div>
+            <h4 class="pattern-title">CREATE</h4>
+            <p class="pattern-desc">Initial creation with creator and timestamp</p>
+          </div>
+          <div class="pattern-card" style="border-color: var(--color-actor-2);">
+            <div class="pattern-icon" style="background: var(--color-actor-2);">👤</div>
+            <h4 class="pattern-title">ASSIGN</h4>
+            <p class="pattern-desc">Who was assigned and by whom</p>
+          </div>
+          <div class="pattern-card" style="border-color: var(--color-actor-3);">
+            <div class="pattern-icon" style="background: var(--color-actor-3);">🔄</div>
+            <h4 class="pattern-title">REASSIGN</h4>
+            <p class="pattern-desc">Handoffs with remarks explaining why</p>
+          </div>
+          <div class="pattern-card" style="border-color: var(--color-actor-4);">
+            <div class="pattern-icon" style="background: var(--color-actor-4);">✅</div>
+            <h4 class="pattern-title">CLOSE</h4>
+            <p class="pattern-desc">Final resolution with completion remarks</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Module 7: Quiz -->
+  <section class="module" id="module-7">
+    <div class="module-content">
+      <header class="module-header animate-in">
+        <span class="module-number">07</span>
+        <h1 class="module-title">Test Your Understanding</h1>
+        <p class="module-subtitle">Apply what you learned with practical scenarios. These aren't memory tests — they check if you can use your knowledge.</p>
+      </header>
+
+      <div class="screen animate-in">
+        <div class="quiz-container">
+          <!-- Question 1 -->
+          <div class="quiz-question-block" data-question="q1" data-correct="b">
+            <h3 class="quiz-question">1. A user reports they can't see any mail records. Where would you look first?</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="a" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>The React component's CSS styling</span>
+              </button>
+              <button class="quiz-option" data-value="b" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>The get_queryset() method in the backend view</span>
+              </button>
+              <button class="quiz-option" data-value="c" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>The JWT token expiration time in settings</span>
+              </button>
+            </div>
+            <div class="quiz-feedback" id="q1-feedback"></div>
+          </div>
+
+          <!-- Question 2 -->
+          <div class="quiz-question-block" data-question="q2" data-correct="c">
+            <h3 class="quiz-question">2. You need to add a new "reviewer" role that can view all records but not create. What's the minimal backend change?</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="a" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>Update the React AuthContext to include the new role</span>
+              </button>
+              <button class="quiz-option" data-value="b" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>Add a new table in the database for reviewer permissions</span>
+              </button>
+              <button class="quiz-option" data-value="c" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>Add 'reviewer' to ROLE_CHOICES and update get_queryset()</span>
+              </button>
+            </div>
+            <div class="quiz-feedback" id="q2-feedback"></div>
+          </div>
+
+          <!-- Question 3 -->
+          <div class="quiz-question-block" data-question="q3" data-correct="b">
+            <h3 class="quiz-question">3. A DAG user can see the "Create Mail" button but gets 403 Forbidden when submitting. What's wrong?</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="a" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>Their JWT token has expired and needs refresh</span>
+              </button>
+              <button class="quiz-option" data-value="b" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>The permission class allows AG/DAG but create logic restricts to AG only</span>
+              </button>
+              <button class="quiz-option" data-value="c" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>The PostgreSQL database connection is read-only</span>
+              </button>
+            </div>
+            <div class="quiz-feedback" id="q3-feedback"></div>
+          </div>
+
+          <!-- Question 4 -->
+          <div class="quiz-question-block" data-question="q4" data-correct="a">
+            <h3 class="quiz-question">4. Where should you add logic to auto-generate serial numbers like "2026/001"?</h3>
+            <div class="quiz-options">
+              <button class="quiz-option" data-value="a" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>In the MailRecord model's save() method or the view's create() method</span>
+              </button>
+              <button class="quiz-option" data-value="b" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>In the React component before sending the API request</span>
+              </button>
+              <button class="quiz-option" data-value="c" onclick="selectOption(this)">
+                <div class="quiz-option-radio"></div>
+                <span>In the PostgreSQL database trigger configuration</span>
+              </button>
+            </div>
+            <div class="quiz-feedback" id="q4-feedback"></div>
+          </div>
+
+          <button class="quiz-check-btn" onclick="checkQuiz()">Check Answers</button>
+          <button class="quiz-reset-btn" onclick="resetQuiz()">Try Again</button>
+        </div>
+      </div>
+
+      <div class="screen animate-in">
+        <h2 class="screen-heading">Key Takeaways</h2>
+        <div class="callout callout-accent">
+          <div class="callout-icon">🎯</div>
+          <div class="callout-content">
+            <strong class="callout-title">What You Now Know</strong>
+            <ul style="margin: var(--space-2) 0; padding-left: var(--space-5);">
+              <li>Role-based access control — different keys for different people</li>
+              <li>Backend is the authority — never trust frontend-only validation</li>
+              <li>JWT tokens authenticate users on every API request</li>
+              <li>Audit trails create accountability and debugging capability</li>
+              <li>Scoped queries ensure users only see what they're allowed to</li>
+              <li>Context API shares auth state across React components</li>
+            </ul>
+          </div>
+        </div>
+        <p style="text-align: center; margin-top: var(--space-12); color: var(--color-text-muted);">End of Tour • Built with ❤️ for understanding code</p>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    // ===== SCROLL ANIMATIONS =====
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { rootMargin: '0px 0px -10% 0px', threshold: 0.1 });
+
+    document.querySelectorAll('.animate-in').forEach(el => observer.observe(el));
+
+    // Stagger children
+    document.querySelectorAll('.stagger-children').forEach(parent => {
+      Array.from(parent.children).forEach((child, i) => {
+        child.style.setProperty('--stagger-index', i);
+      });
+    });
+
+    // ===== PROGRESS BAR =====
+    function updateProgressBar() {
+      const scrollTop = window.scrollY;
+      const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const progress = (scrollTop / scrollHeight) * 100;
+      document.getElementById('progress-bar').style.width = progress + '%';
+
+      // Update nav dots
+      const modules = ['hero', 'module-1', 'module-2', 'module-3', 'module-4', 'module-5', 'module-6', 'module-7'];
+      const currentModule = modules.findIndex(id => {
+        const el = document.getElementById(id);
+        if (!el) return false;
+        const rect = el.getBoundingClientRect();
+        return rect.top <= 100 && rect.bottom > 100;
+      });
+
+      document.querySelectorAll('.nav-dot').forEach((dot, i) => {
+        dot.classList.remove('current', 'visited');
+        if (i < currentModule) dot.classList.add('visited');
+        if (i === currentModule) dot.classList.add('current');
+      });
+    }
+
+    window.addEventListener('scroll', () => {
+      requestAnimationFrame(updateProgressBar);
+    }, { passive: true });
+
+    // ===== NAV DOTS =====
+    document.querySelectorAll('.nav-dot').forEach(dot => {
+      dot.addEventListener('click', () => {
+        const target = document.getElementById(dot.dataset.target);
+        if (target) target.scrollIntoView({ behavior: 'smooth' });
+      });
+    });
+
+    // ===== KEYBOARD NAVIGATION =====
+    document.addEventListener('keydown', (e) => {
+      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+      const modules = ['hero', 'module-1', 'module-2', 'module-3', 'module-4', 'module-5', 'module-6', 'module-7'];
+      const currentIdx = modules.findIndex(id => {
+        const el = document.getElementById(id);
+        if (!el) return false;
+        const rect = el.getBoundingClientRect();
+        return rect.top <= 100 && rect.bottom > 100;
+      });
+
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        const next = modules[Math.min(currentIdx + 1, modules.length - 1)];
+        if (next) document.getElementById(next).scrollIntoView({ behavior: 'smooth' });
+        e.preventDefault();
+      }
+      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        const prev = modules[Math.max(currentIdx - 1, 0)];
+        if (prev) document.getElementById(prev).scrollIntoView({ behavior: 'smooth' });
+        e.preventDefault();
+      }
+    });
+
+    // ===== TOOLTIPS =====
+    let activeTooltip = null;
+
+    function positionTooltip(term, tip) {
+      const rect = term.getBoundingClientRect();
+      const tipWidth = 300;
+      let left = rect.left + rect.width / 2 - tipWidth / 2;
+      left = Math.max(8, Math.min(left, window.innerWidth - tipWidth - 8));
+
+      tip.style.left = left + 'px';
+      document.body.appendChild(tip);
+      const tipHeight = tip.offsetHeight;
+
+      if (rect.top - tipHeight - 8 < 0) {
+        tip.style.top = (rect.bottom + 8) + 'px';
+        tip.classList.add('flip');
+      } else {
+        tip.style.top = (rect.top - tipHeight - 8) + 'px';
+        tip.classList.remove('flip');
+      }
+    }
+
+    document.querySelectorAll('.term').forEach(term => {
+      const tip = document.createElement('span');
+      tip.className = 'term-tooltip';
+      tip.textContent = term.dataset.definition;
+
+      term.addEventListener('mouseenter', () => {
+        if (activeTooltip && activeTooltip !== tip) {
+          activeTooltip.classList.remove('visible');
+          activeTooltip.remove();
+        }
+        positionTooltip(term, tip);
+        requestAnimationFrame(() => tip.classList.add('visible'));
+        activeTooltip = tip;
+      });
+
+      term.addEventListener('mouseleave', () => {
+        tip.classList.remove('visible');
+        setTimeout(() => { if (!tip.classList.contains('visible')) tip.remove(); }, 150);
+        activeTooltip = null;
+      });
+
+      term.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (activeTooltip && activeTooltip !== tip) {
+          activeTooltip.classList.remove('visible');
+          activeTooltip.remove();
+        }
+        if (tip.classList.contains('visible')) {
+          tip.classList.remove('visible');
+          tip.remove();
+          activeTooltip = null;
+        } else {
+          positionTooltip(term, tip);
+          requestAnimationFrame(() => tip.classList.add('visible'));
+          activeTooltip = tip;
+        }
+      });
+    });
+
+    document.addEventListener('click', () => {
+      if (activeTooltip) {
+        activeTooltip.classList.remove('visible');
+        activeTooltip.remove();
+        activeTooltip = null;
+      }
+    });
+
+    // ===== DATA FLOW ANIMATION =====
+    const flowSteps = [
+      { label: 'AG fills out Create Mail form in React', highlight: 'actor-user' },
+      { label: 'Frontend validates and prepares API call', highlight: 'actor-frontend' },
+      { label: 'POST request sent with JWT token', highlight: 'actor-frontend' },
+      { label: 'API receives request, validates token', highlight: 'actor-api' },
+      { label: 'Permission check: Is user AG? Yes.', highlight: 'actor-api' },
+      { label: 'Database insert: MailRecord + AuditTrail', highlight: 'actor-database' },
+      { label: 'Success response with new record data', highlight: 'actor-api' },
+      { label: 'Frontend redirects to detail view', highlight: 'actor-frontend' }
+    ];
+    let flowStep = 0;
+
+    window.flowNext = function() {
+      if (flowStep >= flowSteps.length) return;
+
+      const step = flowSteps[flowStep];
+      document.getElementById('flow-label').textContent = step.label;
+
+      // Remove previous highlights
+      document.querySelectorAll('.data-flow-actor').forEach(a => a.classList.remove('active'));
+
+      // Highlight current actor
+      document.getElementById(step.highlight).classList.add('active');
+
+      // Animate packet
+      const packet = document.getElementById('flow-packet');
+      const positions = ['15%', '38%', '62%', '85%'];
+      const posIndex = Math.min(Math.floor(flowStep / 2), 3);
+      packet.style.left = positions[posIndex];
+      packet.classList.add('moving');
+
+      flowStep++;
+
+      if (flowStep >= flowSteps.length) {
+        document.getElementById('flow-next').disabled = true;
+        document.getElementById('flow-next').textContent = 'Complete!';
+      }
+    };
+
+    window.flowReset = function() {
+      flowStep = 0;
+      document.getElementById('flow-label').textContent = 'Click "Next Step" to start';
+      document.getElementById('flow-packet').style.left = '15%';
+      document.getElementById('flow-packet').classList.remove('moving');
+      document.querySelectorAll('.data-flow-actor').forEach(a => a.classList.remove('active'));
+      document.getElementById('flow-next').disabled = false;
+      document.getElementById('flow-next').textContent = 'Next Step →';
+    };
+
+    // ===== QUIZ =====
+    window.selectOption = function(btn) {
+      const block = btn.closest('.quiz-question-block');
+      block.querySelectorAll('.quiz-option').forEach(o => o.classList.remove('selected'));
+      btn.classList.add('selected');
+    };
+
+    const explanations = {
+      q1: {
+        correct: 'Exactly! The get_queryset() method controls which records a user sees. If a user can\'t see records, their role-based filtering is likely wrong.',
+        incorrect: 'Not quite. CSS can\'t hide data that doesn\'t exist — if the backend query returns nothing, there\'s nothing to display. Check the backend first.'
+      },
+      q2: {
+        correct: 'Right! The backend controls access. Add the role to choices, then update queryset logic to include reviewers who can see all records.',
+        incorrect: 'Frontend changes affect UI only. A clever user could still access the API directly. Always enforce permissions in the backend.'
+      },
+      q3: {
+        correct: 'Correct! The button visibility is frontend-only. If the API rejects with 403, the permission class is checking correctly but the create logic may have additional restrictions.',
+        incorrect: 'A 401 error indicates token expiration, but 403 Forbidden specifically means "authenticated but not authorized" — a permissions issue.'
+      },
+      q4: {
+        correct: 'Yes! Serial number generation should happen server-side to ensure uniqueness and prevent tampering. The model\'s save() method or the API view are both appropriate.',
+        incorrect: 'Never trust the client with ID generation. Multiple users could submit simultaneously and create duplicates, or a user could forge numbers.'
+      }
+    };
+
+    window.checkQuiz = function() {
+      document.querySelectorAll('.quiz-question-block').forEach(q => {
+        const selected = q.querySelector('.quiz-option.selected');
+        const correctValue = q.dataset.correct;
+        const questionId = q.dataset.question;
+        const feedback = q.querySelector('.quiz-feedback');
+
+        if (!selected) {
+          feedback.textContent = 'Select an answer first!';
+          feedback.className = 'quiz-feedback show error';
+          return;
+        }
+
+        q.querySelectorAll('.quiz-option').forEach(o => o.disabled = true);
+
+        if (selected.dataset.value === correctValue) {
+          selected.classList.add('correct');
+          feedback.innerHTML = '<strong>✓ Correct!</strong> ' + explanations[questionId].correct;
+          feedback.className = 'quiz-feedback show success';
+        } else {
+          selected.classList.add('incorrect');
+          const correct = q.querySelector(`[data-value="${correctValue}"]`);
+          if (correct) correct.classList.add('correct');
+          feedback.innerHTML = '<strong>✗ Not quite.</strong> ' + explanations[questionId].incorrect;
+          feedback.className = 'quiz-feedback show error';
+        }
+      });
+    };
+
+    window.resetQuiz = function() {
+      document.querySelectorAll('.quiz-question-block').forEach(q => {
+        q.querySelectorAll('.quiz-option').forEach(o => {
+          o.classList.remove('selected', 'correct', 'incorrect');
+          o.disabled = false;
+        });
+        q.querySelector('.quiz-feedback').className = 'quiz-feedback';
+        q.querySelector('.quiz-feedback').textContent = '';
+      });
+    };
+  </script>
+</body>
+</html>

@@ -27,6 +27,7 @@ services:
         fromDatabase:
           name: mail-tracker-db
           property: connectionString
+      
 
 databases:
   # PostgreSQL Database

@@ -71,3 +71,78 @@ export const ACTION_STATUS_COLORS = {
   'Consulting': 'secondary',
   'Verification': 'info',
 };
+
+// Status Indicator Styles (dot + text pattern)
+// For minimal, data-product-like status display
+export const STATUS_INDICATOR = {
+  [MAIL_STATUS.CREATED]: {
+    dotColor: '#9CA3AF',    // Gray
+    label: 'Created',
+    textColor: '#636E72',
+  },
+  [MAIL_STATUS.ASSIGNED]: {
+    dotColor: '#6B7280',    // Darker gray
+    label: 'Assigned',
+    textColor: '#2D3436',
+  },
+  [MAIL_STATUS.IN_PROGRESS]: {
+    dotColor: '#B8860B',    // Amber/Gold - active state
+    label: 'In Progress',
+    textColor: '#2D3436',
+  },
+  [MAIL_STATUS.CLOSED]: {
+    dotColor: '#5D7A5D',    // Muted green
+    label: 'Closed',
+    textColor: '#636E72',
+  },
+};
+
+// Legacy status colors (for backward compatibility)
+// Use STATUS_INDICATOR for new implementations
+export const STATUS_COLORS = {
+  [MAIL_STATUS.CREATED]: 'default',
+  [MAIL_STATUS.ASSIGNED]: 'default',
+  [MAIL_STATUS.IN_PROGRESS]: 'warning',
+  [MAIL_STATUS.CLOSED]: 'success',
+};
+
+// Status Chip mapping for Mail Detail page header
+export const DETAIL_STATUS_CHIP = {
+  [MAIL_STATUS.CREATED]: { label: 'Pending', color: 'default' },
+  [MAIL_STATUS.ASSIGNED]: { label: 'Pending', color: 'default' },
+  [MAIL_STATUS.IN_PROGRESS]: { label: 'In Progress', color: 'warning' },
+  [MAIL_STATUS.CLOSED]: { label: 'Closed', color: 'success' },
+};
+
+// Color palette reference (for inline styles when needed)
+export const PALETTE = {
+  // Primary
+  burgundy: '#6B1A1A',
+  burgundyLight: '#8B2A2A',
+  burgundyDark: '#4A1212',
+
+  // Background
+  cream: '#FAFAF8',
+  paper: '#FFFFFF',
+  subtle: '#F5F4F2',
+
+  // Text
+  textPrimary: '#2D3436',
+  textSecondary: '#636E72',
+  textMuted: '#B2BEC3',
+
+  // Borders
+  border: '#E8E6E3',
+  borderDark: '#D3D0CB',
+
+  // Accents
+  amber: '#B8860B',
+  amberLight: '#D4A020',
+  green: '#5D7A5D',
+
+  // Status dots
+  dotGray: '#6B7280',
+  dotAmber: '#B8860B',
+  dotGreen: '#5D7A5D',
+  dotRed: '#8B2A2A',
+};
