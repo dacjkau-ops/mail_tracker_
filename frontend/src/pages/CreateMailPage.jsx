@@ -25,6 +25,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import mailService from '../services/mailService';
 import { useAuth } from '../context/AuthContext';
+import { serializeDateOnly } from '../utils/dateHelpers';
 
 const sortSectionOptions = (options) =>
   [...options].sort((left, right) => left.name.localeCompare(right.name));
@@ -361,8 +362,8 @@ const CreateMailPage = () => {
     try {
       const mailData = {
         letter_no: data.letter_no,
-        dated: data.dated ? data.dated.toISOString().split('T')[0] : null,
-        date_received: data.date_received.toISOString().split('T')[0],
+        dated: serializeDateOnly(data.dated),
+        date_received: serializeDateOnly(data.date_received),
         mail_reference_subject: data.mail_reference_subject,
         from_office: data.from_office,
         action_required: data.action_required,
@@ -370,7 +371,7 @@ const CreateMailPage = () => {
           ? data.assigned_to.map((assignee) => assignee.id)
           : [data.assigned_to],
         section: isAG && data.section ? Number(data.section) : null,
-        due_date: data.due_date ? data.due_date.toISOString().split('T')[0] : null,
+        due_date: serializeDateOnly(data.due_date),
         initial_instructions: data.initial_instructions || '',
       };
 

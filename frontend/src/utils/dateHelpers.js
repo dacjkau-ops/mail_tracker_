@@ -1,4 +1,22 @@
-import { formatDistance, format, isPast } from 'date-fns';
+import { formatDistance, format, isBefore, startOfToday } from 'date-fns';
+
+const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+export const parseDateValue = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === 'string' && DATE_ONLY_REGEX.test(value)) {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+  return new Date(value);
+};
+
+export const serializeDateOnly = (value) => {
+  const parsed = parseDateValue(value);
+  if (!parsed || Number.isNaN(parsed.getTime())) return null;
+  return format(parsed, 'yyyy-MM-dd');
+};
 
 /**
  * Calculate time in current stage
@@ -9,8 +27,12 @@ import { formatDistance, format, isPast } from 'date-fns';
 export const calculateTimeInStage = (lastStatusChangeDate, dateOfCompletion = null) => {
   if (!lastStatusChangeDate) return 'N/A';
 
-  const startDate = new Date(lastStatusChangeDate);
-  const endDate = dateOfCompletion ? new Date(dateOfCompletion) : new Date();
+  const startDate = parseDateValue(lastStatusChangeDate);
+  const endDate = dateOfCompletion ? parseDateValue(dateOfCompletion) : new Date();
+
+  if (!startDate || Number.isNaN(startDate.getTime()) || !endDate || Number.isNaN(endDate.getTime())) {
+    return 'N/A';
+  }
 
   return formatDistance(startDate, endDate);
 };
@@ -23,7 +45,9 @@ export const calculateTimeInStage = (lastStatusChangeDate, dateOfCompletion = nu
  */
 export const isOverdue = (dueDate, status) => {
   if (!dueDate || status === 'Closed') return false;
-  return isPast(new Date(dueDate));
+  const parsedDueDate = parseDateValue(dueDate);
+  if (!parsedDueDate || Number.isNaN(parsedDueDate.getTime())) return false;
+  return isBefore(parsedDueDate, startOfToday());
 };
 
 /**
@@ -34,7 +58,9 @@ export const isOverdue = (dueDate, status) => {
  */
 export const formatDate = (dateString, formatString = 'dd-MM-yyyy') => {
   if (!dateString) return 'N/A';
-  return format(new Date(dateString), formatString);
+  const parsedDate = parseDateValue(dateString);
+  if (!parsedDate || Number.isNaN(parsedDate.getTime())) return 'N/A';
+  return format(parsedDate, formatString);
 };
 
 /**
@@ -44,5 +70,7 @@ export const formatDate = (dateString, formatString = 'dd-MM-yyyy') => {
  */
 export const formatDateTime = (dateString) => {
   if (!dateString) return 'N/A';
-  return format(new Date(dateString), 'dd-MM-yyyy HH:mm');
+  const parsedDate = parseDateValue(dateString);
+  if (!parsedDate || Number.isNaN(parsedDate.getTime())) return 'N/A';
+  return format(parsedDate, 'dd-MM-yyyy HH:mm');
 };
