@@ -5,7 +5,6 @@ from .models import MailRecord, MailAssignment, AssignmentRemark
 from users.serializers import UserMinimalSerializer
 from sections.serializers import SectionSerializer, SubsectionSerializer
 from sections.models import Section, Subsection
-from sections.models import Section, Subsection
 
 
 def _officer_in_dag_sections(officer, dag_section_ids):
@@ -81,7 +80,7 @@ class MailRecordListSerializer(serializers.ModelSerializer):
     class Meta:
         model = MailRecord
         fields = [
-            'id', 'sl_no', 'letter_no', 'mail_reference_subject', 'from_office',
+            'id', 'sl_no', 'letter_no', 'dated', 'mail_reference_subject', 'from_office',
             'assigned_to', 'assigned_to_name', 'current_handler', 'current_handler_name',
             'section', 'section_name', 'subsection', 'subsection_name', 'due_date', 'status', 'date_of_completion',
             'time_in_stage', 'is_overdue', 'created_at', 'current_action_status', 'current_action_remarks', 'current_action_updated_at',
@@ -269,7 +268,7 @@ class MailRecordCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = MailRecord
         fields = [
-            'letter_no', 'date_received', 'mail_reference_subject', 'from_office',
+            'letter_no', 'dated', 'date_received', 'mail_reference_subject', 'from_office',
             'action_required', 'section', 'subsection', 'assigned_to',
             'due_date', 'initial_instructions'
         ]
@@ -291,6 +290,7 @@ class MailRecordCreateSerializer(serializers.ModelSerializer):
             user = request.user
             assigned_to_ids = data.get('assigned_to', [])
             selected_section = data.get('section')
+            selected_section_id = selected_section.id if selected_section else None
 
             # Validate assignees exist and are active
             assignees = User.objects.filter(
@@ -303,57 +303,62 @@ class MailRecordCreateSerializer(serializers.ModelSerializer):
                 })
 
             if selected_section is not None:
-                if not Section.objects.filter(id=selected_section).exists():
+                if not Section.objects.filter(id=selected_section_id).exists():
                     raise serializers.ValidationError({
                         'section': 'Selected section does not exist.'
                     })
 
             # Role-based section validation and assignee scope enforcement
             if user.is_ag():
-                # AG: infer section from assignees when possible.
-                # For DAG assignees, infer only when they manage exactly one section.
-                inferred_sections = set()
-                ambiguous_dags = []
-
+                # AG: a mail must resolve to one concrete section unless it is a
+                # clean cross-section assignment across already-fixed single sections.
+                assignee_scopes = []
                 for assignee in assignees:
                     if assignee.subsection_id:
-                        inferred_sections.add(assignee.subsection.section_id)
-                        continue
+                        assignee_scopes.append((assignee, {assignee.subsection.section_id}))
+                    elif assignee.role == 'DAG':
+                        dag_sections = set(assignee.sections.values_list('id', flat=True))
+                        if dag_sections:
+                            assignee_scopes.append((assignee, dag_sections))
 
-                    if assignee.role == 'DAG':
-                        dag_sections = list(assignee.sections.values_list('id', flat=True))
-                        if selected_section is not None:
-                            if selected_section not in dag_sections:
-                                raise serializers.ValidationError({
-                                    'section': f'Selected section is not managed by DAG {assignee.full_name}.'
-                                })
-                            inferred_sections.add(selected_section)
-                        elif len(dag_sections) == 1:
-                            inferred_sections.add(dag_sections[0])
-                        elif len(dag_sections) > 1:
-                            ambiguous_dags.append(assignee.full_name)
-
-                if selected_section is not None:
+                if selected_section_id is not None:
+                    invalid_assignees = [
+                        assignee.full_name
+                        for assignee, allowed_sections in assignee_scopes
+                        if allowed_sections and selected_section_id not in allowed_sections
+                    ]
+                    if invalid_assignees:
+                        raise serializers.ValidationError({
+                            'section': (
+                                'Selected section is not valid for: '
+                                + ', '.join(invalid_assignees)
+                            )
+                        })
                     data['section'] = selected_section
-                elif len(inferred_sections) == 1:
-                    data['section'] = inferred_sections.pop()
-                elif len(inferred_sections) > 1:
-                    # Cross-section assignment
-                    data['section'] = None
-                elif ambiguous_dags:
-                    raise serializers.ValidationError({
-                        'section': (
-                            'Section is required when assigning to DAG(s) managing multiple sections: '
-                            + ', '.join(ambiguous_dags)
-                        )
-                    })
+                elif assignee_scopes:
+                    common_sections = set.intersection(*[allowed_sections for _, allowed_sections in assignee_scopes])
+                    if len(common_sections) == 1:
+                        data['section'] = Section.objects.get(id=common_sections.pop())
+                    elif len(common_sections) > 1:
+                        raise serializers.ValidationError({
+                            'section': 'Please select which section this letter pertains to.'
+                        })
+                    elif any(len(allowed_sections) > 1 for _, allowed_sections in assignee_scopes):
+                        raise serializers.ValidationError({
+                            'section': (
+                                'Selected assignees do not resolve to a single section. '
+                                'Please choose assignees from one common section.'
+                            )
+                        })
+                    else:
+                        data['section'] = None
                 else:
                     data['section'] = None
 
             elif user.is_dag():
                 # DAG: validate selected section is one they manage
                 if selected_section is not None:
-                    if not user.sections.filter(id=selected_section).exists():
+                    if not user.sections.filter(id=selected_section_id).exists():
                         raise serializers.ValidationError({
                             'section': 'You can only create mails for sections you manage.'
                         })

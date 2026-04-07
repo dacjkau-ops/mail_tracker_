@@ -362,23 +362,13 @@ class MailRecordViewSet(viewsets.ModelViewSet):
         monitoring_officer = primary_assignee.get_dag()
 
         # Determine section and subsection based on creator's role
-        section_id = serializer.validated_data.pop('section', None)
-        section = None
+        section = serializer.validated_data.pop('section', None)
 
         if user.role == 'AG':
-            # AG: section from serializer (may be inferred or null for cross-section)
-            if section_id:
-                try:
-                    section = Section.objects.get(id=section_id)
-                except Section.DoesNotExist:
-                    pass
+            # AG: serializer already resolved section or cross-section/null.
+            pass
         elif user.role == 'DAG':
             # DAG: section from serializer or inferred from first managed section
-            if section_id:
-                try:
-                    section = Section.objects.get(id=section_id)
-                except Section.DoesNotExist:
-                    pass
             if not section:
                 # Use first managed section as default
                 section = user.sections.first()

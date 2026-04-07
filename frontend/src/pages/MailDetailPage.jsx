@@ -78,7 +78,7 @@ const MailDetailPage = () => {
     try {
       const data = await mailService.getMailById(id);
       setMail(data);
-    } catch (err) {
+    } catch {
       setError('Failed to load mail details. Please try again.');
     } finally {
       setLoading(false);
@@ -610,7 +610,7 @@ const MailDetailPage = () => {
                 mb: 0.25,
               }}
             >
-              Letter No: {mail.letter_no}
+              Letter No: {mail.letter_no}{mail.dated ? ` | Dated: ${formatDate(mail.dated)}` : ''}
             </Typography>
             <Typography
               variant="body1"

@@ -95,12 +95,20 @@ class UserMinimalSerializer(serializers.ModelSerializer):
 class UserAssignableSerializer(serializers.ModelSerializer):
     """Lean serializer for assignment dropdowns."""
     subsection_detail = SubsectionSerializer(source='subsection', read_only=True)
+    sections_list = serializers.SerializerMethodField()
+
+    def get_sections_list(self, obj):
+        if obj.role == 'DAG':
+            return [{'id': s.id, 'name': s.name} for s in obj.sections.all()]
+        if obj.subsection:
+            return [{'id': obj.subsection.section.id, 'name': obj.subsection.section.name}]
+        return []
 
     class Meta:
         model = User
         fields = [
             'id', 'full_name', 'role', 'actual_role',
-            'sections', 'subsection', 'subsection_detail'
+            'sections', 'sections_list', 'subsection', 'subsection_detail'
         ]
         read_only_fields = fields
 

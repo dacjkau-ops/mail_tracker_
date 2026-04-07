@@ -248,6 +248,8 @@ const MailListPage = () => {
         switch (orderBy) {
           case 'sl_no':
             return Number(mail.sl_no);
+          case 'dated':
+            return mail.dated ? new Date(mail.dated) : null;
           case 'assigned_to':
             return mail.is_multi_assigned
               ? (mail.assignees_display || []).join(', ')
@@ -472,6 +474,21 @@ const MailListPage = () => {
                 <TableCell sx={{ ...tableHeaderCellSx, width: 100, minWidth: 100 }}>
                   Letter No
                 </TableCell>
+                <TableCell sx={{ ...tableHeaderCellSx, width: 100, minWidth: 100 }}>
+                  <TableSortLabel
+                    active={orderBy === 'dated'}
+                    direction={orderBy === 'dated' ? order : 'asc'}
+                    onClick={() => handleSort('dated')}
+                    sx={{
+                      color: `${PALETTE.textMuted} !important`,
+                      '& .MuiTableSortLabel-icon': {
+                        color: `${PALETTE.textMuted} !important`,
+                      },
+                    }}
+                  >
+                    Dated
+                  </TableSortLabel>
+                </TableCell>
                 <TableCell sx={tableHeaderCellSx}>Subject</TableCell>
                 <TableCell sx={{ ...tableHeaderCellSx, width: 150, minWidth: 130 }}>
                   From Office
@@ -527,7 +544,9 @@ const MailListPage = () => {
                 <TableCell sx={{ ...tableHeaderCellSx, width: 110, minWidth: 110 }}>
                   Status
                 </TableCell>
-                
+                <TableCell sx={{ ...tableHeaderCellSx, width: 120, minWidth: 120 }}>
+                  Time in Stage
+                </TableCell>
                 <TableCell sx={{ ...tableHeaderCellSx, width: 100, minWidth: 90 }}>
                   <TableSortLabel
                     active={orderBy === 'date_of_completion'}
@@ -552,7 +571,7 @@ const MailListPage = () => {
             <TableBody>
               {sortedMails.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={13} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={14} align="center" sx={{ py: 6 }}>
                     <Typography variant="body2" sx={{ color: PALETTE.textSecondary }}>
                       No records found matching your criteria
                     </Typography>
@@ -610,6 +629,16 @@ const MailListPage = () => {
 
                       <TableCell sx={{ verticalAlign: 'top', color: PALETTE.textPrimary }}>
                         {mail.letter_no || '-'}
+                      </TableCell>
+
+                      <TableCell
+                        sx={{
+                          verticalAlign: 'top',
+                          color: PALETTE.textSecondary,
+                          fontVariantNumeric: 'tabular-nums',
+                        }}
+                      >
+                        {mail.dated ? formatDate(mail.dated) : '-'}
                       </TableCell>
 
                       <TableCell sx={{ verticalAlign: 'top' }}>

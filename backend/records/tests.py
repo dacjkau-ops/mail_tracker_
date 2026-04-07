@@ -81,6 +81,44 @@ class MailRecordWorkflowTests(APITestCase):
         ids = [item['id'] for item in self._rows(list_response)]
         self.assertIn(created_id, ids)
 
+    def test_ag_create_with_multi_section_dag_requires_section_and_persists_dated(self):
+        dag = User.objects.create_user(
+            username='dag_multi_create',
+            password='pass12345',
+            email='dag-multi-create@example.com',
+            full_name='DAG Multi Create',
+            role='DAG',
+        )
+        extra_section = Section.objects.create(name='Finance')
+        dag.sections.set([self.section, extra_section])
+
+        self.client.force_authenticate(user=self.ag)
+
+        payload = {
+            'letter_no': 'AG/DAG/001',
+            'dated': timezone.now().date().isoformat(),
+            'date_received': timezone.now().date().isoformat(),
+            'mail_reference_subject': 'AG to multi-section DAG',
+            'from_office': 'AG Office',
+            'action_required': 'Review',
+            'assigned_to': [dag.id],
+            'due_date': (timezone.now().date() + timedelta(days=3)).isoformat(),
+            'initial_instructions': 'Pick the correct section',
+        }
+
+        missing_section_response = self.client.post(reverse('mailrecord-list'), payload, format='json')
+        self.assertEqual(missing_section_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('section', missing_section_response.data)
+
+        create_response = self.client.post(
+            reverse('mailrecord-list'),
+            {**payload, 'section': self.section.id},
+            format='json',
+        )
+        self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(create_response.data['section'], self.section.id)
+        self.assertEqual(create_response.data['dated'], payload['dated'])
+
     def test_status_scope_filters_assigned_created_by_me_closed(self):
         assigned_mail = MailRecord.objects.create(
             letter_no='AAO/ASSIGNED',

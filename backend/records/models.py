@@ -60,6 +60,11 @@ class MailRecord(models.Model):
 
     # Mail details
     letter_no = models.CharField(max_length=200)
+    dated = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Actual date printed on the letter"
+    )
     date_received = models.DateField(default=timezone.now)
     mail_reference_subject = models.TextField()
     from_office = models.CharField(max_length=200)

@@ -33,6 +33,7 @@ export const exportMailListToPDF = (mails, filters = {}) => {
   const tableData = mails.map((mail) => [
     mail.sl_no || '',
     mail.letter_no || '',
+    mail.dated ? formatDate(mail.dated) : '',
     (mail.mail_reference_subject || '').substring(0, 40) + (mail.mail_reference_subject?.length > 40 ? '...' : ''),
     mail.from_office || '',
     (mail.is_multi_assigned && mail.assignees_display?.length > 0)
@@ -52,6 +53,7 @@ export const exportMailListToPDF = (mails, filters = {}) => {
       [
         'SL No',
         'Letter No',
+        'Dated',
         'Subject',
         'From Office',
         'Assigned To',
@@ -76,14 +78,15 @@ export const exportMailListToPDF = (mails, filters = {}) => {
     columnStyles: {
       0: { cellWidth: 20 }, // SL No
       1: { cellWidth: 25 }, // Letter No
-      2: { cellWidth: 45 }, // Subject
-      3: { cellWidth: 30 }, // From Office
-      4: { cellWidth: 30 }, // Assigned To
-      5: { cellWidth: 30 }, // Current Handler
-      6: { cellWidth: 25 }, // Due Date
-      7: { cellWidth: 22 }, // Status
-      8: { cellWidth: 25 }, // Time in Stage
-      9: { cellWidth: 25 }, // Completion Date
+      2: { cellWidth: 22 }, // Dated
+      3: { cellWidth: 45 }, // Subject
+      4: { cellWidth: 30 }, // From Office
+      5: { cellWidth: 30 }, // Assigned To
+      6: { cellWidth: 30 }, // Current Handler
+      7: { cellWidth: 25 }, // Due Date
+      8: { cellWidth: 22 }, // Status
+      9: { cellWidth: 25 }, // Time in Stage
+      10: { cellWidth: 25 }, // Completion Date
     },
     didParseCell: function (data) {
       // Highlight overdue rows
