@@ -1,5 +1,17 @@
 import { createTheme } from '@mui/material/styles';
 
+const APP_FONT_STACK = [
+  '"Inter"',
+  '"Noto Sans Devanagari"',
+  '"Nirmala UI"',
+  '"Mangal"',
+  '"Kohinoor Devanagari"',
+  '-apple-system',
+  'BlinkMacSystemFont',
+  '"Segoe UI"',
+  'sans-serif',
+].join(', ');
+
 export const THEME_TOKENS = {
   primary: '#6B1A1A',
   primaryDark: '#571515',
@@ -88,7 +100,7 @@ export const appTheme = createTheme({
     borderRadius: THEME_TOKENS.buttonRadius,
   },
   typography: {
-    fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    fontFamily: APP_FONT_STACK,
     fontWeightRegular: 400,
     fontWeightMedium: 500,
     fontWeightBold: 500,
